@@ -1,0 +1,107 @@
+{
+  "skills": [
+    {
+      "name": "brainstorming",
+      "description": "You MUST use this before any creative work - creating features, building components, adding functionality, or modifying behavior. Explores user intent, requirements and design before implementation. Terminal state is invoking writing-plans; it has a HARD-GATE forbidding any implementation skill/code until the user approves a design.",
+      "delegate": true,
+      "routing": "Hand off ANY 'let's build/design a new minigame/feature/economy' request to superpowers:brainstorming first. wagerforge implementation/domain skills must not run until brainstorming reaches its design-approved terminal state and chains into writing-plans."
+    },
+    {
+      "name": "dispatching-parallel-agents",
+      "description": "Use when facing 2+ independent tasks that can be worked on without shared state or sequential dependencies. Generic orchestration pattern for fanning out subagents.",
+      "delegate": true,
+      "routing": "When wagerforge work has 2+ independent units (e.g. configuring several independent minigames, multiple unrelated payout-table edits), delegate the fan-out orchestration to this skill rather than reimplementing parallel dispatch."
+    },
+    {
+      "name": "executing-plans",
+      "description": "Use when you have a written implementation plan to execute in a separate session with review checkpoints. Loads plan, reviews critically, executes tasks with verification, chains into finishing-a-development-branch. Recommends subagent-driven-development when subagents are available.",
+      "delegate": true,
+      "routing": "After a wagerforge plan exists, delegate execution to executing-plans (or subagent-driven-development). wagerforge supplies the domain plan content; it does not own the execution loop."
+    },
+    {
+      "name": "finishing-a-development-branch",
+      "description": "Use when implementation is complete, all tests pass, and you need to decide how to integrate the work - presents structured options for merge, PR, or cleanup.",
+      "delegate": true,
+      "routing": "At the end of any wagerforge feature, delegate branch-finishing (merge/PR/cleanup decision) to this skill. Do not duplicate git-integration decision logic in domain skills."
+    },
+    {
+      "name": "receiving-code-review",
+      "description": "Use when receiving code review feedback, before implementing suggestions, especially if feedback seems unclear or technically questionable - requires technical rigor and verification, not performative agreement or blind implementation.",
+      "delegate": true,
+      "routing": "Generic; delegate whenever wagerforge work receives review feedback. No domain variant needed."
+    },
+    {
+      "name": "requesting-code-review",
+      "description": "Use when completing tasks, implementing major features, or before merging to verify work meets requirements.",
+      "delegate": true,
+      "routing": "Generic; delegate before merging any wagerforge feature. A domain skill may optionally pass extra review focus areas (e.g. RNG fairness, payout correctness) as context, but the review-request process itself is delegated."
+    },
+    {
+      "name": "subagent-driven-development",
+      "description": "Use when executing implementation plans with independent tasks in the current session. Subagent-per-task execution with two-stage review (spec compliance then code quality) between tasks.",
+      "delegate": true,
+      "routing": "Preferred execution engine on subagent-capable platforms. Delegate plan execution here; wagerforge contributes domain task definitions, not the execution/review machinery."
+    },
+    {
+      "name": "systematic-debugging",
+      "description": "Use when encountering any bug, test failure, or unexpected behavior, before proposing fixes. Root-cause-first debugging discipline.",
+      "delegate": true,
+      "routing": "Delegate all debugging entry points. If a wagerforge bug needs domain context (e.g. RTP/house-edge math, RNG seeding, settlement mismatch), wagerforge can provide a domain-specific debugging companion that is INVOKED FROM WITHIN systematic-debugging, not a replacement for it."
+    },
+    {
+      "name": "test-driven-development",
+      "description": "Use when implementing any feature or bugfix, before writing implementation code. Defines the RED-GREEN-REFACTOR Iron Law that writing-skills and other skills depend on.",
+      "delegate": true,
+      "routing": "Delegate the TDD discipline itself. wagerforge MAY add a thin domain skill describing WHAT to test for iGaming (RTP/house-edge invariants, fairness/provable-fairness checks, payout-table property tests, regulatory edge cases) but it must require superpowers:test-driven-development as the underlying RED-GREEN-REFACTOR process."
+    },
+    {
+      "name": "using-git-worktrees",
+      "description": "Use when starting feature work that needs isolation from current workspace or before executing implementation plans - ensures an isolated workspace exists via native tools or git worktree fallback.",
+      "delegate": true,
+      "routing": "Generic workspace isolation; delegate at the start of isolated wagerforge feature work. No domain variant."
+    },
+    {
+      "name": "using-superpowers",
+      "description": "Use when starting any conversation - establishes how to find and use skills, requiring Skill tool invocation before ANY response. Defines instruction priority (user > skills > system), process-skills-before-implementation-skills ordering, and the 1%-chance-means-invoke rule.",
+      "delegate": true,
+      "routing": "This is the meta-router. wagerforge's own 'using-wagerforge' skill should mirror its conventions and explicitly defer to it: process skills (brainstorming/debugging/TDD) run before any wagerforge implementation skill, per the Skill Priority section."
+    },
+    {
+      "name": "verification-before-completion",
+      "description": "Use when about to claim work is complete, fixed, or passing, before committing or creating PRs - requires running verification commands and confirming output before any success claim; evidence before assertions.",
+      "delegate": true,
+      "routing": "Delegate the completion-gate discipline universally. wagerforge may supply domain verification commands (run the simulator, confirm RTP within tolerance, validate payout tables) as the evidence, but the 'no claims without evidence' gate is owned by this skill."
+    },
+    {
+      "name": "writing-plans",
+      "description": "Use when you have a spec or requirements for a multi-step task, before touching code. Turns an approved design/spec into a bite-sized, verifiable implementation plan; is the terminal handoff target of brainstorming.",
+      "delegate": true,
+      "routing": "Delegate plan authoring. wagerforge feeds it the domain spec produced by brainstorming; the plan-structure conventions are owned by superpowers."
+    },
+    {
+      "name": "writing-skills",
+      "description": "Use when creating new skills, editing existing skills, or verifying skills work before deployment. Defines the SKILL.md authoring standard and applies TDD (RED-GREEN-REFACTOR, Iron Law: no skill without a failing test first) to process documentation. Requires test-driven-development as background.",
+      "delegate": true,
+      "routing": "MANDATORY whenever authoring or editing ANY wagerforge SKILL.md. wagerforge does not get its own skill-authoring process; it follows this one (and its authoringStandards) exactly, including baseline-pressure-testing each domain skill before deployment."
+    }
+  ],
+  "integrationRecommendation": "DECLARE SUPERPOWERS AS A COMPANION DEPENDENCY (no hard manifest field exists, so do it by convention + soft-check):\n1. Manifest: ship wagerforge with the standard Claude Code plugin layout mirroring superpowers — `/.claude-plugin/plugin.json` (name, description, version, author, homepage, keywords) and a `marketplace.json` entry. Claude Code's plugin.json has no formal `dependencies`/`requires` field (superpowers' own plugin.json at /Users/chaowang/.claude/plugins/cache/claude-plugins-official/superpowers/5.1.0/.claude-plugin/plugin.json declares none), so express the dependency two ways: (a) document 'Requires: superpowers (obra/superpowers) >= 5.x' in wagerforge README/description and list it in the same marketplace so both install together; (b) add a runtime soft-check — a 'using-wagerforge' bootstrap (and/or a SessionStart hook mirroring superpowers' hooks/ dir) that verifies superpowers skills are resolvable and emits a clear 'install superpowers companion plugin' message if not, instead of silently degrading.\n\n2. CROSS-REFERENCE BY NAMESPACED SKILL NAME, NEVER COPY. Superpowers skills reference each other as `superpowers:skill-name` with REQUIRED markers (e.g. executing-plans -> `**REQUIRED SUB-SKILL:** Use superpowers:finishing-a-development-branch`; brainstorming's terminal state -> writing-plans). wagerforge skills must do the same: reference `superpowers:test-driven-development`, `superpowers:brainstorming`, etc. by name with `**REQUIRED SUB-SKILL:**` / `**REQUIRED BACKGROUND:**` markers. Never use `@`-links (force-loads, burns context) and never Read superpowers skill files directly — invoke via the Skill tool (per using-superpowers).\n\n3. 'using-wagerforge' AS A DOMAIN ROUTER THAT DEFERS TO using-superpowers. Model it on /Users/chaowang/.claude/plugins/cache/claude-plugins-official/superpowers/5.1.0/skills/using-superpowers/SKILL.md and its Skill Priority section. Routing rule: GENERIC engineering process (ideation, planning, plan execution, TDD discipline, debugging discipline, code review request/receipt, parallel dispatch, worktree isolation, completion verification, branch finishing, skill authoring) => DELEGATE to the corresponding superpowers skill. DOMAIN tasks (minigame mechanics, RTP/house-edge/payout-table math, RNG & provable-fairness, crypto wagering/settlement, iGaming compliance) => route to wagerforge skills. Critically, process-before-implementation ordering still holds: a wagerforge build request goes superpowers:brainstorming -> superpowers:writing-plans -> superpowers:subagent-driven-development/executing-plans, with wagerforge domain skills invoked only inside the implementation phase. wagerforge process-adjacent skills should be thin WRAPPERS that add domain WHAT (e.g. 'test for RTP invariants and provable-fairness') while requiring the superpowers HOW (RED-GREEN-REFACTOR), so there is zero duplication of generic process.\n\n4. RESPECT INSTRUCTION PRIORITY: user CLAUDE.md/AGENTS.md > skills > system. wagerforge skills must not override user instructions and should yield to superpowers conventions where they overlap.",
+  "authoringStandards": [
+    "Frontmatter: YAML with exactly two REQUIRED fields, name and description; entire frontmatter max 1024 characters (description ideally <500). Source: writing-skills/SKILL.md:95-104, 607-610.",
+    "name field: letters, numbers, and hyphens ONLY (no parentheses/special chars); prefer active, verb-first / gerund names by what you DO or the core insight (e.g. condition-based-waiting not async-test-helpers; using-superpowers not skill-usage). writing-skills/SKILL.md:98, 208-211, 268-276.",
+    "description = WHEN to use only, NOT what the skill does. Start with 'Use when...', third person, include concrete triggers/symptoms/keywords. NEVER summarize the skill's process/workflow — doing so makes Claude follow the description and skip the body (the documented two-review-collapsed-to-one failure). writing-skills/SKILL.md:99-104, 150-197.",
+    "Keyword coverage (CSO): seed error messages, symptoms (flaky, hang, race condition), synonyms, and actual tool/command/library names so future Claude can find the skill; put searchable terms early. writing-skills/SKILL.md:199-206, 636-645.",
+    "Standard SKILL.md structure: H1 title; Overview (core principle in 1-2 sentences); When to Use (symptoms + when NOT to use); Core Pattern (before/after for techniques); Quick Reference table; Implementation (inline or linked); Common Mistakes; optional Real-World Impact. writing-skills/SKILL.md:105-137.",
+    "Token efficiency: getting-started/frequently-loaded skills <150-200 words, other skills <500 words; move flag/detail docs to --help, use cross-references instead of repeating, compress examples, eliminate redundancy; verify with wc -w. writing-skills/SKILL.md:213-266.",
+    "Cross-reference other skills by name with explicit requirement markers (**REQUIRED SUB-SKILL:** / **REQUIRED BACKGROUND:** Use superpowers:skill-name). Do NOT use @-links (they force-load and burn 200k+ context) and do not write ambiguous path references. writing-skills/SKILL.md:278-289.",
+    "Flowcharts (graphviz dot) ONLY for non-obvious decision points, early-stop process loops, or A-vs-B choices — keep them small and inline. NEVER use flowcharts for reference material (use tables/lists), code examples (use markdown blocks), linear instructions (use numbered lists), or generic/semantically-empty labels (step1, helper2). Follow graphviz-conventions.dot. writing-skills/SKILL.md:290-322, 562-581.",
+    "Code examples: one excellent, complete, runnable, WHY-commented example from a real scenario in the single most relevant language — never implement in 5+ languages, never fill-in-the-blank templates, never contrived examples. writing-skills/SKILL.md:324-345.",
+    "File organization: flat skill namespace; self-contained SKILL.md when it all fits; split out separate files ONLY for reusable tools/scripts or heavy reference (100+ lines of API/syntax). Keep principles, concepts, and code patterns <50 lines inline. writing-skills/SKILL.md:72-92, 347-372.",
+    "The Iron Law: NO SKILL WITHOUT A FAILING TEST FIRST — applies to NEW skills AND every EDIT (not even for 'just adding a section'/'doc update'); if you wrote the skill before testing, delete it and start over (delete means delete). writing-skills/SKILL.md:374-393.",
+    "Follow RED-GREEN-REFACTOR for skills: RED = run pressure scenarios with subagents WITHOUT the skill and record verbatim baseline rationalizations; GREEN = write the minimal skill addressing those specific failures and re-run; REFACTOR = close newly-found loopholes until bulletproof. Requires understanding superpowers:test-driven-development as background. writing-skills/SKILL.md:18, 30-45, 533-561.",
+    "Bulletproof discipline-enforcing skills: close every loophole explicitly (forbid named workarounds), add 'violating the letter is violating the spirit' principle early, build a rationalization table (Excuse vs Reality), and a 'Red Flags - STOP' self-check list. writing-skills/SKILL.md:459-531.",
+    "Create a skill only when the technique is non-obvious, reusable across projects, and broadly applicable; do NOT create skills for one-off solutions, well-documented standard practices, project-specific conventions (put those in CLAUDE.md), or mechanically-enforceable constraints (automate with regex/validation instead). writing-skills/SKILL.md:47-60.",
+    "No narrative/storytelling ('in session 2025-10-03 we found...') — skills are reusable reference guides, not retellings of one fix. writing-skills/SKILL.md:26-29, 562-567.",
+    "Deployment discipline: STOP after each skill and complete the full TDD checklist before moving on (no batching untested skills); use TodoWrite per checklist item; then commit/push and consider contributing back. writing-skills/SKILL.md:583-634."
+  ]
+}

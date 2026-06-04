@@ -1,0 +1,13 @@
+{
+  "name": "wagerforge-dev",
+  "description": "Development marketplace for the wagerforge iGaming skills library",
+  "owner": { "name": "Chao Wang" },
+  "plugins": [
+    {
+      "name": "wagerforge",
+      "description": "iGaming superpowers (companion to superpowers). Requires the superpowers plugin >= 5.x for generic engineering process.",
+      "version": "0.1.0",
+      "source": "./"
+    }
+  ]
+}

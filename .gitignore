@@ -1,0 +1,17 @@
+# Dependencies (wagerforge tooling is zero-dep; guard the future)
+node_modules/
+
+# OS / editor noise
+.DS_Store
+*.log
+
+# Secret material — NEVER commit (credential handling uses secret managers / WIF)
+*.pem
+*.p12
+*.key
+.env
+.env.*
+!.env.example
+*service_account*.json
+*serviceaccount*.json
+google-credentials*.json

@@ -1,0 +1,708 @@
+[
+  {
+    "area": "Slot math configuration, server-authoritative math protocol, paytable/reel-strip/cluster config formats, and QA scenario tooling across real PIXI.js slot games",
+    "projectsExamined": [
+      "/Users/chaowang/Documents/Developments/Slots/zeus (Thunder of Zeus — 6x5 cascade, ways/scatter-count pays)",
+      "/Users/chaowang/Documents/Developments/Slots/medusa (Eye of Medusa — 6x5 cascade; has the richest architecture deep-dive docs)",
+      "/Users/chaowang/Documents/Developments/Slots/tartarus (original base project of the zeus/medusa reskin lineage)",
+      "/Users/chaowang/Documents/Developments/Slots/sweety-treaty-cluster-pay (Candy Crumble — 7x7 cluster-pay with scatter machine; full technical-reference + server-md)",
+      "/Users/chaowang/Documents/Developments/Slots/to-the-top (5x3 lines game with LOCAL numeric coinReels strips + coin-collect ladder feature)",
+      "/Users/chaowang/Documents/Developments/Slots/piggy-bank (a.k.a. Fruit Nudge — TypeScript Slot Framework V2, lines game with typed ResponseParser/GameConfigParser)",
+      "/Users/chaowang/Documents/Developments/Slots/valhalla + all-about-fish (sibling JS-framework games, skimmed to confirm shared connector/config conventions)"
+    ],
+    "patterns": [
+      {
+        "name": "Server-authoritative math; client is a pure renderer",
+        "summary": "Across ALL games, RNG, reel selection, win evaluation, RTP and feature triggers run on a remote math server (https://*.gladiatorgames.io) reached through a minified slotify/connector. The client calls connector.play(action, bet) and receives a fully-resolved result (final grid views, per-cascade waves, win amounts, multipliers, scatter level-ups, free-spin rounds). The client NEVER computes payouts or RTP — it only animates server results. Generic skills must treat math-config and math-engine as a server/back-office concern, with a strict client/server JSON contract between them.",
+        "exampleRef": "/Users/chaowang/Documents/Developments/Slots/sweety-treaty-cluster-pay/docs/technical-reference/09-server-protocol.md:42 (play response shape); state-manager.js:502 normalizeResponse",
+        "genericization": "Define a generic 'spin result contract' interface (balance, wager.data.{baseGame,freeGame,totalWin}, per-wave gameView/winInfo). Skill = math-engine emits it, client/presentation consumes it. Keep RNG+evaluation in a server module that the math-config skill parameterizes."
+      },
+      {
+        "name": "RLE-encoded integer paytable, payout = value/10 × bet",
+        "summary": "Server sends paytable as paytable[symbolId] = int[] indexed by win-count level. Payout multiplier = rawInt/10 (e.g. 120 -> 12.0x). Client run-length-decodes adjacent equal values into display ranges like '8','13-14','19+'. Static JSON paytables in game/config are DISPLAY-ONLY fallbacks; GetSymbolPayouts() prefers the server's initData.paytable. count offset: arrayIndex + 2 (min 2 symbols) + reelCount (6) = on-screen count for ways games.",
+        "exampleRef": "/Users/chaowang/Documents/Developments/Slots/medusa/docs/architecture/14-paytable-data.md:408-468 (GetSymbolPayouts RLE decode); piggy-bank/src/client/GameConfigParser.ts:58 _parsePayouts",
+        "genericization": "Standardize a paytable format: { symbolId: int[] } where value/SCALE = bet multiplier and array index maps to symbol-count via a documented offset. Provide an encode (designer table -> RLE int[]) and decode (int[] -> human ranges) utility pair in scripts/."
+      },
+      {
+        "name": "Reel strips as arrays of numeric symbol IDs",
+        "summary": "Reel strips ('wheels'/'coinReels'/'reelStrips') are 2D arrays of integer symbol IDs, one inner array per reel column (e.g. to-the-top coinReels = 5 strips of 75 IDs each). Server may send them in config.wheels; otherwise a local fallback strip lives in config (StartingReels uses NAMES; coinReels/testReels use IDs). piggy-bank de-stacks oversized (multi-row) symbols from strips so a 1x3 symbol occupies one strip slot.",
+        "exampleRef": "/Users/chaowang/Documents/Developments/Slots/to-the-top/game/config/config-desktop.json:51 coinReels; piggy-bank/src/client/GameConfigParser.ts:36 _parseReelStrips (oversized de-stacking)",
+        "genericization": "Define a canonical reel-strip JSON shape: int[][] keyed by mode (base/freegame/bonus). Provide helpers to map ID<->name via a symbol table, compute per-reel symbol frequency, and expand/collapse oversized stacked symbols."
+      },
+      {
+        "name": "Symbol ID table with type flags and drop weights",
+        "summary": "A central symbol table maps integer ID -> {name, isWild, isBonus/scatter, isHigh/isLow, dropWeight}. Names use lp-NN (low pay), hp-NN (high pay), wild, scatter, superscatter. dropWeight is a PHYSICS/visual cascade weight (e.g. scatter 1.8, hp 1.7, lp 1.5) NOT a math probability — actual symbol probability lives in the server reel strips. Note an intentional ID collision (silver-wild & superscatter share 12) because reverse lookup is name->ID one-way and wilds are never sent as winSymbol.",
+        "exampleRef": "/Users/chaowang/Documents/Developments/Slots/sweety-treaty-cluster-pay/docs/technical-reference/04-symbols-and-reels.md:3-17 (reskin-map.json table); medusa/docs/architecture/14-paytable-data.md:386-406 reverseSymbolLookup",
+        "genericization": "Skill artifact: a symbol-definition schema (id, name, kind, isWild, isScatter, payoutRowRef, dropWeight). Separate 'visual drop weight' from 'math weight' explicitly to avoid confusion."
+      },
+      {
+        "name": "Cluster-pay + per-cell doubling multiplier grid",
+        "summary": "7x7 grid; any symbol type in 5+ orthogonally-adjacent positions forms a winning cluster. A multiplier grid tracks every cell: when a cell participates in a win it activates and doubles each subsequent cascade win (1->2->4->...->1024 cap); only cells >=2x contribute. Grid resets per round (base) but PERSISTS across all free-spin cascades. Server sends multiplierView/updatedMultiplierView as per-reel JSON strings of ints (-1 = inactive). winInfo.winningArray entries carry {symbol, pay, win, multiplierSum, clusterPositions}.",
+        "exampleRef": "/Users/chaowang/Documents/Developments/Slots/sweety-treaty-cluster-pay/game_rules updated.txt (MultiplierMeter section); docs/technical-reference/09-server-protocol.md:77-105 (wave/winInfo); server-md/freegameResponseExample.json (multiplierView strings)",
+        "genericization": "Add a math-mechanic 'cluster pays' module: flood-fill adjacency over a grid, min-cluster-size param, and an orthogonal 'persistent doubling multiplier grid' option. Encode multiplier grid as int[][] with sentinel for inactive cells."
+      },
+      {
+        "name": "Scatter 'machine' progression replacing probabilistic free-spin trigger",
+        "summary": "Free-game trigger is a deterministic 10-level (or 7-level legacy) progression meter, not a flat scatter-count probability. Each landed scatter rolls a per-level weighted transition table (oneScatterTables/twoScatterTables, 18 tables = 9 levels x 2 cases, per mode baseGame/freegame/bonus/superbonus). 3+ scatters skip the table straight to max=trigger. Reward tiers map scatter count -> spins (e.g. retrigger reward [0,10,10,10,12,15,20,30], cap 100). Scatters persist on-screen across cascades. 'Boost' mode raises trigger odds and bet by 25-50%.",
+        "exampleRef": "/Users/chaowang/Documents/Developments/Slots/sweety-treaty-cluster-pay/server-md/scatterMachine.md:13-35 (level-up rules + reward tables); docs/technical-reference/09-server-protocol.md:273-360 (ScatterLevelUp protocol)",
+        "genericization": "Math-feature skill: 'progression-meter trigger' with config = {levels, perLevelWeightedTransitionTables, straightToMaxThreshold, rewardByScatterCount, maxCap, persistAcrossCascades, boostMultiplier}. Emit ScatterLevelUp events {newScatters, prevLevel, newLevel, levelUps[], triggered}."
+      },
+      {
+        "name": "Cascade/tumble wave pipeline with intermediate/gravity views",
+        "summary": "Each spin returns an ordered list of waves. Per wave the server sends gameView (current grid), winInfo, intermediateView (grid after winning symbols removed), gravityView (grid after remaining symbols fall + new symbols added), and updatedMultiplierView. Client diffs intermediateView vs gameView to find removals and gravityView vs intermediate to find additions, enabling fully data-driven cascade animation. Views are delivered as per-reel JSON STRINGS ('[3,4,9,...]') and must be JSON.parse-normalized first.",
+        "exampleRef": "/Users/chaowang/Documents/Developments/Slots/sweety-treaty-cluster-pay/docs/technical-reference/09-server-protocol.md:76-106 + 208-223 (wave-processor); server-md/freegameResponseExample.json",
+        "genericization": "Define a 'cascade wave' record {gameView, removals, additions, winInfo, multiplierView, scatterLevelUps?} and a generic wave-processor that derives removal/addition indices by diffing successive views. Include a response-normalizer that JSON.parses stringified view arrays at the boundary (matches user's input-validation-at-boundaries rule)."
+      },
+      {
+        "name": "Deterministic QA via RNG-seed cheat scenarios",
+        "summary": "game/config/cheats.json (and server-md/*Cheats.json) holds named scenarios as 'rng: <comma-separated uint32 seeds>' strings, grouped into categories (baseGame, rushFeature, freeGame...). These seeds are replayed into the SERVER RNG (connector.play(action,bet,null,rng)) to force exact deterministic outcomes (Small/Big/Mega/Epic Win, max multiplier, feature triggers, N-cascade chains). This is the QA harness for math/feature outcomes — there is NO client-side Monte-Carlo simulator anywhere.",
+        "exampleRef": "/Users/chaowang/Documents/Developments/Slots/zeus/game/config/cheats.json:1-60 (named rng-seed scenarios); sweety-treaty-cluster-pay/server-md/sweetyClusterCheats.json (UTF-16 encoded)",
+        "genericization": "Skill artifact: a cheats/scenario schema {categories:[{id,name,cheats:[{id,name,cheat:'rng: ...'}]}]} plus a runner contract play(action,bet,rng). Pairs with a math-engine that accepts an injectable RNG seed for reproducible certification runs."
+      },
+      {
+        "name": "Win-threshold celebration tiers driven by win/bet multiple",
+        "summary": "config.winThresholds is an ordered list {name, threshold (xBet), isBigWin/isMegaWin/isEpicWin, loopDur, loopFrames}. Client picks the highest tier where totalWin >= threshold*bet to choose the celebration. Purely presentational mapping of the server's numeric win to a band; identical structure across every game.",
+        "exampleRef": "/Users/chaowang/Documents/Developments/Slots/zeus/game/config/config-desktop.json:47-54; zeus/game/src/win-parser.js:7-22 parseThreshold",
+        "genericization": "Generic 'win band' config (threshold in bet-multiples -> celebration tier). Reusable across any slot regardless of math model."
+      },
+      {
+        "name": "Buy-bonus / boost / bet-action model",
+        "summary": "Spin actions are named ('main','boosted','fg','superfg') sourced from config.buyFeatures[].code; each maps to a bet calc (baseBet, baseBet*scale, baseBet*100, baseBet*500) and its own RTP value. Buy-bonus prices and per-mode rtpValues come from server config (config.fgBuy, config.rtpValues, config.cap.maxWin/freeGameMaxRound). maxWin caps (e.g. 25000xBet, 30000) terminate the round.",
+        "exampleRef": "/Users/chaowang/Documents/Developments/Slots/zeus/game/config/config-desktop.json:85-145 buyFeatures; sweety-treaty-cluster-pay/docs/technical-reference/09-server-protocol.md:31-40 (action->bet table) + 252-264 (configData)",
+        "genericization": "Math-config skill: per-mode parameter set {action, betMultiplier, targetRTP, buyPrice, maxWinCap, maxFreeSpins}. Standardize rtpValues as a per-action map the back office sets and the client only displays (rounded)."
+      }
+    ],
+    "configFormats": [
+      "config-desktop.json / config-mobile.json: top-level game math/layout config — reels, rows, maxWin, StartingReels (NAME[][]), winThresholds[], buyFeatures[] (title/price/rtp/code), reelsConfig (spin curves), zIndex[]. Cluster game adds reels:7/rows:7.",
+      "Reel strips: numeric int[][] one array per reel — server config.wheels.base / config.coinReels / config.testReels. IDs map to names via a symbol table.",
+      "paytable-{landscape,portrait,social-*}.json: DISPLAY-ONLY paytable; root {version:'2.0', pages:[{id,title(@-ref),gridColumns,elements:[...]}]}; element types include symbolTable/symbolAccordion (SymbolDef.payouts=[{range:'13-14',value:8}]), multiplierGrid, imageGroup, text/image. Authored by a standalone browser paytable-editor (export {version,pages}).",
+      "Server play response: {balance, wager:{data:{baseGame:{won,baseGameWaves:[{wave:{gameView,winInfo:{winning,multiplier,winningArray:[{symbol,pay,win,multiplierSum,clusterPositions}],intermediateView,gravityView,updatedMultiplierView},scatterLevelUps}}],baseGameEndView,scatterLevel,scatterActivated}, freeGame?:{initNumOfRounds,roundDetails:[{roundWaves,roundEndView,scatterLevel,retriggerRounds}],totalRounds}, totalWin}}}. View arrays delivered as JSON STRINGS per reel (e.g. '[3,4,9,1,5,4,4]').",
+      "Server info/config response: config.{bets(per action: available[]+default), fgBuy, cap{maxWin,freeGameMaxRound}, feature{per-mode oneScatterTables/twoScatterTables, wildMultiplierValues, reward tables}, rtpValues(per action %), initGameViews(per mode), wheels(reel strips)}.",
+      "cheats.json: {version, categories:[{id,name,cheats:[{id,name,cheat:'rng: <uint32 csv>'}]}]} — deterministic QA seed scenarios (note: one variant is UTF-16/BOM encoded).",
+      "scatter machine tables: config.feature[mode].{oneScatterTables, twoScatterTables} = weighted per-level transition tables; reward arrays e.g. freeGameRetriggerReward=[0,10,10,10,12,15,20,30].",
+      "TypeScript typed contracts (piggy-bank): ParsedGameConfig{reelStrips:Symbols[][], multiplierValues:number[], payouts:Record<Symbol,number[]>, fgBuy}; SpinData/LineWin/CascadeSymbolPosition/CollectorData/MultiplierData interfaces in ResponseParser.ts."
+    ],
+    "reusableArtifacts": [
+      "RLE paytable codec: encode designer payout-table -> server int[] (value*10) and decode int[] -> human count-ranges ('8','13-14','19+'); port the algorithm from medusa GetSymbolPayouts (docs/architecture/14-paytable-data.md:408-468) and piggy-bank GameConfigParser._parsePayouts.",
+      "Reel-strip utilities: ID<->name mapping, per-reel symbol-frequency counter, oversized/stacked-symbol de-stacking (piggy-bank GameConfigParser._parseReelStrips:36).",
+      "response-normalizer: JSON.parse stringified per-reel view arrays at the boundary; VIEW_KEYS=['gameView','intermediateView','gravityView','multiplierView','updatedMultiplierView'] (sweety-treaty-cluster-pay/game/src/mechanics/response-normalizer.js + docs 09:122-137).",
+      "wave-processor / cascade diff: derive removal & addition indices by diffing gameView->intermediateView->gravityView (docs 09:208-223).",
+      "cluster mechanic: orthogonal flood-fill adjacency (min cluster size) + persistent doubling multiplier grid (encode as int[][] with -1 sentinel); spec in game_rules updated.txt + 09-server-protocol.md.",
+      "progression-meter (scatter machine) engine: weighted per-level transition tables + straight-to-max threshold + reward-by-count table + ScatterLevelUp event emitter (server-md/scatterMachine.md).",
+      "cheats/scenario schema + RNG-seed-injectable spin runner for deterministic certification (cheats.json format + connector.play(action,bet,null,rng) signature).",
+      "win-band/threshold config + selector (config winThresholds + win-parser.parseThreshold).",
+      "Per-mode math-parameter table {action,betMultiplier,targetRTP,buyPrice,maxWinCap,maxFreeSpins} from config.buyFeatures + server config.rtpValues/cap.",
+      "The medusa docs/architecture/*.md and sweety-treaty-cluster-pay docs/technical-reference/*.md are themselves portable reference templates for documenting a slot's math+protocol."
+    ],
+    "mapsToSkills": [
+      "slot-math-designer (already present): feed it the RLE paytable codec, reel-strip + symbol-table schema, per-mode RTP/maxWin/buy-bonus parameter model, and the win-threshold band config.",
+      "math-config (proposed): canonical JSON schemas for reels(int[][]) / paytable(RLE int[]) / symbol-table / scatter-machine tables / per-action RTP+caps.",
+      "math-engine / math-mechanics (proposed): ways-pays, cluster-pays (flood-fill + persistent doubling multiplier grid), cascade/tumble wave generation, progression-meter free-spin trigger.",
+      "math-simulation / math-certification (proposed — GAP, nothing exists client-side): build a Monte-Carlo RTP/volatility/hit-rate/max-win simulator plus the RNG-seed cheat-scenario harness (the repos only have deterministic QA seeds, no statistical sim).",
+      "math-protocol (proposed): the spin-result + config-info JSON contract, response-normalizer (stringified views), and replay/recovery model."
+    ],
+    "gaps": [
+      "No client-side RTP computation or Monte-Carlo/statistical simulation exists in ANY project — RTP, volatility, hit-rate and reel-weight tuning all happen on the unavailable remote math server. wagerforge will need to BUILD the simulator/certification tooling from scratch; these repos give only the I/O contract, not the math engine.",
+      "The actual reel-symbol weights / probability tables and the scatter-machine transition tables are server-side; only the consumed shape is visible. config.feature[mode].oneScatterTables values themselves are not in the client repos.",
+      "The connector (slotify/connector/connector.js) is a third-party MINIFIED bundle (~1.2MB) — the real server math API (endpoints, exact request signing, RNG algorithm) is opaque; only the documented method surface (play/info/authenticate/replay) is recoverable.",
+      "Target RTP is a placeholder in client config (buyFeatures[].rtp = 'XX.XX', game_rules RTP = '{main}%' template); real RTP arrives at runtime in server config.rtpValues. No game declares a concrete designed RTP number in-repo.",
+      "Two different code generations coexist (legacy CommonJS reskin lineage: zeus/medusa/tartarus vs TypeScript Slot Framework V2: piggy-bank/fruit-nudge) with different parser shapes — a generic skill must abstract over both rather than copy one.",
+      "Cluster game cheats file (sweetyClusterCheats.json) is UTF-16/BOM encoded — any porting tool must handle encoding detection at the boundary.",
+      "Paytable JSON files are display-only and can drift from server truth (the docs explicitly note social-portrait payout ranges differ); they are NOT a reliable source for the actual math paytable."
+    ]
+  },
+  {
+    "area": "frontend-engine-asset-patterns",
+    "projectsExamined": [
+      "/Users/chaowang/Documents/Developments/Slots/medusa (Family A)",
+      "/Users/chaowang/Documents/Developments/Slots/tartarus (Family A, base template)",
+      "/Users/chaowang/Documents/Developments/Slots/zeus (Family A)",
+      "/Users/chaowang/Documents/Developments/Slots/all-about-fish / valhalla / sweety-treaty / sweety-treaty-cluster-pay / maneater / to-the-top (Family A)",
+      "/Users/chaowang/Documents/Developments/Slots/piggy-bank (Family B, 'Slot Framework V2')",
+      "/Users/chaowang/Documents/Developments/Slots/cow-abduction (Family B)",
+      "/Users/chaowang/Documents/Developments/Slots/fruit-nudge / disco-spins / perseus-vs-cetus (Family B)"
+    ],
+    "configFormats": [
+      "PixiJS Assets manifest (manifest-desktop/mobile/social-*.json): {bundles:[{name, assets:[{name, srcs}]}]} with per-device + per-screen (load-screen / game-screen) bundles — Family A",
+      "Compiled hashed-bundle manifest (assetsManifestCompiled.json): {bundles:{loader|splash|game|ui|paytable|sounds:{<key>: 'bundles/<sha256>/<n>.json'}}} content-addressed dirs — Family B",
+      "config-desktop.json / config-mobile.json: reels/rows/maxWin, symbolWidth/Height, StartingReels (2D reel-strip arrays), winThresholds (name+threshold-as-bet-multiple+isBigWin/isMegaWin/isEpicWin+loopDur/loopFrames+noCelebration), reelsConfig with bezier startCurve/stopCurve/hotreelStopCurve/quickStopCurve, turboSpin vs normalSpin cascade gap/duration tables, zIndex layer-order array, autospinsButtons, untilWin/untilLoss options, buyFeatures[] (title/description/price/rtp/code/img), fontSizes map — Family A",
+      "timings.json: animation/transition durations (reels.stopDelayPerReel, quickPlayStopDelayPerReel, bonusScreenFadeDur, preBigWinDelay, splashLoopDuration, etc.) — byte-identical across Family A games",
+      "Spine runtime triad per animation: <name>.json (skeleton) + <name>.atlas (regions: name/bounds/offsets/rotate/size/filter) + <name>.png/.webp (packed texture) — both families",
+      "Scene JSON (data-driven UI): {tree:{nested node names}, objects:{<name>:{type:Sprite|BitmapText|Button|Container|Spine, anchorX/Y, spriteData/styleData, boundary, portrait:{}, landscape:{} responsive override blocks}}} — Family B",
+      "SymbolConsts.ts: Symbols string enum + symbolIDMap (numeric server id -> Symbol) + specialSymbolsIDMap; coin/value symbols encoded as numeric ids — Family B",
+      "sounds.json / sounds.ts + SoundHooks: hook->action->asset indirection for Howler playback — both families",
+      "cheats.json (large, ~120KB) — scripted forced-outcome spin results for QA — Family A",
+      "paytable JSON variants: paytable-{landscape,portrait,social-landscape,social-portrait}.json — Family A"
+    ],
+    "patterns": [
+      {
+        "name": "Two-tier framework/client separation (reskin-friendly engine core)",
+        "summary": "Every game splits a reusable engine from per-title game code. Family A: top-level framework/src (base-gamestate, resource-manager, base-layer, ui-buttons, menus, info-bars, widgets) vs game/src (title-specific reels, effects, layers). Family B: src/framework (managers, sequences, factories, events, ui) vs src/client (config, factories, scene, sequences, menus). CLAUDE.md files explicitly state 'framework code reusable across projects, game/client code title-specific'. Medusa is a literal reskin of Tartarus; timings.json and many framework files are byte-identical across titles.",
+        "exampleRef": "/Users/chaowang/Documents/Developments/Slots/piggy-bank/CLAUDE.md (Client Code Separation); /Users/chaowang/Documents/Developments/Slots/medusa/framework/src vs game/src",
+        "genericization": "Codify a generic 'slot engine vs game-skin' boundary as a build-* scaffolding skill: an engine package (state/sequence runtime, managers, reel/symbol primitives, UI widgets) + a thin per-title layer (config JSON, symbol map, scene JSON, asset bundles, title sequences). New title = copy skin layer + swap assets/config, never touch engine."
+      },
+      {
+        "name": "Config-driven reel-strip + win-threshold math contract",
+        "summary": "Game math lives in JSON, not code: StartingReels as 2D arrays of symbol-id strings, winThresholds as ordered list keyed on win-as-multiple-of-bet (threshold * betSize) with celebration tier flags (isBigWin/isMegaWin/isEpicWin/isBoring/noCelebration) and per-tier loop duration/frame counts. WinParser.parseThreshold iterates thresholds high-to-low and returns the first tier whose threshold*bet is met.",
+        "exampleRef": "/Users/chaowang/Documents/Developments/Slots/medusa/game/config/config-desktop.json:26-54; /Users/chaowang/Documents/Developments/Slots/medusa/game/src/win-parser.js:7-38",
+        "genericization": "Define a generic reel-strip + win-tier schema (Zod/JSON Schema): reels/rows, reelStrips[][], winTiers[{name, betMultipleThreshold, flags, loopMs, loopFrames}]. Feeds a slot-math/config skill; the FE win-presentation tier selection is pure data lookup and is portable across any payline or cluster game."
+      },
+      {
+        "name": "Bezier-curve reel-spin physics with turbo/normal profiles",
+        "summary": "Reel start/stop motion is driven by named cubic-bezier control-point arrays in config (startCurve, stopCurve, hotreelStopCurve, bonusStopCurve, quickStopCurve, stopCurveBump) plus separate turboSpin/normalSpin tables of cascade gaps and durations. A 3D trapezoid PIXI.Filter (custom GLSL fragment shader) gives reels perspective and an oscillating rotationX tilt, orientation-aware (portrait vs landscape ratios).",
+        "exampleRef": "/Users/chaowang/Documents/Developments/Slots/medusa/game/config/config-desktop.json:148-186; /Users/chaowang/Documents/Developments/Slots/medusa/game/src/Reel3D.js:36-119",
+        "genericization": "Extract a reusable 'reel motion profile' config (named bezier curves + turbo/normal timing tables) and an optional perspective-reel WebGL filter as a drop-in. Feeds a build-reels / reel-spin-animation skill. Note the perf pattern: ticker only recomputes uniforms on size/orientation change."
+      },
+      {
+        "name": "Sequence/Step coroutine engine (Family B) vs Gamestate state-machine + Timeline (Family A)",
+        "summary": "Two distinct but parallel orchestration models for spin/win choreography. Family B: an abstract Sequence<TParams> composed of Steps with blocking/concurrent/race/skip-group semantics, GC-free via StepFrame object pooling, GSAP tweens inside leaf steps (EaseReelVelocityStep, CountUpStep). Skippable steps power turbo/skip. Family A: explicit GamestateManager FSM (start/loop/stop-spinning, start/process-cascade, evaluate-result, idle, notification, menu) extending BaseGamestate, with a custom Timeline that schedules effects at start offsets.",
+        "exampleRef": "/Users/chaowang/Documents/Developments/Slots/piggy-bank/src/framework/sequences/Sequence.ts:27-311; /Users/chaowang/Documents/Developments/Slots/piggy-bank/src/client/sequences/spinning/reel/EaseReelVelocityStep.ts; /Users/chaowang/Documents/Developments/Slots/medusa/game/src/gamestate-manager.js; /Users/chaowang/Documents/Developments/Slots/medusa/game/src/gamestates/start-spinning-gamestate.js",
+        "genericization": "Offer BOTH choreography templates in a build-game-flow skill: (1) a pooled Sequence/Step library (DelayStep, CallbackStep, ParallelStep, ConditionalStep, LoopStep, PromiseStep, SoundEventStep, RaceConcurrentStep, SkipGroupStep) for skippable async flows; (2) a slot FSM template with the canonical states. Both wrap GSAP/tween + sound hooks at the leaf. Recommend Sequence/Step as the modern default."
+      },
+      {
+        "name": "Symbol Matrix object pooling: sprite-default, spine-on-animate",
+        "summary": "Symbols are pooled MatrixSymbol objects that render as cheap sprites at rest and swap to a Spine (from a symbol-type-specific SpinePool) only while animating, then swap back. No runtime object creation (created at game start; only MenuManager creates/destroys at runtime). Oversized/stacked symbols use shared-reference cells (multiple grid positions point to one object). SymbolConfig carries spine/skin/staticTexture/blurredTexture/animations/anchor/value-font.",
+        "exampleRef": "/Users/chaowang/Documents/Developments/Slots/piggy-bank/src/client/gameObjects/symbolMatrix/SymbolMatrix.ts:1-60; /Users/chaowang/Documents/Developments/Slots/piggy-bank/CLAUDE.md (Symbol Matrix Architecture, Performance Best Practices)",
+        "genericization": "Package a generic SymbolMatrix + PixiObjectPool + SpinePool as a build-symbols skill. Core rule: 'sprites at rest, spines only mid-animation, return to sprite after'; pool by generic MatrixSymbol not per-type; shared-reference cells for stacked/oversized symbols. Drives the <200MB / 60fps perf targets in CLAUDE.md."
+      },
+      {
+        "name": "Data-driven responsive scene graph (JSON tree + objects with portrait/landscape blocks)",
+        "summary": "UI/layout is authored as JSON: a 'tree' of nested node names plus an 'objects' map giving each node a type (Sprite/BitmapText/Button/Container/Spine), asset binding, anchors, boundary, and per-orientation override blocks (portrait{}/landscape{}). SceneManager builds Pixi display objects from this and re-lays-out on resize; getNode gives injected access. Family A parallels this with layout-game-desktop/mobile.json and a layer zIndex array in config.",
+        "exampleRef": "/Users/chaowang/Documents/Developments/Slots/piggy-bank/src/client/scene/BonusConfirmMenuContent.json:1-50; /Users/chaowang/Documents/Developments/Slots/piggy-bank/src/framework/managers/scene/SceneManager.ts; /Users/chaowang/Documents/Developments/Slots/medusa/game/config/config-desktop.json:188-216 (zIndex)",
+        "genericization": "Define a generic scene-JSON schema + SceneManager (tree + typed objects + orientation override blocks + named z-layer ordering) for a build-ui / build-scene skill. Lets non-engineers reposition UI per device without code; portrait/landscape switching is first-class."
+      },
+      {
+        "name": "Win-presentation tiering and count-up choreography",
+        "summary": "Win presentation is a layered, tier-driven flow: a dedicated win-presentation layer/sequence picks actions (PRESENT_WIN / PRESENT_BIG_WIN / PRESENT_MAX_WIN / ADD_FREESPIN / FREESPIN_CAP_REACHED) from the matched win tier, plays big-win symbol anims + win-line show/hide + reel-bg-win + count-up. Count-up is a GSAP tween over a numeric field formatted by an injected TextFormatter (currency/grouping/round). Win lines have full lifecycle steps (Init/Show/Hide/Clear, CycleWins loop).",
+        "exampleRef": "/Users/chaowang/Documents/Developments/Slots/medusa/game/src/layers/win-presentation-layer.js:13-90; /Users/chaowang/Documents/Developments/Slots/piggy-bank/src/client/sequences/wins/BigWinSequence.ts:1-40; /Users/chaowang/Documents/Developments/Slots/piggy-bank/src/client/sequences/wins/CountUpStep.ts:1-40",
+        "genericization": "Ship a build-win-presentation skill: tier->presentation action map, win-line lifecycle steps, big-win celebration sequence (mask symbols, fade UI, loop animation by tier loopMs/loopFrames), and a reusable currency count-up step. Wire tier selection to the win-threshold config schema above."
+      },
+      {
+        "name": "Multi-device / multi-operator build matrix from one source",
+        "summary": "A single source builds desktop/mobile/responsive x debug/prod x real-money/social via env-cmd .env files and an npm-run-all pipeline (build-css -> build-sprites -> bundle -> terser -> copy-dist). Asset trees mirror this (assets/desktop, assets/mobile, assets/social-desktop, assets/social-mobile; manifest-desktop/mobile/social-desktop/social-mobile.json). Device detection picks the manifest/config at runtime.",
+        "exampleRef": "/Users/chaowang/Documents/Developments/Slots/medusa/package.json:6-29; /Users/chaowang/Documents/Developments/Slots/medusa/scripts/env; /Users/chaowang/Documents/Developments/Slots/medusa/manifest-desktop.json:1-90",
+        "genericization": "Template the build matrix (device x environment x money-mode) and the parallel asset-tree + per-variant manifest convention into a build-pipeline / scaffolding skill. Family A uses Browserify+Babel+Terser; Family B uses Webpack+TS+ts-loader — offer both, prefer the TS/Webpack one."
+      },
+      {
+        "name": "Operator/platform connector ('slotify') decoupling RGS integration",
+        "summary": "Nearly every title (12/13) ships a slotify/connector/connector.js shared layer that brokers balance, operator mode, and window.postMessage handshakes (spinStart with bet posted to parent frame; balance heavily referenced). Game code calls Utils.PostMessageToParent('spinStart', {bet}) etc., keeping platform glue out of game logic.",
+        "exampleRef": "/Users/chaowang/Documents/Developments/Slots/medusa/slotify/connector/connector.js; /Users/chaowang/Documents/Developments/Slots/medusa/game/src/gamestates/start-spinning-gamestate.js:27-31",
+        "genericization": "Abstract a generic 'RGS/operator connector' module (balance, bet, spin lifecycle postMessage protocol, social vs real-money mode) as a build-platform-integration skill — the seam that swaps casino operators without touching game/engine code."
+      },
+      {
+        "name": "Spine-first animation with sprite-atlas fallback and asset-build automation",
+        "summary": "Both families standardize on pixi-spine 4.x for complex anims (bg, character, big_win, scatter, wild, transitions, logo) organized one-folder-per-animation under anims/ with the json+atlas+webp triad; static UI/symbols use free-tex-packer-packed spritesheets with WebP (+PNG fallback) and bitmap fonts (.fnt). A bespoke build-sprites pipeline (free-tex-packer-core + Jimp + direct cwebp binary) plus spine utility scripts (extract-spine-static, recolor-spine-anim, scale-mobile-spine, shrink-mobile-spine-atlas) automate asset prep with mtime-based incremental skipping and bounded concurrency.",
+        "exampleRef": "/Users/chaowang/Documents/Developments/Slots/medusa/game/assets/desktop/anims/base_bg/bg_bg.atlas:1-44; /Users/chaowang/Documents/Developments/Slots/medusa/scripts/build-sprites.js:9-75; /Users/chaowang/Documents/Developments/Slots/medusa/scripts (extract-spine-static.js, recolor-spine-anim.js, scale-mobile-spine.js)",
+        "genericization": "Codify the asset convention (Spine triad per anim folder; packed WebP atlas + bitmap fonts for static; PNG fallback) and port the build-sprites + spine-utility scripts into wagerforge scripts/ for an asset-pipeline / asset-audit skill. Naming: lp-/hp- prefixes (Family A) and L0-L4/H5-H9 (Family B) for low/high-pay tiers."
+      }
+    ],
+    "genericization": "N/A",
+    "reusableArtifacts": [
+      "medusa/scripts/build-sprites.js — free-tex-packer-core + Jimp + direct-cwebp atlas/WebP packer with mtime incremental skip + bounded concurrency pool (pMap); port to wagerforge scripts/ as the canonical sprite-atlas builder",
+      "medusa/scripts/extract-spine-static.js, recolor-spine-anim.js, scale-mobile-spine.js, shrink-mobile-spine-atlas.js, scale-mobile-textures.js — Spine asset transform/optimization utilities (extract first frame as static, palette recolor for reskins, mobile downscale)",
+      "piggy-bank/src/framework/sequences/{Sequence.ts, Step.ts, AwaitConcurrentStep.ts, RaceConcurrentStep.ts, SkipGroupStep.ts, EndConcurrentStep.ts} + steps/{AwaitStep,AwaitEventStep,PromiseStep,LogStep,RelayEventStep}.ts — a complete, pool-backed, skippable Sequence/Step coroutine engine; directly portable as the choreography core",
+      "piggy-bank/src/client/sequences/spinning/reel/* (EaseReelVelocityStep, EaseReelPositionStep, MoveReelStep, BeginReelSpinSequence, BlurSymbolsStep usage) — GSAP-based reel velocity/position easing steps; reusable reel-spin animation kit",
+      "piggy-bank/src/client/gameObjects/symbolMatrix/* + framework/utils PixiObjectPool & SpinePool — pooled SymbolMatrix (sprite/spine swap, stacked-symbol shared cells); reusable symbol-rendering core",
+      "piggy-bank/src/framework/managers/scene/{SceneManager,SceneLoader,SceneTreeParser,SceneTreeExtension}.ts + scene/*.json — data-driven responsive scene-graph builder + example scene JSON schema",
+      "piggy-bank/src/client/sequences/wins/CountUpStep.ts — reusable currency count-up tween step (TextFormatter-driven)",
+      "medusa/game/src/Reel3D.js — perspective/trapezoid reel WebGL PIXI.Filter (custom GLSL) with orientation-aware uniforms and ticker perf guards",
+      "Config schemas to lift verbatim: medusa/game/config/config-desktop.json (reelStrips, winThresholds, reelsConfig bezier curves, turbo/normal timing, zIndex), timings.json, sounds.json; piggy-bank assetsManifestCompiled.json (content-addressed bundle manifest)",
+      "slotify/connector/connector.js — operator/RGS postMessage connector (balance/bet/spin lifecycle, social vs real-money) present across 12/13 titles",
+      "Shared paytable-editor/ tool (present in 6 titles) — standalone paytable authoring UI"
+    ],
+    "mapsToSkills": [
+      "build-reels (reel-strip config schema, bezier spin-motion profiles, turbo/normal timing, perspective reel filter)",
+      "build-symbols (SymbolMatrix pooling, sprite/spine swap, SymbolConsts id-map, stacked/oversized shared cells)",
+      "build-win-presentation (win-tier selection from thresholds, big-win celebration sequence, win-line lifecycle, currency count-up)",
+      "build-game-flow / build-sequences (Sequence/Step coroutine engine + slot FSM template: spin/cascade/evaluate/idle states)",
+      "build-ui / build-scene (data-driven responsive scene JSON + SceneManager, z-layer ordering, portrait/landscape override blocks)",
+      "build-assets / asset-pipeline + asset-audit (Spine-triad-per-folder convention, packed WebP atlas + bitmap fonts, build-sprites + spine utility scripts, naming conventions lp-/hp- and L/H tiers)",
+      "build-pipeline / scaffolding (device x environment x money-mode build matrix, per-variant manifests, framework/client split scaffold)",
+      "build-platform-integration (slotify operator/RGS postMessage connector, social vs real-money)",
+      "slot-math-designer (reel-strip + win-threshold JSON contract, buyFeatures/RTP config, cheats/forced-outcome QA data — already an installed skill this evidence feeds)"
+    ],
+    "gaps": [
+      "Did not open the engine internals of Family A framework/src (resource-manager.js, base-layer.js, timeline.js scheduler, gamestate-manager.js) line-by-line — only confirmed roles via callers; the custom Timeline scheduler semantics vs GSAP would need a deeper read to port faithfully.",
+      "Cascade/tumble mechanics (cascade-geometry.js, cascade-z-policy.js, cascade-effects.js, start/process-continue-cascade gamestates) were enumerated but not read in detail — cascade drop choreography and geometry math is its own pattern worth a dedicated pass.",
+      "Did not read the actual GLSL/motionBlur.ts (Family B local/motionBlur.ts) or BlurSymbolsStep implementation — blur-during-spin technique only inferred.",
+      "ResponseParser.ts server-response contract (PlayResponse -> GridPosition/SymbolPosition/CascadeSymbolPosition/CollectorData) was only partially read; the full server->client JSON shape (the math/RGS payload format) needs a complete read to document the FE/BE contract.",
+      "to-the-top uses git submodules (.gitmodules) for framework/game — actual shared-engine repo URLs/versions not inspected; could reveal a canonical upstream engine package.",
+      "Family B local/Bundler.ts and SpriteSheetGenerator.ts (the webpack-side asset bundler producing the content-addressed bundles/<sha256>/ dirs) were listed but not read — the hashed-bundle generation logic is a reusable artifact not yet captured.",
+      "Did not audit sounds.ts/SoundHooks indirection or Howler channel management in depth (music vs sfx buses, ducking).",
+      "No runtime/build verification performed (read-only task); pattern claims are from source inspection, not from running builds.",
+      "all-about-fish and valhalla lack paytable-editor and slotify dirs (valhalla also lacks slotify) — minor divergence from the otherwise uniform scaffold; not investigated why."
+    ]
+  },
+  {
+    "area": "Provably-Fair / RNG patterns in crypto mini-game frontends",
+    "projectsExamined": [
+      "mini-game-mines",
+      "mini-game-limbo",
+      "mini-game-plinko-100k",
+      "mini-game-plinko-chao-version",
+      "mini-game-blitz",
+      "mini-game-dragon-tower",
+      "mini-game-keno",
+      "mini-game-chase",
+      "mini-game-diamonds",
+      "mini-game-sling",
+      "mini-game-pepe",
+      "chao-refacting-version (dice)",
+      "mini-games-monorepo"
+    ],
+    "patterns": [
+      {
+        "name": "Commit-reveal seed lifecycle over a thin client (GDK fairness layer)",
+        "summary": "Every game shares a GDK fairness stack. The backend owns the seed lifecycle; the client only displays commitments and triggers rotation. /fairness/activeRngSeeds returns {clientSeed, serverSeedHash, nextServerSeedHash, nonce, unfinishedGames} (responseTypes.ts:104). The serverSeedHash is the COMMIT (SHA-256 of the active server seed); nextServerSeedHash pre-commits the next seed before it is used. The plaintext active server seed is only revealed AFTER rotation (so past rounds become verifiable but the in-use seed stays hidden). Rotation = POST /fairness/updateClientSeed {clientSeed} which atomically reveals the old server seed, activates nextServerSeed, generates a new nextServerSeedHash, and resets nonce to 0 (connector.ts:271, server.ts:237). Per-round commitment snapshot available via /fairness/roundRngState (connector.ts:263).",
+        "exampleRef": "/Users/chaowang/Documents/Developments/Mini games/mini-game-mines/src/gdk/typing/responseTypes.ts:104",
+        "genericization": "Define a FairSeedState type {clientSeed, serverSeedHash, nextServerSeedHash, nonce, status, unfinishedGames} and a SeedRepository interface (getActiveSeeds, rotate(newClientSeed)->revealsOldServerSeed, getRoundState(roundId)). Make commit=sha256(serverSeed) and the double-commit (current+next) the canonical contract. Strip the axios/redux specifics."
+      },
+      {
+        "name": "Client-side HMAC-SHA256 verifier with explicit float derivation (the reference verifier)",
+        "summary": "ChaseServerProxy.computeU is the ONLY real client-side provably-fair derivation in the whole corpus and is directly portable. It uses Web Crypto (crypto.subtle), no third-party dep: importKey(serverSeed as HMAC/SHA-256 key) then sign(message). Message format is `${clientSeed}:${nonce}`. Bytes -> hex -> take first 13 hex chars (52 bits) -> parseInt(hex,16) -> divide by 2**52 to get u in [0,1). That u then feeds the crash-point inverse-CDF rollCrashPoint(u): if u<houseEdge return 1.0 else floor(min((1-h)/(1-u), maxCrash)*100)/100 (chaseMath.ts:71). This is a clean, testable seed->uniform->outcome pipeline that mirrors what the server runs, used as an offline fallback when the platform proveFairness endpoint doesn't yet know the game.",
+        "exampleRef": "/Users/chaowang/Documents/Developments/Mini games/mini-game-chase/src/game/chase/server/ChaseServerProxy.ts:34",
+        "genericization": "Port computeU verbatim as fair-rng core: hmacSha256ToFloat(serverSeed, clientSeed, nonce, {bits=52, cursor=0}). Generalize the 13-hex/2**52 slice into a configurable bit-width and a byte cursor so games needing multiple floats can advance through the 32-byte digest (and re-hash with an incrementing counter when exhausted, the standard Stake-style scheme). Keep message format pluggable (':'-joined vs '-' joined) since it is a wire contract."
+      },
+      {
+        "name": "randomizations[] array as the seed->outcome bridge (verification re-render)",
+        "summary": "VerifyFairnessResponse = {hashes:{hex,bytes[]}, randomizations: RandomizationsData[]} where each randomization = {limit, extractions[], randomNumber, gameEvent} (responseTypes.ts:163). Each array element is ONE independent RNG draw for the round; gameEvent carries the decoded per-game outcome (roll, result, multiplierIndex, gems[], crashPointMultiplier, cards, bucketIndex/bucketMultiplier, rolls[], flips[], hands[]...). Per-game Result components are pure presenters: they index into randomizations and render gameEvent fields, trusting the server's authoritative decode (LimboResult reads randomizations[last].gameEvent.result; PlinkoResult documents randomizations[0]=bucket roll, randomizations[1]=ball roll for the two-axis Insane tier). extractions[] {cursor,hashIndex,offset,integer} exposes exactly which digest bytes produced the number, enabling byte-level audit.",
+        "exampleRef": "/Users/chaowang/Documents/Developments/Mini games/mini-game-plinko-100k/src/gdk/components/result/plinko/PlinkoResult.tsx:12",
+        "genericization": "Standardize a Randomization{floatValue, extractions:[{cursor,hashIndex,offset,integer}], gameEvent} and a VerificationResult{commitments, randomizations[]}. The mapping 'N independent draws -> N randomizations' (one per peg-set / card / roll) is the reusable contract; per-game decoders consume floats[] and emit a typed gameEvent. Provide reference decoders for the common shapes: uniform-multiplier (limbo/crash inverse-CDF), Fisher-Yates shuffle (mines/cards/keno), and binomial-bucket (plinko)."
+      },
+      {
+        "name": "Hash-chain games use a separate verifyHashFairness proof path",
+        "summary": "Crash/Aviator-family ('crash0','aviator','crash1','aviator0') are routed to gateway.verifyHashFairness(game, hash, seed, hashIndex) instead of verifyFairness(game, serverSeed, clientSeed, nonce) (ResultLoader.tsx:186, gateway.ts:241, connector.ts:321). These are pre-generated hash-chain games: the operator commits to a terminal hash and each round's outcome derives from hash_i where hashIndex walks backward down the chain (each hash is sha256 of the next), with the player's clientSeed as the only mixed-in salt ('seed'). The Fairness UI swaps its labels to seed/hash instead of clientSeed/serverSeed for these games.",
+        "exampleRef": "/Users/chaowang/Documents/Developments/Mini games/mini-game-mines/src/gdk/components/result/ResultLoader.tsx:186",
+        "genericization": "Model two distinct fair-proof modes: (1) per-round HMAC(serverSeed; clientSeed, nonce) [reseeding/commit-reveal] and (2) hash-chain (commit terminal hash; outcome_i = f(hash_i, sharedSeed); verify hash_{i} -> sha256 -> hash_{i-1}). A generic verifier should expose both and pick by game class. Crash-style RTP math (inverse-CDF survival P(crash>x)=(1-h)/x) is shared across both modes."
+      },
+      {
+        "name": "Live-tunable RTP/house-edge config decoupled from the fairness derivation",
+        "summary": "chaseMath keeps the math pure and deterministic (caller supplies u) while all economic parameters (targetRTP, houseEdge, maxCrash, tick pacing) are LIVE getters hydrated from a /game/info config object (chaseServerConfig) so operators can retune RTP without a client redeploy, and defaults (DEFAULT_CHASE_CONFIG, RTP 0.98 / edge 0.02 / maxCrash 100000) drive offline/unit-test behaviour. RTP is also passed per-game in the verify request payload (ResultLoader builds data.rtp=0.98 for limbo/slide, 1.0 for the '...0' zero-edge variants, data.variant='rtp98'/'rtp97' for blitz/drill/packs).",
+        "exampleRef": "/Users/chaowang/Documents/Developments/Mini games/mini-game-chase/src/game/chase/data/chaseMath.ts:71",
+        "genericization": "Separate FairOutcome math (pure: takes u + economic params) from EconomyConfig (RTP/edge/caps, server-hydrated with safe defaults). The 'zero-edge variant' convention (game vs game+'0' with rtp=1) and 'variant=rtpNN' string are a reusable way to express multiple RTP SKUs of one game under one verifier."
+      }
+    ],
+    "configFormats": [
+      "VerifyFairnessResponse: {hashes:{hex:string,bytes:string[]}, randomizations:[{limit:number, extractions:[{cursor,hashIndex,offset,integer}], randomNumber:number, gameEvent:{...per-game}}]}",
+      "ActiveRngSeedsResponse/UpdateClientSeedResponse/RoundRngStateResponse: {clientSeed, serverSeedHash, nextServerSeedHash, nonce, status?, unfinishedGames?}",
+      "HMAC message format: `${clientSeed}:${nonce}` keyed by serverSeed (ChaseServerProxy)",
+      "Card-int encoding: card 0..51, suit=floor(card/13), rank=card%13 (serverAdapter.ts)",
+      "Plinko randomizations convention: [0]=bucket roll, [1]=ball roll (Insane two-axis)",
+      "Verify request payload extras: {rtp:0.98|1, variant:'rtp97'|'rtp98', difficulty, cashOutAt, parallelStreaks} URI-encoded JSON via encodeURIComponent(JSON.stringify(data))",
+      "Backend endpoints: GET /fairness/activeRngSeeds, GET /fairness/roundRngState, POST /fairness/updateClientSeed, GET /game/proveFairness (both seed-proof and hash-proof)"
+    ],
+    "reusableArtifacts": [
+      "PORT VERBATIM: ChaseServerProxy.computeU() — Web Crypto HMAC-SHA256 -> first-13-hex / 2**52 -> u in [0,1). The single reference float-derivation in the corpus. /Users/chaowang/Documents/Developments/Mini games/mini-game-chase/src/game/chase/server/ChaseServerProxy.ts:34",
+      "PORT: chaseMath.rollCrashPoint(u) inverse-CDF crash roll + computeWinChance + the documented survival/EV proof (RTP constant for any cashout). /Users/chaowang/Documents/Developments/Mini games/mini-game-chase/src/game/chase/data/chaseMath.ts",
+      "PORT as schema/validator: serverAdapter card-int codec (cardIntToPlayCard/playCardToCardInt) + validateServerBlitzData (range/contract checks, ServerContractError, -0 normalization). A model for boundary-validating any fair-RNG server payload. /Users/chaowang/Documents/Developments/Mini games/mini-game-mines/src/gdk/server/serverAdapter.ts:69",
+      "REFERENCE shapes: responseTypes.ts fairness interfaces (Active/Round/UpdateClientSeed + VerifyFairnessResponse/randomizations/extractions/gameEvent). /Users/chaowang/Documents/Developments/Mini games/mini-game-mines/src/gdk/typing/responseTypes.ts:104",
+      "REFERENCE UI flow: FootBar.onActiveRngSeedsFromServer + Fairness.tsx seed-rotation handlers (rotateSeedPair, change client seed, unfinished-games guard). A template for the player-facing verify/rotate panel. /Users/chaowang/Documents/Developments/Mini games/mini-game-mines/src/gdk/components/popup/popupContent/Fairness.tsx:126"
+    ],
+    "mapsToSkills": [
+      "fair-rng-core (HMAC-SHA256 seed->float derivation, configurable bit-width/cursor, 52-bit & byte-cursor schemes)",
+      "fair-commit-reveal (server-seed hashing/commit, double-commit next-seed, reveal-on-rotation, nonce increment, seed lifecycle repository)",
+      "fair-verify (player-side verifier: re-derive floats from revealed seeds, decode to gameEvent, diff against settled result; supports both per-round-HMAC and hash-chain modes)",
+      "fair-outcome-mappers (uniform inverse-CDF for crash/limbo, Fisher-Yates for mines/cards/keno, binomial-bucket for plinko; one-randomization-per-draw contract)",
+      "fair-economy-config (server-hydrated RTP/house-edge/caps with safe defaults, zero-edge & rtpNN variant SKUs)"
+    ],
+    "gaps": [
+      "MODULO BIAS NOT HANDLED IN-REPO: the only client derivation (computeU) takes 52 bits and divides by 2**52 to get a float, then crash math uses inverse-CDF (no integer modulo), so no bias there. BUT for discrete-outcome games (cards 0..51, mines tiles, keno) the integer reduction happens SERVER-SIDE and is never shown client-side — there is no client code proving the server avoids modulo bias (e.g. rejection sampling). A generic fair-verify skill must re-implement the reduction itself (rejection sampling / Stake-style 4-byte-float scaling) rather than trusting the server's gameEvent, otherwise 'verification' is circular.",
+      "NON-CRYPTOGRAPHIC CLIENT SEED: generateSeedString() uses Math.random() over a 62-char alphabet, default length 8 (utils/index.ts:5). ~48 bits of NON-CSPRNG entropy for the player's seed. Should use crypto.getRandomValues and a longer length; flag in fair-commit-reveal as a required-fix pattern.",
+      "VERIFICATION IS DELEGATED, NOT INDEPENDENT: for every game except chase, the 'verify' button calls the operator's own /game/proveFairness endpoint and the UI simply re-renders whatever gameEvent the SERVER returns (LimboResult/PlinkoResult just display server values). This is trust-the-house, not provably-fair — a true verifier must recompute outcomes locally from the revealed serverSeed+clientSeed+nonce. ChaseServerProxy is the only one that does. This is the single biggest gap to close in the wagerforge skill.",
+      "STUBBED HASHES IN DUMMY SERVERS: offline/dummy servers return serverSeedHash:'0'.repeat(64) and verifyFairness:{randomizations:[]} (HexshotDummyServer.ts:191), and Sling's generateRound uses Math.random as rng (HexshotDummy.ts:63). Fine for offline play but means no fairness coverage in the local path; a reference impl should wire the real HMAC derivation into the dummy so offline == verifiable.",
+      "NO TEST VECTORS / KNOWN-ANSWER TESTS for the HMAC derivation: no committed (serverSeed,clientSeed,nonce)->u fixtures were found for computeU, so the byte-slice + 2**52 convention is unverified against a reference (e.g. Stake's published vectors). A ported fair-rng-core should ship KATs.",
+      "MESSAGE-FORMAT AMBIGUITY: chase uses `${clientSeed}:${nonce}` but discrete games' server reduction order (which byte cursor, big/little-endian, hashIndex semantics in extractions{cursor,hashIndex,offset}) is implied by the response but never executed client-side, so the exact wire contract for multi-float games is undocumented in this repo and must be reverse-engineered or specified before generic verification is sound."
+    ]
+  },
+  {
+    "area": "House-edge math + game-server (bet/settle) patterns extracted from MetaWin crypto mini-games (standalone \"GDK\" generation + monorepo \"studio\" generation) for a generic iGaming skills library",
+    "projectsExamined": [
+      "/Users/chaowang/Documents/Developments/Mini games/GAME-ANALYSIS (00-MASTER-SYNTHESIS + 3 framework docs + 36 per-game docs)",
+      "mini-game-plinko-100k (GDK, source-verified plinkoMath.ts + plinkoMath.test.ts)",
+      "mini-game-mines (GDK, multi-step grid-reveal round-lock)",
+      "mini-game-limbo (GDK baseline, target-multiplier crash)",
+      "mini-game-keno (GDK, lottery paytable + hypergeometric)",
+      "mini-game-dragon-tower (GDK, progressive ladder)",
+      "mini-game-blitz (GDK, birthday-paradox card game)",
+      "mini-game-diamonds (GDK, gem-frequency poker paytable)",
+      "mini-game-chase (GDK, crash + parallelStreaks ladder, source-cited chaseMath.ts)",
+      "mini-games-monorepo (studio: packages/studio, mw-number-flow, translations; apps/* Vite games; RTP-variant build system)",
+      "chao-refacting-version (Dice, transitional GDK refactor)",
+      "snakes-client (bespoke Vite, parimutuel prediction market)"
+    ],
+    "patterns": [
+      {
+        "name": "Constant-house-edge crash/target math (RTP-flat EV)",
+        "summary": "For continuous-probability games (Limbo, Dice, Chase), payout and win-chance are linked so EV is constant regardless of player target: winChance% = (1-houseEdge)/multiplier*100; multiplier = (1-houseEdge)/(winChance/100). Crash uses survival law P(crashPoint > x) = (1-h)/x with an 'instabust' atom at x=1.0 of probability exactly h, giving EV(x) = [(1-h)/x]*x*bet = (1-h)*bet for ALL x. Chase proves it also holds for N parallel geometric rungs each staking bet/N.",
+        "genericization": "Skill primitive 'constant-edge-curve': given houseEdge h, expose multiplier<->winChance bijection and a rollCrashPoint(u) = u<h ? 1.0 : min((1-h)/(1-u), maxCrash). Parameterize h, min/max multiplier, decimal rounding (floor to 2dp). Provide an EV-invariance assertion generator. Strip MetaWin specifics (tequity/metawin providers, $ caps).",
+        "exampleRef": "/Users/chaowang/Documents/Developments/Mini games/GAME-ANALYSIS/games/chase.md:140-230 (rollCrashPoint, EV proof, generateLadderTiers); limbo.md:120-164 (calculateWinChance/calculateMultiplier); mini-game-limbo/src/game/limbo/data/gameData.ts:103-109"
+      },
+      {
+        "name": "Binomial Plinko buckets with EV-calibrated multiplier tables",
+        "summary": "Bucket k of rows pegs has P = C(rows,k)/2^rows (fair 50/50 per peg). Per-(rows,tier) multiplier arrays are hand-calibrated so Sum_k P(k)*mult[k] = RTP (0.98). rollBucket(u) walks the cumulative binomial CDF until u<cumulative. The 100k variant adds an independent second axis (ball multiplier) drawn from weights {1:8000, 5:1400, 10:500, 100:100}/10000 with E[ball]=3.000 exactly, so E[total]=E[bucket]*E[ball]=(0.98/3)*3=0.98 — branding a 100,000x jackpot while holding RTP. Source code matches docs exactly.",
+        "genericization": "Skill 'plinko-table-designer': inputs rows range + tier RTP target, outputs symmetric multiplier arrays calibrated to EV target, plus rollBucket CDF sampler and an optional independent multiplier-axis (weighted reel) calibrated so product of expectations = RTP. Generic 'two-axis EV decomposition' is reusable for any bucket*reel combo game.",
+        "exampleRef": "/Users/chaowang/Documents/Developments/Mini games/mini-game-plinko-100k/src/game/data/plinkoMath.ts:37-203 (binomialP, winMultipliers, INSANE_BALL_WEIGHTS, rollBucket, evOfTotal)"
+      },
+      {
+        "name": "Server-authoritative outcome + cosmetic deterministic physics replay",
+        "summary": "All RNG is server-side; client never generates outcomes. Plinko runs a real Matter.js fixed-timestep simulation but seeds the launch-x from a pre-baked pool and then OVERWRITES the physics-derived landing bucket with the server's multiplierIndex. 'Client physics != client outcome'. physicsPattern.ts is ~456KB of {x,y:-4} launch points (not trajectories); determinism comes from fixed dt + static pegs, not keyframe replay.",
+        "genericization": "Skill rule 'visual-sim-must-not-decide-outcome': any physics/animation layer is cosmetic; the settled result is always the server field. Provide a dev-only assert that flags drift between simulated landing and server index. Generic to wheel, roulette, darts, ball-drop.",
+        "exampleRef": "/Users/chaowang/Documents/Developments/Mini games/GAME-ANALYSIS/games/plinko-100k.md:84,604-617; 01-framework-standalone-gdk.md:18-29"
+      },
+      {
+        "name": "Round-lock / roundId multi-step bet-settle protocol with idempotent recovery",
+        "summary": "Multi-step games (Mines, Dragon Tower, Pepe) keep one round open across many REST calls. First action ('main') sends bet and NO roundId; server returns roundId; all subsequent 'continue'/'takeWin' actions send roundId and bet=undefined. wager.next array ([], ['continue'], ['continue','takeWin']) drives which buttons are enabled and whether the round is live. doComplete flag decides whether /game/complete is inline or separate. On boot, /game/recover replays/settles any open round; HAZARD: recover() must return null/204 (a truthy {} triggers a spurious round). Win-cap detected purely by finalWin !== wager.win.",
+        "genericization": "Skill 'stateful-round-engine': model rounds as {roundId, openActions[], settled}. Codify invariants: bet only on first action, roundId locks subsequent calls, idempotent recover (null-for-none), explicit settle. Provide a server-contract test matrix (continue/takeWin/complete/recover). Generic to any cash-out-anytime survival game.",
+        "exampleRef": "/Users/chaowang/Documents/Developments/Mini games/GAME-ANALYSIS/games/mines.md:62-141; mini-game-mines/src/game/mines/communication/minesGateway.ts; 00-MASTER-SYNTHESIS.md:425-430 (recover hazard)"
+      },
+      {
+        "name": "Commit-reveal HMAC-SHA256 provable fairness with per-game decoder",
+        "summary": "One scheme across both generations: server commits serverSeedHash (SHA-256) before round; reveals raw seed only after the seed pair is rotated; rotation is BLOCKED while unfinishedGames.length>0. Outcome = HMAC-SHA256(serverSeed, clientSeed:nonce:cursor) byte stream chunked into 32-bit ints, normalized to float in [0,1), mapped per game. /game/proveFairness returns hashes[{hex,bytes[]}] + randomizations[{extractions[{cursor,hashIndex,offset,integer}], randomNumber, gameEvent}]. Client owns ONLY the per-game gameEvent decoder/renderer. Multiplayer/crash family uses {hash,hashIndex,seed} instead of {serverSeed,clientSeed,nonce}, gated by isMultiplayerGame().",
+        "genericization": "Skill 'provable-fairness-kit': generic verifier that takes (serverSeed, clientSeed, nonce) -> byte stream -> float -> per-game mapping function (injected). Ship a registry of decoders (limbo:result, mines:minesPositionsBuffer.slice(numMines) via Fisher-Yates, keno:gems, plinko:bucket+ball, diamonds:integer%7). Codify rotation-blocked-by-open-rounds and single-vs-multiplayer field sets.",
+        "exampleRef": "/Users/chaowang/Documents/Developments/Mini games/GAME-ANALYSIS/00-MASTER-SYNTHESIS.md:232-279 (gameEvent table); 02-framework-monorepo-studio.md:152-185; mini-game-mines/.../MinesResult.tsx:61-80"
+      },
+      {
+        "name": "Native-server / fiat-display dual-currency money invariant",
+        "summary": "Server ALWAYS speaks native wallet currency (crypto or social coin); fiat (USD/EUR) is display-only and never a balance currency. Every bet converts display->native before POST (convertToNativeValue, floor-rounded); every response deep-walks money keys (/win|balance|wager|amount|bet/i) to fiat while preserving native under a parallel key (balance->cryptoBalance). Native precision = auth currencyDecimals; fiat precision = host displayFiatCurrencyDecimals — never hardcode per-currency decimals. Live FX pushed by host via getFiatCurrencyRates; game never fetches rates. Freebet/campaign bets are NEVER fiat-converted (always native).",
+        "genericization": "Skill 'dual-currency-money': always-native settlement + display overlay; floor rounding so players are never over-credited; parallel native key preservation; server-driven precision; host-pushed FX. Studio's mathOperations (decimal.js builder) is the float-safe money path. WARNING to port: roundDown() uses ROUND_CEIL / roundUp() uses ROUND_UP (naming inverted) — fix on port.",
+        "exampleRef": "/Users/chaowang/Documents/Developments/Mini games/GAME-ANALYSIS/03-framework-currency-and-host-integration.md:83-86,174-184; 02-framework-monorepo-studio.md:120-148; mini-game-limbo/src/gdk/data/gameStateData.ts:281-339"
+      },
+      {
+        "name": "Inline window.mwgame host bridge (no iframe/postMessage)",
+        "summary": "Game mounts INLINE into host's <div id=\"mw-mini-game\"> via createRoot, sharing host window. Contract = global window.mwgame object (installed once, guarded) + a private EventTarget. Host->game: unmountReactApp, updateConfigData (data-* + setOverride), refreshGameState (full teardown+re-auth on currency switch), updateUserToken, updateClientSeed/getActiveRngSeeds/roundRngState, getFiatCurrencyRates. Game->host CustomEvents: balanceUpdated (always native), gameSessionUpdated ({inSession} = game owns balance this round), bet/win telemetry. Config resolved URL-query-first then data-attribute. Session must ALWAYS be released — every play onError calls endGameSession().",
+        "genericization": "Skill 'embedded-game-host-bridge': a transport-agnostic bridge interface (mount/unmount/refresh/token/seeds/fx/session) with an internal event bus; bracket every round with startSession/endSession; always release session on error. Generic to any embeddable game widget. Note WebSocket outlier (Aviator/Snake) replaces per-round REST with a WS session that IS the session.",
+        "exampleRef": "/Users/chaowang/Documents/Developments/Mini games/GAME-ANALYSIS/00-MASTER-SYNTHESIS.md:330-390; 02-framework-monorepo-studio.md:77-117; 03-framework-currency-and-host-integration.md:174-184"
+      },
+      {
+        "name": "Lottery paytable lookup with hypergeometric probability + risk tiers",
+        "summary": "Keno: win = wonMultiplier*bet where wonMultiplier = multipliers[risk][pickedCount][matchCount]. Risk tier (Classic/Low/Medium/High) reshapes the payout curve flat->high-variance; per-(risk,picks) RTP ~98.75-99.00% (avg 98.93%). Exact match probability is hypergeometric P(X=k)=C(p,k)*C(40-p,10-k)/C(40,10); server also ships multipliersProbabilities[picks][match] for tooltips. Diamonds uses the analogous gem-frequency 'poker hand' partition paytable ([5]=five-of-a-kind etc.) with explicit counts/probabilities and EV-contribution per row; Blitz uses birthday-paradox P(N)=prod_{i=0}^{N-1}(52-i)/52, mult=RTP/P(N) giving exact EV=RTP-1.",
+        "genericization": "Skill 'paytable-rtp-validator': given a paytable[tier][picks][matches] and the analytic distribution (hypergeometric / multinomial-partition / birthday-product), compute realized RTP per tier and assert within tolerance; flag tiers that drift. Generic to keno, diamonds, bars, blitz, any pick-and-match game.",
+        "exampleRef": "/Users/chaowang/Documents/Developments/Mini games/GAME-ANALYSIS/games/keno.md:161-264; diamonds.md:121-158; blitz.md:143-166"
+      },
+      {
+        "name": "Progressive-ladder multiplier with provably-fair per-row randomization",
+        "summary": "Dragon Tower: multiplier(row) = RTP*(columns/eggs)^row; survival P = (eggs/columns)^row; EV when cashing at any row = RTP*bet (the (eggs/columns)^N and (columns/eggs)^N cancel). Difficulty = volatility dial via columns/eggs ratio (Easy 4/3 .. Master 4/1 -> 259,522x full clear). 27 server randomizations (9 rows x 3 Fisher-Yates) reconstruct the egg layout. Same EV-cancellation structure underlies Mines (hypergeometric per-pick survival).",
+        "genericization": "Skill 'ladder-game-math': parameterize (rows, safe/total ratio per row, RTP); auto-derive per-row multiplier and survival tables and prove EV=RTP*bet at every cash-out point. Reusable for towers, mines, frog-crossing.",
+        "exampleRef": "/Users/chaowang/Documents/Developments/Mini games/GAME-ANALYSIS/games/dragon-tower.md:128-222"
+      },
+      {
+        "name": "RTP-variant build system (one bundle, N RTP variants via env)",
+        "summary": "Studio monorepo builds N RTP variants from ONE source bundle: rtp.config.json declares variants (gameCode/rtpPercentage/urlPath); vite.config reads RTP_VARIANT env, sets VITE_GAME_CODE + VITE_RTP_PERCENTAGE via define, rewrites the CDN path, outputs to build-rtp<pct>. The backend selects the RTP table purely from the reported gameCode; the client only DISPLAYS VITE_RTP_PERCENTAGE. Source bundles are byte-identical across variants. GDK equivalent: runtime alternate game codes (limbo0, dragon-tower0 rtp=1, Dice Zero=1.0).",
+        "genericization": "Skill 'rtp-variant-pipeline': a config-driven build matrix that stamps gameCode+rtpPercentage into one bundle and fans out to per-variant CDN folders; backend keys RTP off gameCode. Generic deploy pattern for any house-edge-tunable game line.",
+        "exampleRef": "/Users/chaowang/Documents/Developments/Mini games/GAME-ANALYSIS/02-framework-monorepo-studio.md:266-301; mini-games-monorepo/scripts/aviator-build.js, apps/aviator/rtp.config.json"
+      }
+    ],
+    "configFormats": [
+      "Plinko multiplier table: WinMultipliers = { [rows:number]: { low:number[], medium:number[], high:number[], insane:number[] } } where each array length = rows+1, symmetric (a[k]===a[rows-k]); shipped as JSON.parse'd string in plinkoMath.ts:66-121",
+      "Plinko second-axis reel: INSANE_BALL_WEIGHTS = [{type,weight,multiplier}] out of 10000 total weight; E[ball]=sum(weight/total*mult)",
+      "Keno paytable: multipliers[risk][pickedCount][matchCount] (4 risk tiers x picks 1-10 x match 0-10), plus server multipliersProbabilities[picks][match]:number[][]",
+      "Diamonds paytable: PATTERN_LOOKUP keyed by sorted gem-frequency partition string e.g. '[1,4]'->Four of a Kind, with {index,label,multiplier,probability}",
+      "Dragon Tower rowConfigs: {difficulty: {columns:int, eggs:int}} -> multiplier(row)=RTP*(columns/eggs)^row",
+      "Chase crash config: DEFAULT_CHASE_CONFIG {targetRTP, houseEdge, maxCrash, maxWinCap}; generateLadderTiers(target,n) geometric rungs",
+      "Server /game/info config block: { config.rtp | config.targetRTP, bets.main.available.{min,max,step,default}, settings.{provablyFair:'true'|'false', winCap:string} }",
+      "proveFairness response: { hashes:[{hex,bytes[]}], randomizations:[{limit, extractions:[{cursor,hashIndex,offset,integer}], randomNumber, gameEvent:<per-game> }] }",
+      "studio rtp.config.json: { variants: { <name>: { gameCode, rtpPercentage, buildSuffix, urlPath } } }",
+      "currency set: avaliableCurrencySVGs (sic) allow-list of ~35 crypto+stablecoin+social-coin codes; fiat (USD/EUR) intentionally display-only, never a balance currency"
+    ],
+    "reusableArtifacts": [
+      "mini-game-plinko-100k/src/game/data/plinkoMath.ts — directly portable: binomialP, evOfTier, evOfBallMultiplier, evOfTotal, rollBucket (CDF sampler), rollBallMultiplier (weighted sampler), ballTypeFromMultiplier. Generic engine for any binomial-bucket + weighted-reel game.",
+      "mini-game-plinko-100k/src/game/data/__tests__/plinkoMath.test.ts — gold-standard QA harness: asserts binomial sums to 1 & symmetry, table shape (length===rows+1, symmetric), EV in [0.979,0.981] per (rows,tier), E[ball]===3.0 exact, combined EV in [0.975,0.985], 100k/200k-sample Monte-Carlo distribution check. Port as the template math-QA spec for ANY EV-calibrated game.",
+      "mini-game-plinko-100k/docs/insane-economy-calibration.md — worked example of variance/StdDev/jackpot-probability derivation for a two-axis economy.",
+      "chaseMath.ts (cited in chase.md): rollCrashPoint(u), computeWinChance(cashOutAt), generateLadderTiers(target,n) — generic crash-family math with input-range validation (throws on u not in [0,1)).",
+      "packages/studio/src/utils/math-operations.ts + math-operations.unit.spec.ts — decimal.js money-math builder (add/subtract/multiply/divide/convertToNative/convertToFiat) to avoid float drift; the float-safe money primitive to port (fix the inverted roundUp/roundDown naming).",
+      "packages/studio/src/utils/number.ts — roundToPrecision/convertToFiatValue/convertToNativeValue/preciseSum/preciseDivide.",
+      "packages/studio/src/api/api-components/fairness.ts — createFairnessProver(queryParamBuilder) factory; one prover per game with hardcoded provider — template for a provable-fairness verifier registry.",
+      "mini-games-monorepo/scripts/ (aviator-build.js, games-config.json, conditional-build/deploy/detect-changes .sh) — RTP-variant + monorepo CI fan-out scripts.",
+      "packages/studio/docs/BALANCE_AND_SESSION.md — canonical idle->startSession->server->animating->refetch->endSession->idle round FSM spec."
+    ],
+    "mapsToSkills": [
+      "math-rtp-calibration: EV/RTP calibration of multiplier tables (plinko binomial, keno hypergeometric, diamonds multinomial, blitz birthday-paradox), constant-edge crash/target curves, two-axis E[bucket]*E[ball] decomposition, ladder EV-cancellation proofs",
+      "math-paytable-designer: generate/validate paytable[tier][picks][matches], plinko symmetric multiplier arrays, dragon-tower (columns/eggs)^row ladders, weighted-reel jackpot tiers",
+      "math-provable-fairness: commit-reveal HMAC-SHA256 verifier, byte-stream->float->gameEvent decoder registry, single-vs-multiplayer commitment shapes, rotation-blocked-by-open-rounds, Fisher-Yates reconstruction",
+      "build-game-server-contract: REST bet/settle protocol (/authenticate,/game/info,/play,/complete,/recover,/proveFairness), roundId round-lock, wager.next action model, doComplete/asyncWin semantics, idempotent recovery",
+      "build-money-engine: native-server/fiat-display dual-currency, decimal.js settlement, server-driven precision, host-pushed FX, freebet-never-converted",
+      "build-host-bridge: inline embed (no iframe) window.mwgame contract, session bracketing, config precedence, refreshGameState teardown, WebSocket-session outlier",
+      "build-rtp-variant-pipeline: one-bundle-N-RTP env/CDN build matrix; backend keys RTP off reported gameCode",
+      "qa-math-invariants: port plinkoMath.test.ts as the EV/symmetry/Monte-Carlo template; assert RTP within tolerance per tier; win-cap (finalWin!==wager.win) detection tests",
+      "qa-fairness-verification: reproduce a round from (serverSeed,clientSeed,nonce) and compare to displayed outcome; per-game decoder round-trip tests"
+    ],
+    "gaps": [
+      "Server-side outcome algorithms are NOT in the client for several games — the exact HMAC->crash-point distribution for Aviator, and the per-tier probability tables for Bars (config.tiles) cannot be verified from client source; need a network trace or server repo. The wagerforge math skills will need to re-derive/own the server side, not just port client decoders.",
+      "RTP is reported inconsistently within single games (Limbo UI 0.97 vs proveFairness fallback 0.98; Dragon Tower info.json 0.97 / README 0.99 / code 0.98; Pepe 96% vs 1% vs 0.99). Server /game/info config.rtp is authoritative — client fallbacks are unreliable as a math source. Treat docs' table RTPs as illustrative, server value as truth.",
+      "Win-cap units unverified: settings.winCap parsed as a string 'in smallest currency unit' but display fallbacks are USD ($500k/$250k); for non-USD wallets the hardcoded $ prefix may mislead. Cap detection relies on finalWin !== wager.win and silently misses caps where server returns finalWin===wager.win.",
+      "Keno gateway does NOT call updateGameSession(true/false) on bet start/end (unlike Limbo/Mines) — host session tracking gap on some operators; a generic engine must make session bracketing mandatory.",
+      "HEXSHOT (sling) ships a non-fair dummy: Math.random(), provablyFair:'false', verifier file does not exist — do NOT use as a fairness reference. Snake/Aviator use hash-based multiplayer fairness with no per-player seed.",
+      "asyncWinInPlay/asyncWinInComplete/doComplete semantics are under-specified across nearly every game (they change WHERE the win lands in the balance flow); Limbo even has a dead if/else where both branches are identical. Live per-operator config could not be confirmed from client code.",
+      "GDK is copy-pasted per repo and has DRIFTED (connector.ts/gateway.ts/strategyBetManager.ts differ between games; HTTP timeout 10s vs 30s in Plinkos; currency allow-lists disagree). Any ported pattern must be reconciled against the specific game, not assumed canonical.",
+      "Test coverage is thin: only Plinko-100k (math), Blitz, HEXSHOT, Chase, Snake have real game-specific tests; all studio apps and most GDK games have zero — the math models (Mines parser, Dragon Tower formula, Diamonds/Keno paytables) are high-value UNTESTED areas. wagerforge qa-* skills should fill these.",
+      "physicsPattern.ts has no CI guard — if physics constants change, recorded launch-x lands balls in wrong visual buckets, caught only by a dev-only assert. A generic cosmetic-sim skill needs a regression guard.",
+      "Multiplier tables for Keno/Diamonds are served live from server (infoResponse.config.multipliers) — the README/doc tables are snapshots that may be outdated; a verifier must compare a live /game/info against analytic distributions."
+    ]
+  },
+  {
+    "area": "RGS (Remote Game Server) architecture, bet→settle lifecycle, wallet/transaction integrity, configuration/env management, CI/CD + deploy flow, and monitoring for iGaming game platforms — mined from three real deployment projects.",
+    "projectsExamined": [
+      "/Users/chaowang/Documents/Developments/Deployment/metawin-slot-server (Slotify GDK game-server: 54 games, IGame interface, RNG/integrity utils, RTP sim, Docker push)",
+      "/Users/chaowang/Documents/Developments/Deployment/inf-games-tequity (Terraform/GKE infra for 4 envs: RGS+adapter+wallet+rng+promo+websocket microservices, CI/CD, monitoring, incident docs)",
+      "/Users/chaowang/Documents/Developments/Deployment/deploy (raw GCP service-account JSON keys — 4 files, dev+prod for 2 brands)"
+    ],
+    "patterns": [
+      {
+        "name": "IGame contract — single play() dispatch as the RGS round entry point",
+        "summary": "Every game is a module implementing a uniform interface: name, bets (per-action: available stake array, default, coin cost multiplier, maxWin, validate flag), play({bet, action, config}, random) -> {win, data}, config(variant) math selector, and stats collectors. The platform/RGS injects the RNG as the second arg of play(); the game is pure logic and never touches wallet/DB. play() switches on `action` (main, baseBoosted, feature-buy 'fg', 'elvis') and normalizes feature-buy bets by their coin cost before running math. This is the clean RGS<->game-logic boundary.",
+        "exampleRef": "/Users/chaowang/Documents/Developments/Deployment/metawin-slot-server/games/allaboutthefish/index.ts:615-660",
+        "genericization": "Generic 'game-server contract' skill: a GameModule interface { id, bets: Record<action,{stakes,default,coinCost,maxWin,validate}>, play(ctx, rng)->{win,data,state?,next?}, config(variant), stats }. RNG injected by host, never imported. Game logic is a pure function of (bet, action, config, rng). Feature-buy normalization (bet/coinCost) and per-action maxWin (cap/coinCost) are reusable rules. Abstract away Slotify/@slotify/gdk specifics."
+      },
+      {
+        "name": "Multi-step state machine for instant/crash games (deferred settlement)",
+        "summary": "Instant games (flip, crash, cashout) return {win, state, data, next[]}. Convention: win=0 during intermediate steps so the host does NOT settle; state={} (empty) signals round concluded -> settle the bet; next[] tells client available actions ('continue','cashout'). Outcomes are pre-generated up front and stored in state under `_underscore`-prefixed keys that must never be serialized to the client. Autobet replays a predetermined pick array, stopping at first loss.",
+        "exampleRef": "/Users/chaowang/Documents/Developments/Deployment/metawin-slot-server/BEST_PRACTICES.md:770-819",
+        "genericization": "Reusable 'deferred-settlement state machine' pattern: settlement trigger = (win>0 || state empty); hidden server state via key-prefix convention; pre-generated outcome arrays; client-action whitelist via next[]. Maps directly to crash/instant game skills."
+      },
+      {
+        "name": "Provably-fair verification hook (proveFairness)",
+        "summary": "Each instant game exposes proveFairness(addRandomization, data) calling addRandomization(range, rngValue => publicResult) once PER source of randomness, re-deriving the public outcome with the SAME formula the live game used. Lets players independently verify outcomes from the recorded RNG values.",
+        "exampleRef": "/Users/chaowang/Documents/Developments/Deployment/metawin-slot-server/BEST_PRACTICES.md:821-840",
+        "genericization": "Generic 'provably-fair' skill component: a verifier callback registered per RNG source that must reuse the exact production formula and declared range (2**32 for float, 2**N for N binary events). Drives fairness/transparency features independent of vendor."
+      },
+      {
+        "name": "RNG injection + TrackedRNG record/replay for reproducible rounds",
+        "summary": "Host injects an integer RNG (randomInteger(limit) in [0,limit-1]); games adopt one convention (integer gameRNG(limit) OR float gameRNG(2**32)/2**32 in [0,1)). TrackedRNG wraps it to auto-record every draw with a 'purpose' label, supports load([..])/reset() replay, and mark() phase separators — enabling exact round reproduction (cheats/QA scenarios) with zero RTP difference vs prod (transparent passthrough). Guarded by logCheats flag so prod path is the raw RNG.",
+        "exampleRef": "/Users/chaowang/Documents/Developments/Deployment/metawin-slot-server/common/rng/TrackedRNG.ts:34-85",
+        "genericization": "Reusable RNG abstraction: IntegerRng interface + a recording/replay decorator (sequence+purpose capture, deterministic replay). Port TrackedRNG.ts nearly verbatim into wagerforge scripts as a generic deterministic-replay RNG harness for QA/repro. Flag-gate dev-only behavior."
+      },
+      {
+        "name": "Numeric integrity rules: fixValue rounding, >= max-win caps, exclusive interval bounds",
+        "summary": "Money math must round every accumulation (fixValue = round(x*100)/100) to avoid float drift; max-win caps use >= never == (float equality is unsafe); win-distribution buckets use exclusive upper bound [lo,hi) with a final Infinity bucket so no win is silently lost or double-counted. Feature-buy RTP must normalize the buy-in stake.",
+        "exampleRef": "/Users/chaowang/Documents/Developments/Deployment/metawin-slot-server/BEST_PRACTICES.md:1059-1103",
+        "genericization": "Generic money/RTP-integrity checklist for build-* and qa-* skills: round-on-accumulate helper, >=-cap rule, half-open interval buckets with Infinity terminator, stake normalization for feature-buys. These are vendor-agnostic correctness invariants."
+      },
+      {
+        "name": "Bet→settle round lifecycle: RGS → adapter → external wallet, correlation-tagged",
+        "summary": "Production flow: client hits RGS /game/play; RGS runs the game module then hands the transaction to the adapter; adapter makes an outbound HTTP call to the operator's external wallet to withdraw the stake (bet) and later deposit the win (with asyncWin=true for the win leg). Every hop shares correlationId + sessionId + roundId. Routes are split by service: /game/*,/balance,/authenticate,/walletMessage->rgs; /wallet/*,/launch/*,/rgs/*->adapter; /fairness/*->rng. An incident showed the adapter's outbound wallet connection pool/per-player queue saturating, adding ~40s between receiving the bet and initiating the wallet HTTP call while the wallet itself responded in ~286ms — and the adapter's responseTime metric only measured the HTTP call, hiding the queue wait.",
+        "exampleRef": "/Users/chaowang/Documents/Developments/Deployment/inf-games-tequity/docs/bugs/adapter-connection-pool-exhaustion.md:22-95",
+        "genericization": "Generic RGS transaction lifecycle: RGS(game outcome) -> wallet-adapter(debit stake / credit win) -> operator wallet, with bet and win as separate transactions (async win), all carrying correlation/session/round IDs. Reusable failure-mode lesson: measure END-TO-END (handoff→wallet response) not just the HTTP call; bound outbound pool + per-player queue; crashed RGS can orphan in-flight transactions and leak pool connections. Feeds wallet-integration + reliability skills."
+      },
+      {
+        "name": "Path-based service routing + WAF/rate-limit edge for game endpoints",
+        "summary": "Ingress maps URL paths to microservices (rgs/adapter/websocket/promo/rng/back-office). Cloud Armor edge: layer-7 DDoS adaptive protection, preconfigured OWASP rules (scanner detection, protocol-attack/SQLi/XSS), country-block via region_code header injection + deny, a deny(404) rule that rejects any path not in the known route map, and an IP-keyed throttle (deny 429) that EXEMPTS money/critical paths (/graphql,/feed,/wallet,/rgs) from rate limiting. websocket service uses GENERATED_COOKIE session affinity + 24h timeout.",
+        "exampleRef": "/Users/chaowang/Documents/Developments/Deployment/inf-games-tequity/infrastructure.tf:567-653",
+        "genericization": "Reusable iGaming edge-security pattern: route allowlist (unknown path -> 404), OWASP preconfigured rule set, geo-blocking, IP rate-limit that whitelists wallet/settlement paths so legitimate high-frequency play isn't throttled, session affinity for realtime/websocket. Feeds comp-* (compliance/geo) and deploy edge-security skills."
+      },
+      {
+        "name": "Version-pinned microservice deployment via single versions map + per-service migration Jobs",
+        "summary": "All deployable services + game servers are declared with image tags in one `versions` map per env (main.tf). app.tf builds k8s Deployment+Service+HPA+BackendConfig per service from a single locals map (uniform /health readiness+liveness probes, rolling update maxUnavailable=0, resource requests/limits, config-map + secret env injection). DB migrations are NOT run on startup — they run as dedicated Kubernetes Jobs whose re-run is gated by a terraform_data trigger on the service version (replace_triggered_by), with backoff_limit=0, restart=Never, and long statement/lock timeouts. Infra changes must be applied BEFORE service version bumps (separate PRs).",
+        "exampleRef": "/Users/chaowang/Documents/Developments/Deployment/inf-games-tequity/infrastructure.tf:667-805",
+        "genericization": "Reusable deploy model: declarative version map -> templated Deployment/Service/HPA loop; health-probe + zero-downtime rolling defaults; migrations as version-gated one-shot Jobs (idempotent re-run only on version change) decoupled from app boot; ordering rule infra-PR-before-version-PR; dev-before-prod gate. Strong material for deploy-* and migration skills."
+      },
+      {
+        "name": "Keyless CI/CD via Workload Identity Federation with split least-privilege providers",
+        "summary": "GitHub Actions authenticates to GCP via WIF (OIDC) — no JSON keys in CI. Two providers in one pool per project: a narrow one (github-provider) for kubectl rollout restart only, and a broader one (github-tf-provider) for terraform plan/apply. Prod apply gated to main branch via GitHub Environment branch policies (provider condition only scopes to repo). terraform-plan runs on PRs across all 4 envs (matrix, fail-fast:false) and posts the plan back as a PR comment; terraform-apply runs dev first then prod (needs:), concurrency group prevents overlap, then a reusable workflow rewrites the README versions table via a GitHub App token. A manual restart-deployment workflow does targeted kubectl rollout restart + rollout status wait.",
+        "exampleRef": "/Users/chaowang/Documents/Developments/Deployment/inf-games-tequity/.github/workflows/terraform-apply.yml:80-135",
+        "genericization": "Reusable CI/CD blueprint: OIDC/WIF keyless auth, separate least-privilege identities for restart-vs-apply, plan-on-PR-with-comment, dev-gates-prod sequencing, branch-policy prod gating, auto-doc of deployed versions. Vendor-neutral (swap GCP WIF for AWS OIDC). Feeds deploy-* and CI skills. NOTE GAP: the standalone deploy/ dir contradicts this by holding long-lived SA JSON keys."
+      },
+      {
+        "name": "Log-based metrics + transaction dashboards from structured logs",
+        "summary": "Observability is built by extracting metrics from structured JSON logs: finished_transactions / failed_transactions counters and transaction_response_time / response_time DISTRIBUTIONs, each labeled by wallet, operator, brand, game, env, error code/reason — extracted via EXTRACT(jsonPayload.data.*) label extractors with exponential histogram buckets. Dashboards chart per-wallet response times (p50/p95 with 300ms baseline + 1000ms critical thresholds), finished/failed transaction rates, RGS /game/play end-to-end latency p50/p95/p99 (5s warning + 40s timeout threshold lines), RGS pod restart count, and exceptions by message. Alerts: uptime check on /health/all (NOT_CONTAINS 'OFFLINE'), primary DB CPU>80%, fanned out to SMS+email+Slack.",
+        "exampleRef": "/Users/chaowang/Documents/Developments/Deployment/inf-games-tequity/metrics.tf:63-200",
+        "genericization": "Reusable iGaming observability spec: emit structured logs with stable fields (wallet/operator/brand/game/correlationId/responseTime), derive counter+distribution metrics by those labels, and standard dashboards (per-wallet latency, transaction success/failure rate, end-to-end round latency with SLO threshold lines, service restart count). The incident proves the key rule: track end-to-end round latency, not just the outbound HTTP call. Feeds qa-* / monitoring / SLO skills."
+      },
+      {
+        "name": "Layered env/config management: config-map vs secret vs per-service env merge",
+        "summary": "Three config tiers: a shared k8s ConfigMap (ENV, NODE_ENV, DB_HOST/PORT, REPLICA_DB_HOST, base-currency + decimals, log level, CORS, archive window) applied to all services; a shared Secret (DB creds, JWT_SECRET, Redis); and per-service env-vars merged from a base map + var.env-vars override (lookup with default {}). Cross-service discovery is by k8s DNS (http://rgs/graphql, http://promo/graphql). Shared HMAC-style ADAPTER_RGS_KEY (random_password) authenticates RGS<->adapter. Game-server pods set remove-secrets=true so they never receive DB/JWT secrets (only mail). Runtime secrets live in GCP Secret Manager, container created by TF but value populated manually then read via data source.",
+        "exampleRef": "/Users/chaowang/Documents/Developments/Deployment/inf-games-tequity/app.tf:176-245",
+        "genericization": "Reusable config taxonomy: non-secret shared config-map, shared secret bundle, per-service overridable env map (base + override merge with safe default), internal-DNS service discovery, shared service-to-service auth key, and least-secret-exposure for stateless/game pods. Secret-Manager-create-empty-then-populate avoids secrets in git/state. Feeds config-management and security skills."
+      },
+      {
+        "name": "Input validation at the game boundary before any RNG draw",
+        "summary": "Mini-games validate all client-supplied params (existence, type, integer/finite, discrete-choice range, enum for difficulty) BEFORE making any RNG call or touching the wallet, throwing explicit errors. Multiplayer games additionally do belt-and-suspenders command validation, and wrap the entire tick() in try/catch that on fatal error refunds all stakes, cancels pending commands, resets state, ends the round, and broadcasts an error event.",
+        "exampleRef": "/Users/chaowang/Documents/Developments/Deployment/metawin-slot-server/BEST_PRACTICES.md:747-768",
+        "genericization": "Generic boundary-validation + safe-failure rule: validate-before-randomness/validate-before-debit; on unrecoverable error, refund stakes and reset rather than leave money in limbo. Vendor-neutral correctness/integrity guidance for build-* and qa-* skills."
+      }
+    ],
+    "configFormats": [
+      "Reel-strip math config (TS default-export object): { variant, wheels:{ base/baseBoosted/baseRespin: number[][][] reel strips (per-action sets of 5 reel arrays of symbol IDs as weighted strips), paytable: number[][] (per-symbol payout by OAK count), feature:{ wildValue[], bonusFGmodelWeights[], freeGameRoundReward{}, optionProb, ... }, cap:{ maxWin, noneWinTriggers, fgCaps{}, fgCapsIncrementThres{}, bonusFGlowCap/highCap, bonusFGrejectLowProb/HighProb }, initGameViews{} } — see games/allaboutthefish/rtp96MathConfig.ts",
+      "Multiple RTP variants per game as parallel config files (rtp87/92/94/95/96 MathConfig.ts) selected by config(variant); a separate 'public/reference' rtp96MathConfig.ts vs the 'active' myRtp96MathConfig.ts",
+      "Bet config object per action: { available:number[] stakes, default, coin (cost multiplier), maxWin, validate:boolean }",
+      "Cheat/replay scenario JSON per game (e.g. AATFCheats.json): categories[] -> cheats[] each {id,name,cheat:'<rng sequence string>'} pre-seeded empty then filled by sim",
+      "YAML math config loader variant (loader.ts + js-yaml): pay_table, feature{jackpot_multipliers, coin_probability_distribution, coin_payouts, *_weights[/sum]}, pay_lines:number[][], wheels.wheel_base:number[][]",
+      "Terraform per-env versions map: { adapter, back-office, connector, demo-casino, promo, rgs, rng, websocket, games:{ <game>:vX.Y.Z } } in metawin|gladiator/{dev,prod}/main.tf",
+      "Structured app log shape consumed by metrics: jsonPayload.message ('Transaction finished '/'Transaction failed '/'Exception '), jsonPayload.data.{responseTime,wallet,operator,brand,transaction.game,error.message,error.data.error.code}, jsonPayload.meta.env, httpRequest.latency"
+    ],
+    "mapsToSkills": [
+      "build-rgs-game-server (IGame/GameModule contract, play() dispatch, bets/action/coin normalization, RNG injection)",
+      "build-slot-math (reel-strip + paytable + feature/cap config formats, multi-RTP variants, win calc, max-win >= cap) — complements existing slot-math-designer/slot-math-designer skill",
+      "build-instant-crash-games (deferred-settlement state machine, autobet, hidden _state, provably-fair hook)",
+      "build-wallet-integration (RGS->adapter->wallet bet/win two-phase, correlation/session/round IDs, async win, internal-DNS service discovery, shared adapter key auth)",
+      "build-deploy-pipeline (WIF keyless CI/CD, plan-on-PR, dev-gates-prod, version-map deploys, version-gated migration Jobs, auto-version-doc)",
+      "build-config-management (config-map vs secret vs per-service env merge, Secret-Manager create-empty-populate, least-secret-exposure)",
+      "qa-rtp-simulation (RTP/variance/hit-freq/top-wins stats classes, multi-core map/reduce, interval buckets, sim CLI + long-sim tmux/script workflow)",
+      "qa-integrity-checks (fixValue rounding, >= caps, half-open buckets, feature-buy normalization, validate-before-RNG, refund-on-error)",
+      "qa-observability-slo (log-based metrics, per-wallet latency dashboards, end-to-end round latency SLO, restart-count tracking)",
+      "comp-geo-and-edge-security (route allowlist 404, OWASP/Cloud Armor rules, country/state blocking, rate-limit-exempting-wallet-paths, IP anonymisation)",
+      "comp-provably-fair (proveFairness verifier, deterministic RNG replay)"
+    ],
+    "reusableArtifacts": [
+      "common/rng/TrackedRNG.ts — port verbatim as a generic deterministic record/replay RNG decorator (sequence+purpose capture, load/reset/mark) for QA repro harnesses (/Users/chaowang/Documents/Developments/Deployment/metawin-slot-server/common/rng/TrackedRNG.ts)",
+      "common/rng/IntegerRng.ts + FloatSourcedIntegerRng.ts — the minimal injected-RNG interface + float->integer adapter to standardize game RNG contracts (/Users/chaowang/Documents/Developments/Deployment/metawin-slot-server/common/rng/)",
+      "common/stats/index.ts — generic RTP/variance/hit-frequency/top-wins/payout-distribution/cascade Stats classes with multi-core map/reduce; basis for a qa-rtp-simulation stats library (/Users/chaowang/Documents/Developments/Deployment/metawin-slot-server/common/stats/index.ts)",
+      "BEST_PRACTICES.md — directly distillable into qa-integrity / build-game-server skill rule-sets (RNG usage, fixValue, max-win caps, validation, refund-on-error, pre-launch checklist, security: never expose RNG, no global mutable gameRNG) (/Users/chaowang/Documents/Developments/Deployment/metawin-slot-server/BEST_PRACTICES.md)",
+      "script/deploy.sh — generic 'build-and-push-if-image-absent' Docker buildx pattern keyed on package.json version (/Users/chaowang/Documents/Developments/Deployment/metawin-slot-server/script/deploy.sh)",
+      "inf-games-tequity app.tf templated-service loop (Deployment/Service/HPA/BackendConfig from a versions map) — skeleton for a generic k8s game-platform deploy module (/Users/chaowang/Documents/Developments/Deployment/inf-games-tequity/app.tf:248-461)",
+      "inf-games-tequity metrics.tf + monitoring.tf — reusable log-based transaction metrics + wallet-latency/round-latency dashboard JSON templates (/Users/chaowang/Documents/Developments/Deployment/inf-games-tequity/metrics.tf, monitoring.tf)",
+      ".github/workflows/{terraform-plan,terraform-apply,restart-deployment,update-versions}.yml — WIF keyless CI/CD blueprint with plan-on-PR + dev-gates-prod + auto-version-doc (/Users/chaowang/Documents/Developments/Deployment/inf-games-tequity/.github/workflows/)",
+      "docs/bugs/adapter-connection-pool-exhaustion.md + adapter-queue-investigation-timeline.md — a ready-made reliability case study for wallet-integration + SLO skills (measure end-to-end, bound pools/queues, orphaned-round risk) (/Users/chaowang/Documents/Developments/Deployment/inf-games-tequity/docs/bugs/)",
+      "modules/github-actions-tf-wif + secrets modules — reusable WIF provider + Secret-Manager-empty-create TF modules (/Users/chaowang/Documents/Developments/Deployment/inf-games-tequity/modules/)"
+    ],
+    "gaps": [
+      "SECURITY: /Users/chaowang/Documents/Developments/Deployment/deploy/ contains 4 long-lived GCP service-account JSON keys (dev+prod, both brands, incl. a default compute SA) committed to disk — directly contradicts the infra repo's keyless-WIF posture; these are exfil-grade prod credentials that should be removed/rotated and never ported into any skill or example.",
+      "No wallet adapter SOURCE in scope: the RGS->adapter->wallet code (debit/credit, idempotency keys, retry/cancel/rollback of transactions) lives in the closed @slotify images; only its log/metric shape and one incident are observable. The actual idempotency mechanism (e.g. whether bet/win use a transaction/round key to dedupe) is inferred, not seen. Cannot extract concrete idempotency-key or rollback code.",
+      "Idempotency of the round itself is unverified: the slot-server play() is a pure function with a GLOBAL MUTABLE gameRNG (export let gameRNG) reassigned every call — BEST_PRACTICES flags this as a theoretical concurrency/race risk; no per-request RNG isolation or request-scoped context exists in the open code.",
+      "No DB schema / SQL for wallet_transactions or game_round_history — only env wiring (DB_HOST, migrations-as-Jobs) is visible; the README flags a 1.4TB DB and candidate high-churn tables but the actual ledger/transaction table design and any unique-constraint-based idempotency is not in scope.",
+      "Adapter outbound HTTP connection-pool / per-player-queue config (the root of the 40s latency incident) is unresolved and vendor-owned — no tunable was found in this repo; a generic skill can only prescribe 'bound the pool/queue and measure end-to-end', not show the fix.",
+      "The standalone /deploy directory has no README/manifest explaining how/whether those JSON keys are used (likely legacy CircleCI deployer keys superseded by WIF per modules/github-actions-tf-wif comments) — provenance/cleanup status unknown.",
+      "back-office and connector are client-facing/CDN-copied artifacts (null_resource local-exec docker cp -> gsutil rsync) with no source here; the CDN cache-control/no-cache asset-publishing pattern is visible but the app code is not.",
+      "RTP/fairness CERTIFICATION/audit artifacts (lab sign-off, RNG certification) are absent — only self-run RTP simulations and a proveFairness hook exist; compliance-grade evidence generation is a gap for any comp-* certification skill."
+    ]
+  },
+  {
+    "area": "Repo structure, shared tooling, and house conventions across iGaming mini-game projects + AI-asset pipeline",
+    "projectsExamined": [
+      "/Users/chaowang/Documents/Developments/Mini games/mini-games-monorepo (Gen-2 'studio' pnpm+Turborepo, React19/Zustand/TanStack Query/Vite-IIFE)",
+      "/Users/chaowang/Documents/Developments/Mini games/chao-refacting-version (Gen-1 'GDK' standalone CRA/CRACO+Redux+axios, vendored src/gdk/)",
+      "/Users/chaowang/Documents/Developments/Mini games/GAME-ANALYSIS (cross-game synthesis + 3 framework-reference docs + ~32 per-game deep dives — explicit house-style codification)",
+      "/Users/chaowang/Documents/Developments/AI Tools/ludo.ai (sprite-animation/atlas generator; swappable AI-asset provider abstraction → PixiJS sprite-sheet)"
+    ],
+    "patterns": [
+      {
+        "name": "Monorepo: thin game apps over one versioned shared library",
+        "summary": "pnpm workspace (apps/* + packages/*) + Turborepo. Every game is a Vite app in apps/<game>/ that imports a single shared @studio library; CLAUDE.md mandates 'no game logic in the shared package, no shared code duplicated into games'. Shared library is sliced into store/ api/ hooks/ utils/ constants/ ui/ providers/. There is an explicit _mini-game-template/ app used as the scaffold for new games.",
+        "exampleRef": "mini-games-monorepo/pnpm-workspace.yaml; mini-games-monorepo/CLAUDE.md:5-26; mini-games-monorepo/apps/_mini-game-template/; mini-games-monorepo/packages/studio/src/index.tsx:1-8",
+        "genericization": "Skill: 'monorepo-game-platform-structure' — pnpm+Turborepo workspace with apps/<game> thin apps over a single versioned @platform/core package (host bridge, money math, fairness UI, stores, autobet, audio). Ship a _game-template app as the new-game generator. Hard rule: core stays game-agnostic; per-game code never leaks into core."
+      },
+      {
+        "name": "Centralized shared-config packages (no per-app config drift)",
+        "summary": "Dedicated workspace packages for every cross-cutting config: @repo/eslint-config, @platform/tailwind-config, @platform/typescript-config (base.json + react-library.json + vite.json), @platform/vitest-config (base/global-setup/setup-files), plus @platform/translations (21-lang) and a vendored @platform/mw-number-flow animation fork. Apps extend these rather than re-declaring.",
+        "exampleRef": "mini-games-monorepo/packages/{eslint-config,tailwind-config,typescript-config,vitest-config,translations,mw-number-flow}; packages/typescript-config/base.json; packages/eslint-config/index.js:1-30",
+        "genericization": "Skill: 'shared-config-packages' — extract eslint/prettier/tsconfig/tailwind/vitest into named workspace packages so a single edit re-bases every app. Prettier house style is encoded inside the eslint-config (tabs width 4, no semi, single quote, jsxSingleQuote, trailingComma none, LF)."
+      },
+      {
+        "name": "Config-driven conditional build/deploy pipeline",
+        "summary": "A single games-config.json declares per-environment (dev/prod) game lists, source dirs, build variants, and parent→sub-app relationships. Bash helpers (load-games-config.sh, detect-changes.sh, detect-pr-changes.sh, conditional-build.sh, conditional-deploy.sh) diff git tags: packages/* change → rebuild all; app dir change → rebuild that app + sub-apps; otherwise skip. Bitbucket Pipelines is tag-driven (push dev-*/prod-* tag triggers build+deploy of that commit regardless of branch).",
+        "exampleRef": "mini-games-monorepo/scripts/games-config.json; mini-games-monorepo/scripts/README.md; mini-games-monorepo/bitbucket-pipelines.yml:1-40; mini-games-monorepo/ROLLBACK_STRATEGY.md",
+        "genericization": "Skill: 'conditional-monorepo-ci' — declarative <project>-config.json + change-detection scripts so CI only rebuilds affected apps; tag-driven deploy (env-prefixed tags) with a documented frozen-branch rollback strategy. Reusable as a generic 'detect-changed-workspaces-between-tags' script."
+      },
+      {
+        "name": "RTP-variant build system (one source → N payout variants)",
+        "summary": "Instead of duplicating an app per RTP (legacy aviator+aviator0), apps/<game>/rtp.config.json declares variants {gameCode, rtpPercentage, buildSuffix, urlPath}; vite reads RTP_VARIANT env, bakes VITE_GAME_CODE + VITE_RTP_PERCENTAGE via define, rewrites the CDN urlPath, and emits build / build-rtp<pct>. Source bundle is byte-identical across variants; backend picks the RTP table purely from the reported gameCode. Legacy GDK equivalent: alternate game codes (limbo0, dragon-tower0 rtp=1) selected at runtime.",
+        "exampleRef": "mini-games-monorepo/RTP_CONFIGURATION.md; mini-games-monorepo/apps/aviator/rtp.config.json; GAME-ANALYSIS/00-MASTER-SYNTHESIS.md:434-454",
+        "genericization": "Skill: 'rtp-variant-builds' (feeds slot-math-designer / balance-check) — build N RTP/house-edge variants from one codebase via an env-driven gameCode/rtp swap; server owns the math table, client only displays the advertised percentage. Generic 'build-matrix-from-config-json' pattern."
+      },
+      {
+        "name": "Standardized host-embed bridge contract (window.<host>game)",
+        "summary": "Games mount INLINE into the host's <div id='mw-mini-game'> via createRoot (no iframe/postMessage/window.parent — confirmed by grep across both generations). Contract = a global bridge object (setupMwGameFunctions) installed exactly once (guarded), re-installed on refreshGameState; host→game methods (unmountReactApp, updateConfigData, refreshGameState, updateUserToken, getFiatCurrencyRates, fairness controls) and game→host CustomEvents on a private EventTarget (balanceUpdated[native], gameSessionUpdated, betAmount/winAmount telemetry). Config resolved URL-query-first-else-data-attr.",
+        "exampleRef": "GAME-ANALYSIS/00-MASTER-SYNTHESIS.md:330-389; mini-games-monorepo/apps/_mini-game-template/src/main.tsx:82-107; studio hooks/init-game.hooks.ts (setupMwGameFunctions)",
+        "genericization": "Skill: 'casino-host-embed-bridge' — define a stable window.<host>game inline-mount contract (install-once guard, re-install on remount, URL-query>data-attr config resolution, native-balance broadcast + session bracketing) that is held wire-stable across framework rewrites so the host loads any generation interchangeably."
+      },
+      {
+        "name": "Provable-fairness commit-reveal model (server-authoritative)",
+        "summary": "One scheme both generations: server-authoritative commit-reveal HMAC-SHA256. Client never generates outcomes — submits/rotates a client seed, reads serverSeedHash/nonce, calls /game/proveFairness to re-derive outcome for display. Single-player {clientSeed, serverSeedHash, nextServerSeedHash, nonce}; multiplayer {hashIndex, hash, seed}. Provider routing (tequity default vs a hardcoded metawin set) is a recurring latent bug. Per-game decoder reads a gameEvent field; rotation blocked while unfinishedGames>0.",
+        "exampleRef": "GAME-ANALYSIS/00-MASTER-SYNTHESIS.md:232-279; mini-games-monorepo/packages/studio/src/utils/fairness.utils.ts; studio/src/api/uris.ts (fairness/* endpoints); constants/game-codes.ts:185-198 (multiplayerGameCodes/isMultiplayerGame)",
+        "genericization": "Skill: 'provable-fairness-verifier' — client-side commit-reveal verify UI + per-game gameEvent decoder over a server-authoritative HMAC-SHA256 prover; centralize provider routing in one table to avoid silent prover breakage; gate verify UI fields by single- vs multi-player."
+      },
+      {
+        "name": "Decimal-safe money math + native/fiat display split",
+        "summary": "mathOperations(value, decimalPlaces) is a decimal.js builder (add/subtract/multiply/divide/sum + convertToNative/FiatValue with rounding) — the mandated money-mutation path to avoid float drift. INVARIANT: server money is always native, fiat is display-only; precision is server-driven (currencyDecimals from /authenticate, not a static per-currency table); live FX rates pushed by host. player.store carries parallel native + display fields. Naming gotcha preserved in docs: roundDown() uses ROUND_CEIL.",
+        "exampleRef": "mini-games-monorepo/packages/studio/src/utils/math-operations.ts:15-135; GAME-ANALYSIS/00-MASTER-SYNTHESIS.md:282-328; studio/src/constants/currencies.tsx; apps/bars/src/hooks/use-play.ts:164-237",
+        "genericization": "Skill: 'igaming-money-math' — decimal.js wrapper for all bet/win/balance arithmetic; native-is-truth / fiat-is-display invariant; read precision from auth, never hardcode; freebet/campaign bets never fiat-converted. Port math-operations.ts verbatim as a starter."
+      },
+      {
+        "name": "Autobet / strategy (advanced-autobet) engine",
+        "summary": "Both generations ship an autobet manager + a richer 'strategy' engine: user-defined conditions (trigger onBet/onProfit, frequency every/everyStreakOf/firstStreakOf/streakGreater/Lower, frequencyTrigger win/lose/bet) → actions (increase/decrease/add/subtract/set/reset bet, stopAutoBet), evaluated each round result {won, profit, loss, balance}, bet amount clamped to min/max via mathOperations. Newer games tolerate AUTOBET_ERROR_THRESHOLD=3 consecutive errors; studio stop is cooperative (let in-flight animation finish).",
+        "exampleRef": "mini-games-monorepo/packages/studio/src/utils/strategy/strategy-manager.ts:25-333; chao-refacting-version/src/gdk/{autobet/autobetManager.ts,strategybet/strategybetManager.ts}; GAME-ANALYSIS/00-MASTER-SYNTHESIS.md:420-423",
+        "genericization": "Skill: 'autobet-strategy-engine' — config-driven condition→action bet automation evaluated on each round outcome, with bet-bounds clamping, profit/loss/balance stop conditions, and N-consecutive-error tolerance. strategy-manager.ts is a near-portable artifact (strip its console.logs)."
+      },
+      {
+        "name": "Round lifecycle as a TanStack Query mutation FSM (studio) vs Signals+Redux (GDK)",
+        "summary": "Studio: each round is a usePlayMutation with onMutate(startGameSession, hide popups, disable popovers) → onSuccess(setBalanceFromApi, store round, animate, completeGame, max-win detect via finalWin<wager.win, win/loss stats after animationDelay) → onError(endGameSession FIRST, then open error modal). GDK: mutable singletons (gameStateData/gameConfigData/gameData) as source of truth + Redux UI mirror + synchronous Signals bus (gameStarted/betPlacing/betPlaced/roundCompleted) + Gateway/Parser/Server subclasses per game.",
+        "exampleRef": "mini-games-monorepo/apps/bars/src/hooks/use-play.ts:84-256; chao-refacting-version/src/gdk/server/{gateway.ts,parser.ts,server.ts}; chao-refacting-version/src/game/dice/communication/{diceGateway,diceParser,diceServer}.ts; GAME-ANALYSIS/01-framework-standalone-gdk.md §8",
+        "genericization": "Skill: 'game-round-lifecycle' — model a bet round as idle→startSession→server→animate→complete→endSession→idle; always endGameSession before surfacing errors so the host knows the balance was released even on failure. Document both the modern mutation-FSM and the legacy Signals+singleton+Redux variant."
+      },
+      {
+        "name": "Swappable AI-asset provider abstraction → engine-ready sprite atlas (ludo.ai)",
+        "summary": "Single SpriteAnimationProvider interface (generate(request)→GeneratedAnimation) is the only seam; a registry factory + a pure providerCatalog (UI metadata: id/label/badge/tagline/status ready|beta/needsToken/docsUrl) turn (providerId, token) into a concrete provider with an exhaustiveness never-guard. HttpProvider base holds baseUrl + authHeaders + in-memory-only key (never logged/persisted) and throws an actionable ProviderError until a live endpoint is confirmed. Mock-first: whole pipeline runs against a fake provider, real APIs (ludo/scenario/pixellab) drop in as adapters. Pure packing (maxrects-packer) + buildPixiAtlasJson emit TexturePacker JSON-Hash that PixiJS v8 Spritesheet parses, with a per-animation frame-name convention 'walk/000'.",
+        "exampleRef": "ludo.ai/src/providers/{SpriteAnimationProvider.ts,registry.ts,providerCatalog.ts,HttpProvider.ts}; ludo.ai/src/domain/types.ts:1-124; ludo.ai/src/packing/buildPixiAtlasJson.ts; ludo.ai/docs/plans/2026-06-03-sprite-animation-generator-design.md",
+        "genericization": "Skill: 'ai-asset-pipeline' (feeds game-art / asset-audit / setup-engine) — mock-first swappable AI-generation provider behind one interface + UI catalog metadata + secure in-memory key handling, producing engine-ready (PixiJS/TexturePacker) sprite-sheet atlases. Pure layout/atlas-JSON stays DOM-free and unit-tested; canvas/IO isolated in thin glue. Highly portable."
+      },
+      {
+        "name": "Immutability + small-files + boundary-validation house style (enforced in code & docs)",
+        "summary": "ludo.ai's shared types.ts opens with codebase-wide rules: treat all types IMMUTABLE (never mutate, return new objects), keep pure logic DOM-free for testability, isolate canvas/IO in thin glue. Reducer documents 'same reference for unknown action'. Every pure builder validates its inputs at the boundary with explicit throw-on-malformed asserts. Mirrors the user's global coding-style rules. NOTE the explicit counter-example: the GDK generation deliberately MUTATES singletons in place (immutability convention does NOT apply there) — a documented exception.",
+        "exampleRef": "ludo.ai/src/domain/types.ts:1-8; ludo.ai/src/state/appReducer.ts:1-12; ludo.ai/src/packing/buildPixiAtlasJson.ts:98-148; GAME-ANALYSIS/00-MASTER-SYNTHESIS.md:34-37 (GDK mutates in place)",
+        "genericization": "Skill: 'game-code-house-style' — immutable domain types, pure-logic-separated-from-IO, boundary asserts on every pure builder, exhaustiveness never-guards on unions. Capture both the modern immutable convention AND the legacy mutable-singleton exception so agents don't 'fix' intentional mutation."
+      },
+      {
+        "name": "Test conventions: *.unit.spec + Playwright e2e harness with per-game projects, WS mocks, MSW fixtures",
+        "summary": "Unit tests named *.unit.spec.{ts,tsx} (uniform coverage gathering); Testing-Library get/query/find selector-intent table; query data mocked via queryClientMock.setQueryData. e2e/ is its own pnpm package: Playwright with per-game projects, base/page-object fixtures, mocked + real-api fixture pairs, MSW mock-server, dedicated WebSocket mocks (aviator/slide/sicbo), and reusable scenario mocks (error-500, network-timeout, slow-network, recovery-active) + canned data (auth/balance/complete/recover/campaigns). CLAUDE.md notes coverage is thin/uneven across games.",
+        "exampleRef": "mini-games-monorepo/CLAUDE.md:98-225; mini-games-monorepo/e2e/{playwright.config.ts,fixtures/,mocks/,page-objects/}; mini-games-monorepo/e2e/mocks/scenarios/; packages/studio/src/utils/testing/{default-wrapper.tsx,testing-library-react.extend.tsx}",
+        "genericization": "Skill: 'game-test-harness' — uniform *.unit.spec naming + TanStack-Query mock helpers + a standalone Playwright e2e package with per-game projects, mocked/real fixture pairs, WS mocks, and reusable network-failure & recovery scenario mocks. Port the scenario-mock + fixture-pair structure as a starter."
+      }
+    ],
+    "configFormats": [
+      "pnpm-workspace.yaml (packages: apps/*, packages/*)",
+      "turbo.json (tasks: build/lint/dev; dependsOn ^build; outputs dist/**; cache:false on build/dev)",
+      "scripts/games-config.json: {environments:{dev:[code...],prod:[code...]}, games:{<code>:{source, variants:{default:'build',rtp100:'build-rtp100'}, subApps:[], parentApp, deployName, subAppsEnv}}}",
+      "apps/<game>/rtp.config.json: {variants:{<key>:{gameCode, rtpPercentage, buildSuffix, urlPath}}}",
+      "asset-manifest.json (build output): {files:{'main.js':cdnUrl,'main.css':cdnUrl}, entrypoints:[], timestamp} + .headers no-cache sidecar; Vite IIFE single bundle, static/js|css|media/[name]-[hash]",
+      "studio constants game-codes.ts: GAME_CODES = readonly [{code,name,isProd}] as const → GameCode union; multiplayerGameCodes[]",
+      "REST host contract (uris.ts): /authenticate, /game/{info,play,complete,recover,proveFairness}, /fairness/{activeRngSeeds,roundRngState,updateClientSeed}, /balance, /campaigns",
+      "fairness JSON: single-player {clientSeed,serverSeedHash,nextServerSeedHash,nonce}; multiplayer {hashIndex,hash,seed}; prover returns hashes:[{hex,bytes[]}]+randomizations[].extractions[]+gameEvent",
+      "PixiJS/TexturePacker JSON-Hash atlas (ludo.ai): {frames:{'<anim>/<NNN>':{frame,spriteSourceSize,sourceSize,rotated,trimmed}}, meta:{image,format:'RGBA8888',size,scale:'1'}, animations:{name:[orderedFrameKeys]}}",
+      "ludo.ai provider catalog: ProviderInfo {id,label,badge,tagline,status:'ready'|'beta',needsToken,docsUrl,tokenLabel?,tokenHint?}",
+      "GAME-ANALYSIS: structured markdown corpus (00-MASTER-SYNTHESIS + 3 framework refs + per-game docs) with cross-game comparison tables (RTP%, house edge, max multiplier, fairness model, bet limits, decimals, poll/timeout, provider routing)"
+    ],
+    "mapsToSkills": [
+      "slot-math-designer",
+      "balance-check",
+      "game-art",
+      "asset-audit",
+      "setup-engine",
+      "game-development",
+      "web-games",
+      "2d-games",
+      "core-components",
+      "design-system",
+      "frontend-dev-guidelines",
+      "backend-dev-guidelines",
+      "api-patterns",
+      "testing-patterns",
+      "playwright-skill",
+      "deployment-procedures",
+      "github-workflow-automation",
+      "i18n-localization",
+      "changelog",
+      "release-checklist"
+    ],
+    "reusableArtifacts": [
+      "packages/studio/src/utils/math-operations.ts — decimal.js money-math builder (add/sub/mul/div/sum, native↔fiat convert with rounding); port verbatim into wagerforge scripts/money-math as the canonical bet/win arithmetic util",
+      "packages/studio/src/utils/strategy/strategy-manager.ts — config-driven autobet/strategy condition→action engine; port as scripts/autobet-strategy (strip the ~20 console.log calls flagged in GAME-ANALYSIS §9)",
+      "packages/studio/src/constants/game-codes.ts — GAME_CODES-as-const → GameCode union + isProd filter + multiplayerGameCodes/isMultiplayerGame; template for a generic game-registry constant",
+      "scripts/{load-games-config.sh,detect-changes.sh,detect-pr-changes.sh,conditional-build.sh,conditional-deploy.sh} + games-config.json — generic 'rebuild-only-changed-workspaces-between-git-tags' CI toolkit",
+      "apps/_mini-game-template/{vite.config.ts,main.tsx} — Vite IIFE single-bundle config with transformManifest (emits asset-manifest.json + no-cache .headers, renderBuiltUrl CDN rewrite, drop_console) and the install-once host-bridge mount; reusable embeddable-game build+mount scaffold",
+      "packages/{eslint-config,typescript-config,vitest-config,tailwind-config} — drop-in shared-config workspace packages encoding the house prettier/ts/test/tailwind style",
+      "ludo.ai/src/providers/{SpriteAnimationProvider.ts,HttpProvider.ts,registry.ts,providerCatalog.ts} — swappable AI-asset provider interface + secure HTTP base + factory + catalog; port as scripts/ai-asset-provider",
+      "ludo.ai/src/packing/{packRects.ts,buildAnimationsMap.ts,buildPixiAtlasJson.ts,compositeAtlas.ts,packAtlas.ts} + domain/types.ts — pure sprite-atlas packing + PixiJS/TexturePacker JSON emitter; port as scripts/sprite-atlas-builder",
+      "mini-games-monorepo/e2e/mocks/scenarios/{error-500,network-timeout,slow-network,recovery-active}.scenario.ts + mocks/data/* + fixtures/*mocked.fixture.ts — reusable Playwright network-failure & recovery scenario mocks and fixture-pair pattern for game e2e",
+      "GAME-ANALYSIS/{00-MASTER-SYNTHESIS,01-framework-standalone-gdk,02-framework-monorepo-studio,03-framework-currency-and-host-integration}.md — ready-made reference docs to seed wagerforge skill content (host contract, fairness, money model, RTP variants, game taxonomy, onboarding checklists)"
+    ],
+    "gaps": [
+      "No server/backend source in any repo — RTP tables, HMAC→outcome distributions (e.g. crash-point max(1,0.99/(1-H))), and per-tier probability tables live server-side and cannot be verified from clients; slot-math-designer/balance-check skills will need server math captured separately (GAME-ANALYSIS §7 flags these as the largest open questions).",
+      "Test coverage is thin and uneven: most studio apps and most GDK games have ZERO game-specific tests; high-value math models (Dice/Mines/Dragon-Tower/Diamonds paytables) are untested. The *.unit.spec convention exists but isn't broadly applied — a testing-patterns skill should treat the convention, not the existing coverage, as the source of truth.",
+      "Production console.log leakage: strategy-manager.ts and many studio play hooks (e.g. apps/bars/src/hooks/use-play.ts) log bet/win/balance; relies on Vite drop_console which several call sites are flagged as needing verification. Any ported artifact must strip these.",
+      "GDK generation is copy-pasted and DRIFTED across repos (connector.ts/gateway.ts/gameConfigData.ts/strategyBetManager.ts differ; HTTP timeout 10s vs 30s for Plinko; currency allow-lists disagree). No single canonical GDK source exists — genericizing the legacy track requires reconciling divergent copies, and only one GDK repo (chao-refacting-version/Dice) was directly on disk here.",
+      "Fairness provider routing (tequity vs hardcoded metawin set) is duplicated per-game and silently breaks /proveFairness when wrong — needs centralizing; the correct membership for some games (chase, hexshot) is unverified.",
+      "ludo.ai real providers (ludo/scenario/pixellab) are 'beta' stubs — generate() throws until live endpoints are confirmed; no server proxy/job-queue yet (needed to hide keys and respect ludo.ai's 1-concurrent-request limit). Only the Mock path is end-to-end functional.",
+      "RTP-variant opt-in is partial: only aviator, roulette, roulette-pro currently use rtp.config.json; the GDK track has no build system for variants (runtime alternate game codes instead) — two divergent mechanisms to unify.",
+      "No explicit shared asset-naming/file-size-budget standard doc was found in the monorepo (CLAUDE.md gives SVG+SVGR + per-app public/ rules only); asset-audit skill lacks a codified budget/naming spec to enforce against."
+    ]
+  }
+]

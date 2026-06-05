@@ -7,7 +7,7 @@ description: Use when <concrete trigger / symptom / keyword> — third person, W
 
 ## When to use / When NOT
 - Use when: …
-- Do NOT use for: … (point elsewhere, e.g. a sibling skill or `superpowers:<skill>`)
+- Do NOT use for: … (point elsewhere, e.g. a sibling skill or `wagerforge:<skill>`)
 
 ## Default stack (+ escape hatch)
 Default: <TS + PixiJS/Phaser + Node + decimal.js …>. If your project uses X instead, map: <concept → concept>.

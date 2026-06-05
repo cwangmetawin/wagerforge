@@ -2,11 +2,11 @@
 
 iGaming superpowers for Claude Code — skills for slot math, provable fairness, RGS & durable settlement, game economy, math/RNG QA, and gambling compliance.
 
-> **Requires the `superpowers` plugin (>= 5.x).** wagerforge owns iGaming domain knowledge; it delegates all generic engineering process (brainstorm, plan, TDD, debug, review) to superpowers.
+> **Self-contained.** wagerforge bundles the generic engineering-process skills (brainstorm, plan, TDD, debug, review — vendored from [superpowers](https://github.com/obra/superpowers), MIT, © 2025 Jesse Vincent; see [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md)) alongside its iGaming domain layer. No separate plugin required.
 
 ## Install
 
-**Prerequisite:** install the [`superpowers`](https://github.com/obra/superpowers) plugin first (>= 5.x) — wagerforge delegates all generic engineering process (brainstorm, plan, TDD, debug, review) to it and only adds the iGaming domain layer.
+wagerforge is a single self-contained plugin — no companion install needed.
 
 The `/plugin` commands below are run **inside Claude Code** (they are built-in commands, not shell commands).
 
@@ -27,7 +27,7 @@ Prefer a menu? Run `/plugin`, choose **Add marketplace** (enter the path), then 
 - `/plugin` lists **wagerforge** as enabled.
 - A new session nudges you to invoke `using-wagerforge` for any iGaming task.
 - The commands resolve: `/wagerforge:fairness-audit`, `/wagerforge:rtp-check`, `/wagerforge:settlement-check`, `/wagerforge:new-minigame`.
-- Try: ask Claude to "design the math for a new plinko game" — it should route through `superpowers:brainstorming` → `math-*`.
+- Try: ask Claude to "design the math for a new plinko game" — it should route through `wagerforge:brainstorming` → `math-*`.
 
 ## Pillars (skill prefixes)
 - `math-` — probability, RTP, paytables, crash/ladder/cluster/lottery math
@@ -38,6 +38,9 @@ Prefer a menu? Run `/plugin`, choose **Add marketplace** (enter the path), then 
 - `comp-` — responsible gaming, RNG/RTP certification, audit & privacy
 
 Start any iGaming task by invoking the `using-wagerforge` skill.
+
+## Credits
+wagerforge bundles the generic engineering-process skills from [superpowers](https://github.com/obra/superpowers) by Jesse Vincent (MIT). Full license + attribution: [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md). To refresh from a newer upstream, see [docs/vendor/superpowers-UPSTREAM.md](docs/vendor/superpowers-UPSTREAM.md).
 
 ## Develop
 - `node scripts/validate.mjs` — validate all skills

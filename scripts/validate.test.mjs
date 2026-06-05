@@ -158,3 +158,85 @@ test('declared constraint not referenced in its section is a warning', () => {
   assert.ok(warnings.some((w) => w.includes('C12 not referenced')))
   rmSync(root, { recursive: true, force: true })
 })
+
+// --- vendored-skill gates (superpowers integration) ---
+const PROV = '<!-- Vendored from superpowers v5.1.0 — MIT, Copyright (c) 2025 Jesse Vincent. See /THIRD-PARTY-NOTICES.md. -->'
+
+// Mirrors the real repo layout: a root holding skills/ and (optionally) THIRD-PARTY-NOTICES.md.
+function makeVendored({ withNotices = true, noticesContent = 'MIT\nCopyright (c) 2025 Jesse Vincent\n', skills }) {
+  const root = mkdtempSync(join(tmpdir(), 'wf-vendor-'))
+  const skillsDir = join(root, 'skills')
+  mkdirSync(skillsDir, { recursive: true })
+  if (withNotices) writeFileSync(join(root, 'THIRD-PARTY-NOTICES.md'), noticesContent)
+  for (const [name, content] of Object.entries(skills)) {
+    mkdirSync(join(skillsDir, name), { recursive: true })
+    if (content !== null) writeFileSync(join(skillsDir, name, 'SKILL.md'), content)
+  }
+  return { root, skillsDir }
+}
+
+test('vendored skill is exempt from the 800-word hard cap', () => {
+  const big = Array.from({ length: 1200 }, () => 'w').join(' ')
+  const { root, skillsDir } = makeVendored({ skills: {
+    'writing-plans': `---\nname: writing-plans\ndescription: Use when planning.\n---\n${PROV}\n\n${big}`,
+  } })
+  const { errors } = validate(skillsDir)
+  assert.deepEqual(errors.filter((e) => /words >/.test(e)), [])
+  rmSync(root, { recursive: true, force: true })
+})
+
+test('vendored skill missing provenance header is an error', () => {
+  const { root, skillsDir } = makeVendored({ skills: {
+    'writing-plans': `---\nname: writing-plans\ndescription: Use when planning.\n---\n\n# x`,
+  } })
+  const { errors } = validate(skillsDir)
+  assert.ok(errors.some((e) => /provenance/i.test(e)))
+  rmSync(root, { recursive: true, force: true })
+})
+
+test('residual superpowers: namespace in a skill is an error', () => {
+  const { root, skillsDir } = makeVendored({ skills: {
+    'using-wagerforge': `---\nname: using-wagerforge\ndescription: Use when routing.\n---\nsee superpowers:writing-plans`,
+  } })
+  const { errors } = validate(skillsDir)
+  assert.ok(errors.some((e) => /superpowers:/.test(e)))
+  rmSync(root, { recursive: true, force: true })
+})
+
+test('missing THIRD-PARTY-NOTICES.md with vendored skills present is an error', () => {
+  const { root, skillsDir } = makeVendored({ withNotices: false, skills: {
+    'writing-plans': `---\nname: writing-plans\ndescription: Use when planning.\n---\n${PROV}\n\n# x`,
+  } })
+  const { errors } = validate(skillsDir)
+  assert.ok(errors.some((e) => /THIRD-PARTY-NOTICES/.test(e)))
+  rmSync(root, { recursive: true, force: true })
+})
+
+test('a NON-vendored domain skill cannot dodge the word cap by containing the provenance phrase', () => {
+  const big = Array.from({ length: 900 }, () => 'w').join(' ')
+  // not in VENDORED_SKILLS, but body coincidentally contains the marker text:
+  const { root, skillsDir } = makeVendored({ skills: {
+    'math-bloat': `---\nname: math-bloat\ndescription: Use when bloating.\n---\nMentions "Vendored from superpowers" in prose.\n\n${big}`,
+  } })
+  const { errors } = validate(skillsDir)
+  assert.ok(errors.some((e) => /hard cap/.test(e)), 'word cap must still fire for a non-vendored skill')
+  rmSync(root, { recursive: true, force: true })
+})
+
+test('gutted THIRD-PARTY-NOTICES (no copyright/MIT) with vendored skills present is an error', () => {
+  const { root, skillsDir } = makeVendored({ noticesContent: 'see upstream\n', skills: {
+    'writing-plans': `---\nname: writing-plans\ndescription: Use when planning.\n---\n${PROV}\n\n# x`,
+  } })
+  const { errors } = validate(skillsDir)
+  assert.ok(errors.some((e) => /verbatim MIT|preserve the/.test(e)))
+  rmSync(root, { recursive: true, force: true })
+})
+
+test('happy path: a legit vendored skill + proper NOTICES validates with zero errors', () => {
+  const { root, skillsDir } = makeVendored({ skills: {
+    'writing-plans': `---\nname: writing-plans\ndescription: Use when planning a multi-step task.\n---\n${PROV}\n\n# Writing Plans\n\nBody that is intentionally long but exempt.`,
+  } })
+  const { errors } = validate(skillsDir)
+  assert.deepEqual(errors, [])
+  rmSync(root, { recursive: true, force: true })
+})

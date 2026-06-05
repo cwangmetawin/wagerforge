@@ -5,8 +5,8 @@
   "plugins": [
     {
       "name": "wagerforge",
-      "description": "iGaming superpowers (companion to superpowers). Requires the superpowers plugin >= 5.x for generic engineering process.",
-      "version": "0.1.0",
+      "description": "iGaming superpowers — self-contained (bundles superpowers process skills, MIT). Slot math, provable fairness, RGS & durable settlement, economy, QA, compliance.",
+      "version": "0.2.0",
       "source": "./"
     }
   ]

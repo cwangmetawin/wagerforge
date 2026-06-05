@@ -8,7 +8,7 @@ constraints: C4
 
 ## When to use / When NOT
 - Use when: designing an A/B test on a game parameter (RTP, volatility, trigger odds, bet multiplier), sizing it, or pre-validating the variant by simulation.
-- NOT for: theoretical RTP impact of a weight change (→ `math-rtp-modeling`); building the simulator itself (→ `math-montecarlo-simulation`); generic experiment plumbing (→ `superpowers:*`).
+- NOT for: theoretical RTP impact of a weight change (→ `math-rtp-modeling`); building the simulator itself (→ `math-montecarlo-simulation`); generic experiment plumbing (→ `wagerforge:*`).
 
 ## Default stack (+ escape hatch)
 Monte-Carlo via `math-montecarlo-simulation`; power calc as `ab-test-power-calculator`. Other stacks: same `N = 2·(z_α/2 + z_β)²·σ² / Δ²` per arm; map "spin" → your unit-of-conversion event.

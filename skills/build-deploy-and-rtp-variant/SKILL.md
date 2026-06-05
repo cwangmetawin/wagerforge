@@ -8,7 +8,7 @@ constraints: C14
 
 ## When to use / When NOT
 - Use when: shipping ONE bundle to N RTP SKUs, wiring keyless CI/CD, gating migrations on version, or setting round-latency SLOs.
-- NOT for: deriving an RTP value (→ `math-rtp-modeling`); cert evidence (→ `comp-rtp-certification` / `comp-math-cert-report`); generic deploy process (→ `superpowers:executing-plans`).
+- NOT for: deriving an RTP value (→ `math-rtp-modeling`); cert evidence (→ `comp-rtp-certification` / `comp-math-cert-report`); generic deploy process (→ `wagerforge:executing-plans`).
 
 ## Default stack (+ escape hatch)
 Default: one immutable bundle; RTP selected by env/config at deploy. GCP + Workload Identity Federation, GitHub Actions, version-mapped Cloud Run + migration Jobs. Other stacks: map WIF → OIDC keyless auth; Cloud Run revision tag → your version map; migration Job → gated pre-deploy step.

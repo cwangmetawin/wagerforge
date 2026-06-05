@@ -7,7 +7,7 @@ description: Use when load-testing a game server and defining its observability 
 
 ## When to use / When NOT
 - Use when: load/burst-testing a game server, or defining its metrics, dashboards, and latency/error SLOs.
-- NOT for: math/RTP convergence (→ `qa-monte-carlo-cert`); RNG statistical suites (→ `qa-rng-statistical`); pure browser-flow assertions with no load/SLO concern (→ `superpowers:webapp-testing`).
+- NOT for: math/RTP convergence (→ `qa-monte-carlo-cert`); RNG statistical suites (→ `qa-rng-statistical`); pure browser-flow assertions with no load/SLO concern (→ `webapp-testing`).
 
 ## Default stack (+ escape hatch)
 Default: Locust or k6 for HTTP/WS load, JMeter/Gatling equivalent; log-based metrics → Prometheus/Grafana or cloud monitoring; Playwright for e2e. Other stacks: same SLO math and dimensions apply; map the load tool's "users/rps" and the metrics backend's "labels" to the concepts below.

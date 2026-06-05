@@ -1,22 +1,22 @@
 ---
 name: using-wagerforge
-description: Use when starting any iGaming, slot, or crypto-minigame task (RTP/house-edge math, provable fairness/RNG, RGS or wallet settlement, game economy, math/RNG QA, or gambling compliance) — routes to the right wagerforge skill and defers generic engineering process to superpowers.
+description: Use when starting any iGaming, slot, or crypto-minigame task (RTP/house-edge math, provable fairness/RNG, RGS or wallet settlement, game economy, math/RNG QA, or gambling compliance) — routes to the right wagerforge skill, including the bundled generic engineering-process skills.
 ---
 
 # Using wagerforge
 
-wagerforge is the domain layer for building real-money slot & crypto-minigame software. It is a **companion to superpowers**: superpowers owns generic process; wagerforge owns iGaming WHAT.
+wagerforge is the domain layer for building real-money slot & crypto-minigame software. It **bundles** the generic engineering-process skills (vendored from superpowers, MIT — see `THIRD-PARTY-NOTICES.md`); wagerforge owns the iGaming WHAT.
 
 ## Routing
 
-**Generic engineering process → delegate to superpowers** (do NOT reimplement):
-- ideation/design → `superpowers:brainstorming`
-- plan a spec → `superpowers:writing-plans`
-- execute → `superpowers:subagent-driven-development` / `superpowers:executing-plans`
-- TDD → `superpowers:test-driven-development`
-- debugging → `superpowers:systematic-debugging`
-- review → `superpowers:requesting-code-review` / `superpowers:receiving-code-review`
-- authoring a wagerforge skill → `superpowers:writing-skills`
+**Generic engineering process → the bundled `wagerforge:` process skills** (do NOT reimplement):
+- ideation/design → `wagerforge:brainstorming`
+- plan a spec → `wagerforge:writing-plans`
+- execute → `wagerforge:subagent-driven-development` / `wagerforge:executing-plans`
+- TDD → `wagerforge:test-driven-development`
+- debugging → `wagerforge:systematic-debugging`
+- review → `wagerforge:requesting-code-review` / `wagerforge:receiving-code-review`
+- authoring a wagerforge skill → `wagerforge:writing-skills`
 
 **Domain task → wagerforge skill by prefix:**
 - probability/RTP/paytable → `math-*`
@@ -28,6 +28,3 @@ wagerforge is the domain layer for building real-money slot & crypto-minigame so
 
 ## Order
 Process-before-implementation holds: brainstorm → plan → execute, with wagerforge domain skills invoked **inside** implementation. User instructions (CLAUDE.md) outrank skills.
-
-## If superpowers is missing
-Tell the user to install the superpowers companion plugin; do not silently reimplement its process skills.

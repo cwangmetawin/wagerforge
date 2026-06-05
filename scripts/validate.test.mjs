@@ -158,3 +158,56 @@ test('declared constraint not referenced in its section is a warning', () => {
   assert.ok(warnings.some((w) => w.includes('C12 not referenced')))
   rmSync(root, { recursive: true, force: true })
 })
+
+// --- vendored-skill gates (superpowers integration) ---
+const PROV = '<!-- Vendored from superpowers v5.1.0 — MIT, Copyright (c) 2025 Jesse Vincent. See /THIRD-PARTY-NOTICES.md. -->'
+
+// Mirrors the real repo layout: a root holding skills/ and (optionally) THIRD-PARTY-NOTICES.md.
+function makeVendored({ withNotices = true, skills }) {
+  const root = mkdtempSync(join(tmpdir(), 'wf-vendor-'))
+  const skillsDir = join(root, 'skills')
+  mkdirSync(skillsDir, { recursive: true })
+  if (withNotices) writeFileSync(join(root, 'THIRD-PARTY-NOTICES.md'), 'MIT\nCopyright (c) 2025 Jesse Vincent\n')
+  for (const [name, content] of Object.entries(skills)) {
+    mkdirSync(join(skillsDir, name), { recursive: true })
+    if (content !== null) writeFileSync(join(skillsDir, name, 'SKILL.md'), content)
+  }
+  return { root, skillsDir }
+}
+
+test('vendored skill is exempt from the 800-word hard cap', () => {
+  const big = Array.from({ length: 1200 }, () => 'w').join(' ')
+  const { root, skillsDir } = makeVendored({ skills: {
+    'writing-plans': `---\nname: writing-plans\ndescription: Use when planning.\n---\n${PROV}\n\n${big}`,
+  } })
+  const { errors } = validate(skillsDir)
+  assert.deepEqual(errors.filter((e) => /words >/.test(e)), [])
+  rmSync(root, { recursive: true, force: true })
+})
+
+test('vendored skill missing provenance header is an error', () => {
+  const { root, skillsDir } = makeVendored({ skills: {
+    'writing-plans': `---\nname: writing-plans\ndescription: Use when planning.\n---\n\n# x`,
+  } })
+  const { errors } = validate(skillsDir)
+  assert.ok(errors.some((e) => /provenance/i.test(e)))
+  rmSync(root, { recursive: true, force: true })
+})
+
+test('residual superpowers: namespace in a skill is an error', () => {
+  const { root, skillsDir } = makeVendored({ skills: {
+    'using-wagerforge': `---\nname: using-wagerforge\ndescription: Use when routing.\n---\nsee superpowers:writing-plans`,
+  } })
+  const { errors } = validate(skillsDir)
+  assert.ok(errors.some((e) => /superpowers:/.test(e)))
+  rmSync(root, { recursive: true, force: true })
+})
+
+test('missing THIRD-PARTY-NOTICES.md with vendored skills present is an error', () => {
+  const { root, skillsDir } = makeVendored({ withNotices: false, skills: {
+    'writing-plans': `---\nname: writing-plans\ndescription: Use when planning.\n---\n${PROV}\n\n# x`,
+  } })
+  const { errors } = validate(skillsDir)
+  assert.ok(errors.some((e) => /THIRD-PARTY-NOTICES/.test(e)))
+  rmSync(root, { recursive: true, force: true })
+})

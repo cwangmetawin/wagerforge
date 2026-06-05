@@ -8,6 +8,17 @@ const CONSTRAINT_TAG_RE = /\[(C(?:1[0-4]|[1-9]))\]/g
 const CORRECTNESS_HEADING_RE = /^#{1,6}\s*correctness constraints\b/im
 const WORD_BUDGET = 500
 const WORD_HARD_CAP = 800
+// Vendored skills (from superpowers, MIT) carry this marker; they are intentionally
+// longer than the domain-skill budget and must never reference the old `superpowers:` namespace.
+const PROVENANCE_MARKER = 'Vendored from superpowers'
+const RESIDUAL_NS_RE = /superpowers:/
+const VENDORED_SKILLS = new Set([
+  'brainstorming', 'dispatching-parallel-agents', 'executing-plans',
+  'finishing-a-development-branch', 'receiving-code-review', 'requesting-code-review',
+  'subagent-driven-development', 'systematic-debugging', 'test-driven-development',
+  'using-git-worktrees', 'using-superpowers', 'verification-before-completion',
+  'writing-plans', 'writing-skills',
+])
 
 export function parseFrontmatter(md) {
   md = md.replace(/\r\n/g, '\n')
@@ -65,6 +76,7 @@ export function validate(skillsDir) {
     const parsed = parseFrontmatter(readFileSync(skillPath, 'utf8'))
     if (!parsed) { errors.push(`${tag} missing/invalid frontmatter`); continue }
     const { fm, body } = parsed
+    const vendored = body.includes(PROVENANCE_MARKER)
     if (!fm.name) {
       errors.push(`${tag} frontmatter missing name`)
     } else {
@@ -75,11 +87,14 @@ export function validate(skillsDir) {
       errors.push(`${tag} frontmatter missing description`)
     } else {
       if (fm.description.length > 1024) errors.push(`${tag} description > 1024 chars`)
-      if (!WHEN_TRIGGER_RE.test(fm.description)) warnings.push(`${tag} description not trigger-shaped (no "Use when…")`)
+      if (!vendored && !WHEN_TRIGGER_RE.test(fm.description)) warnings.push(`${tag} description not trigger-shaped (no "Use when…")`)
     }
     const wc = wordCount(body)
-    if (wc > WORD_HARD_CAP) errors.push(`${tag} body ${wc} words > hard cap ${WORD_HARD_CAP}`)
-    else if (wc > WORD_BUDGET) warnings.push(`${tag} body ${wc} words > budget ${WORD_BUDGET}`)
+    if (!vendored) {
+      if (wc > WORD_HARD_CAP) errors.push(`${tag} body ${wc} words > hard cap ${WORD_HARD_CAP}`)
+      else if (wc > WORD_BUDGET) warnings.push(`${tag} body ${wc} words > budget ${WORD_BUDGET}`)
+    }
+    if (RESIDUAL_NS_RE.test(body)) errors.push(`${tag} residual "superpowers:" namespace — rewrite to wagerforge: (bare "webapp-testing" for that one)`)
     for (const m of body.matchAll(/\[\[([a-z0-9-]+)\]\]/g)) {
       if (!knownSkills.has(m[1])) warnings.push(`${tag} broken [[link]]: ${m[1]}`)
     }
@@ -102,6 +117,21 @@ export function validate(skillsDir) {
             if (!section.includes(c)) warnings.push(`${tag} constraint ${c} not referenced in its Correctness constraints section`)
           }
         }
+      }
+    }
+  }
+  // Attribution gates (spec §11): if any vendored skill is present, the MIT NOTICES file
+  // must exist at repo root and every vendored skill must carry its provenance header.
+  const vendoredPresent = [...knownSkills].filter((d) => VENDORED_SKILLS.has(d))
+  if (vendoredPresent.length) {
+    const noticesPath = join(skillsDir, '..', 'THIRD-PARTY-NOTICES.md')
+    if (!existsSync(noticesPath)) {
+      errors.push('[THIRD-PARTY-NOTICES] missing at repo root (required: superpowers MIT attribution)')
+    }
+    for (const d of vendoredPresent) {
+      const p = join(skillsDir, d, 'SKILL.md')
+      if (existsSync(p) && !readFileSync(p, 'utf8').includes(PROVENANCE_MARKER)) {
+        errors.push(`[${d}] vendored skill missing provenance header`)
       }
     }
   }

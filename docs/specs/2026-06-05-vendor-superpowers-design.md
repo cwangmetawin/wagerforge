@@ -47,7 +47,7 @@ The user wants superpowers **fully integrated** into wagerforge. Stated goals (a
 ```
 wagerforge/
 ├── CLAUDE.md                      # Law #2 rewritten (§8)
-├── LICENSE                        # wagerforge's own MIT (unchanged)
+├── LICENSE                        # wagerforge's own MIT (NEW — backs the manifests' "license": "MIT")
 ├── THIRD-PARTY-NOTICES.md         # NEW — superpowers MIT + © 2025 Jesse Vincent (§5)
 ├── README.md                      # prerequisite removed; Credits section added
 ├── .claude-plugin/

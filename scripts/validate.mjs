@@ -76,7 +76,9 @@ export function validate(skillsDir) {
     const parsed = parseFrontmatter(readFileSync(skillPath, 'utf8'))
     if (!parsed) { errors.push(`${tag} missing/invalid frontmatter`); continue }
     const { fm, body } = parsed
-    const vendored = body.includes(PROVENANCE_MARKER)
+    // Keyed on the vendored-skill SET, not the marker text — so a domain skill cannot
+    // disable its own word-cap just by containing the provenance phrase.
+    const vendored = VENDORED_SKILLS.has(dir)
     if (!fm.name) {
       errors.push(`${tag} frontmatter missing name`)
     } else {
@@ -127,6 +129,11 @@ export function validate(skillsDir) {
     const noticesPath = join(skillsDir, '..', 'THIRD-PARTY-NOTICES.md')
     if (!existsSync(noticesPath)) {
       errors.push('[THIRD-PARTY-NOTICES] missing at repo root (required: superpowers MIT attribution)')
+    } else {
+      const notices = readFileSync(noticesPath, 'utf8')
+      if (!/Copyright \(c\) 2025 Jesse Vincent/.test(notices) || !/\bMIT\b/.test(notices)) {
+        errors.push('[THIRD-PARTY-NOTICES] must preserve the verbatim MIT license text and copyright (© 2025 Jesse Vincent)')
+      }
     }
     for (const d of vendoredPresent) {
       const p = join(skillsDir, d, 'SKILL.md')

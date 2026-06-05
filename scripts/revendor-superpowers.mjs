@@ -45,6 +45,29 @@ export function addProvenance(md) {
   return `${m[0]}${PROVENANCE}\n${md.slice(m[0].length)}`
 }
 
+// Pure + idempotent: strip non-Claude platform content from using-superpowers (spec §3).
+// Removes the "## Platform Adaptation" section (which points at the stripped references/
+// copilot/codex docs) and the Copilot/Gemini/"other environments" access bullets, keeping
+// the Claude Code note. Substance (the skill-checking discipline) is untouched.
+export function trimUsingSuperpowers(md) {
+  const lines = md.split('\n')
+  const out = []
+  let inPlatform = false
+  for (const ln of lines) {
+    if (/^## Platform Adaptation\s*$/.test(ln)) { inPlatform = true; continue }
+    if (inPlatform) {
+      if (/^#{1,2} /.test(ln)) inPlatform = false // next heading ends the section; keep it
+      else continue
+    }
+    if (/^\*\*In (Copilot CLI|Gemini CLI|other environments):\*\*/.test(ln)) continue
+    out.push(ln)
+  }
+  return out.join('\n').replace(/\n{3,}/g, '\n\n') // collapse blank runs left by removals
+}
+
+// Per-skill non-Claude trims (keyed by skill name).
+const TRIM = { 'using-superpowers': trimUsingSuperpowers }
+
 function walk(dir) {
   const out = []
   for (const e of readdirSync(dir, { withFileTypes: true })) {
@@ -65,7 +88,10 @@ function vendorSkill(name) {
   for (const file of walk(dst)) {
     const t = readFileSync(file, 'utf8')
     let r = rewriteRefs(t)
-    if (file.endsWith('SKILL.md')) r = addProvenance(r)
+    if (file.endsWith('SKILL.md')) {
+      r = addProvenance(r)
+      if (TRIM[name]) r = TRIM[name](r)
+    }
     if (r !== t) writeFileSync(file, r)
   }
 }

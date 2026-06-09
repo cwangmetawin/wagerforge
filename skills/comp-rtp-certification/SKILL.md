@@ -11,13 +11,13 @@ constraints: C14,C9
 - NOT for: deriving the theoretical RTP from the model (→ `math-rtp-modeling`); empirical convergence sims (→ `math-montecarlo-simulation`); the commit-reveal/provably-fair flow (→ `fair-commit-reveal`).
 
 ## Default stack (+ escape hatch)
-Third-party lab sign-off (GLI/iTech/BMM/eCOGRA) + a `rtp-drift-detector` comparing theoretical vs live. Other stacks: same statistics — any field-RTP monitor with a 95% CI that accounts for volatility works.
+Third-party lab sign-off (GLI/iTech/BMM/eCOGRA). Cert evidence is **simulation-derived** (long-run Monte-Carlo, e.g. `slotify-gdk stats --variant=rtpNN`); a `rtp-drift-detector` field-RTP monitor is the **live-ops complement**, not the cert itself. Other stacks: same statistics — any field-RTP monitor with a 95% CI that accounts for volatility works.
 
 ## Process
-1. Establish the theoretical RTP per certified variant from the math model; the lab certifies, not you.
+1. Establish the theoretical RTP per certified variant from the math model; the lab certifies, not you. In config-as-math servers each variant declares its own RTP in config (a per-action `rtpValues` block) and is runtime-selected via `config: (variant) => rtp94Config | rtp96Config`; verify by long-run Monte-Carlo and update `rtpValues` to match the sim.
 2. Monitor field RTP against theoretical using a **95% CI** sized by the game's **variance/volatility** (high-volatility titles need far more rounds to converge). Flag drift; escalate to a **99% CI** for confirmation.
 3. Track **base RTP and feature/bonus RTP separately** — a blended figure hides a mis-weighted feature.
-4. Surface the **active variant percent** to the player; the selection and resolved outcome are **server-determined and audit-logged** before any animation.
+4. Surface the **active variant percent** to the player; the selection and resolved outcome are **server-determined and audit-logged** before any animation. The max-win cap (`config.cap.maxWin * bet`, compared `>=` not `==`) is part of the certified math config.
 5. Classify any change: pre-certified variant switch vs math-model change (decides re-cert — see C14).
 
 ## Correctness constraints
@@ -32,6 +32,7 @@ Third-party lab sign-off (GLI/iTech/BMM/eCOGRA) + a `rtp-drift-detector` compari
 - Trusting a client-reported or client-influenced outcome; failing to audit-log the active variant.
 
 ## Verification
-- `rtp-drift-detector` shows field within the 95% CI for the displayed variant; base and feature tracked separately.
+- Theoretical RTP per variant is simulation-verified and matches the config `rtpValues`; the variant is server-selected, never client-chosen.
+- `rtp-drift-detector` (live-ops complement) shows field within the 95% CI for the displayed variant; base and feature tracked separately.
 - Audit log proves outcome + active variant were server-finalized before animation for every round sampled.
 - Re-cert decisions trace to a math-model diff, never to a promo or variant toggle.

@@ -17,12 +17,13 @@ constraints: C1
 1. Enumerate outcomes (or their probabilities from reel-weight products) with payouts; `RTP = Σ p·payout`; `houseEdge = 1 − RTP`.
 2. Variance includes ALL outcomes (losses too) — never drop zero payouts.
 3. Weight change: recompute the full weighted RTP; do NOT scale proportionally.
+4. If the engine applies a post-roll **win-discard** (regenerate the base game when a top-band win is rolled, e.g. ≥1250× per per-band probabilities), model that transformation BEFORE summing — the discarded tail mass is redistributed into the base distribution, lowering the high-win band's effective probability and reshaping the tail.
 
 ## Correctness constraints
 - **C1:** RTP is a MULTILINEAR function of per-reel probabilities. Changing one symbol's weight changes only the combinations using it (linearly per combination), and reel normalization simultaneously lowers every other symbol's contribution — so the net total-RTP move is small and can even be opposite-signed. Estimate via full weighted recomputation, weighted by EV/contribution share, NOT by fraction of wins.
 
 ## Pitfalls / red flags
-Proportional-scaling intuition (C1); excluding losses from variance; conflating on-screen visibility weight with payline probability.
+Proportional-scaling intuition (C1); excluding losses from variance; conflating on-screen visibility weight with payline probability; modeling raw `Σ p·payout` while ignoring a server-side **win-discard** step that regenerates very-high wins per-band — this overstates the tail's RTP contribution (the discard is part of the true weighting under C1).
 
 ## Verification
 `rtpFromOutcomes` closed-form tests; cross-check against `math-montecarlo-simulation`.

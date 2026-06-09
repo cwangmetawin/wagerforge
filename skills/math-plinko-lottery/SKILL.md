@@ -1,6 +1,6 @@
 ---
 name: math-plinko-lottery
-description: Use when computing the Plinko two-axis economy (E[bucket] times E[ball]) or lottery paytables - keno (hypergeometric), diamonds (gem partition), blitz (birthday paradox). Keywords plinko, keno, hypergeometric, two-axis, lottery paytable.
+description: Use when computing the Plinko two-axis economy (E[bucket] times E[ball]) or discrete-distribution lottery paytables - keno (hypergeometric), diamonds (gem partition), blitz (birthday paradox), wheel (weighted slots), loot-box cases/packs (multiplier x probability). Keywords plinko, keno, hypergeometric, two-axis, lottery paytable, wheel, loot-box, case.
 ---
 
 # math-plinko-lottery
@@ -18,6 +18,7 @@ TS + Node + decimal.js; closed-form combinatorics, server-authoritative. Other s
 3. **Keno (hypergeometric).** For `p` picks, `k` matches in a 10-draw / 40-ball game: `P(X=k) = C(p,k)·C(40-p,10-k)/C(40,10)`. Build the per-pick paytable so `Σ_k P(X=k)·pay[p][k] = RTP·bet`.
 4. **Diamonds (gem partition).** Outcome probability = count of matching gem partitions / total partitions; pay each tier by its partition probability.
 5. **Blitz (birthday paradox).** P(no collision drawing N cards from 52) = `∏_{i=0}^{N-1} (52-i)/52`; the collision payout uses `1 −` that product.
+6. **Wheel / loot-box (discrete weighted slots).** A Wheel is `segments` equiprobable slots, most paying 0×, with one edge ≈ `segments·RTP`; calibrate so `Σ (1/segments)·mult[slot] = RTP` per (segments, risk). Loot-box cases/packs are the same shape with explicit weights: a `multiplier→probability` map (derive individual probs from a cumulative vector) with `Σ prob·mult = RTP`. Like Plinko, the multiplier values are calibrated, the slot/case probabilities are fixed.
 
 ## Pitfalls / red flags
 - Treating `mult[k]` as derivable — it is calibrated; only the bucket probabilities are fixed by `C(rows,k)/2^rows`.

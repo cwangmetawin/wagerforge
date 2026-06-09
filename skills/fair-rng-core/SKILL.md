@@ -23,7 +23,7 @@ Node `crypto` via `scripts/fair-rng.mjs`. Other stacks: any HMAC-SHA256 + OS CSP
 - **C12:** A stateless per-bet design `HMAC(serverSeed, clientSeed‖nonce)` is secure; reseeding between bets is NOT required. The real fault is a non-CSPRNG or recoverable seed. NIST roles: 800-90A DRBG / 800-90B entropy source / 800-90C assembly.
 
 ## Pitfalls / red flags
-`Math.random()` seeds (~48-bit, predictable); plain-hash used as MAC; reusing one `(seed,nonce)` for two outcomes.
+`Math.random()` seeds (~48-bit, predictable); plain-hash used as MAC; reusing one `(seed,nonce)` for two outcomes; **player-controlled `clientSeed` containing the `:` delimiter** — `HMAC(key,"a:1:2")` is ambiguous between `(clientSeed "a:1", nonce 2)` and `(clientSeed "a", nonce "1:2")`, a grinding/collision vector. Reject `:` in `clientSeed` before building the message (the real chase verifier interpolates `${clientSeed}:${nonce}` WITHOUT this guard — harden it when porting).
 
 ## Verification
 Known-Answer Tests in `scripts/fair-rng.test.mjs`; deterministic same-input→same-output; `u ∈ [0,1)`.

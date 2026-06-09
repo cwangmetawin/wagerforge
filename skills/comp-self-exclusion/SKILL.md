@@ -13,7 +13,7 @@ description: Use when integrating self-exclusion - GamStop, static-IP whitelisti
 `scripts/self-exclusion.mjs` — `isSelfExcluded`, `shouldBlockBet` (server-clock window checks), and `egressIpWhitelisted` (egress-IP gate) — plus a static egress IP and a scheduler. Other stacks: any server-side HTTP client over TLS with mutual-auth credentials, plus a durable scan log. Route every register call through a fixed-IP proxy/NAT so the operator IP can be whitelisted.
 
 ## Process
-1. Reserve a static egress IP (proxy or NAT gateway) for all register traffic; register it with the scheme so requests are allowlisted. Cloud auto-scaling and ephemeral IPs break the allowlist — pin egress.
+1. Reserve a static egress IP (proxy or NAT gateway) for all register traffic; register it with the scheme so requests are allowlisted. Cloud auto-scaling and ephemeral IPs break the allowlist — pin egress. Pattern: a single manually-allocated reserved IP backing one NAT for all outbound (GCP `google_compute_router_nat` with `nat_ip_allocate_option = "MANUAL_ONLY"`, `nat_ips = [<reserved-address>]`; AWS Elastic IP on a single NAT gateway). Multi-AZ NATs / per-instance public IPs each present a different source IP and fall off the allowlist.
 2. Call the register over TLS only (verify cert + hostname), with the scheme's auth credentials pulled from a secret manager, never on disk.
 3. Real-time check at every gate: block at registration, login, deposit, and bet. A player can be excluded mid-session, so re-check on each money/entry action, not just once at signup.
 4. Periodic re-scan (24h) of the active player base to catch newly-excluded players between their real-time touchpoints; record each scan result with a timestamp for audit.

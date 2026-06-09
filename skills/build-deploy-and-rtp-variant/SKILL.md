@@ -11,7 +11,7 @@ constraints: C14
 - NOT for: deriving an RTP value (→ `math-rtp-modeling`); cert evidence (→ `comp-rtp-certification` / `comp-math-cert-report`); generic deploy process (→ `wagerforge:executing-plans`).
 
 ## Default stack (+ escape hatch)
-Default: one immutable bundle; RTP selected by env/config at deploy. GCP + Workload Identity Federation, GitHub Actions, version-mapped Cloud Run + migration Jobs. Other stacks: map WIF → OIDC keyless auth; Cloud Run revision tag → your version map; migration Job → gated pre-deploy step.
+Default: one immutable bundle; RTP selected by env/config at deploy. GCP + Workload Identity Federation, GitHub Actions, GKE Deployments templated from a per-env `versions` map + a version-gated migration `Job` (Kubernetes Job, NOT Cloud Run); revisions roll out via `kubectl rollout restart`, image tags in the versions map pin each service/game. Other stacks: WIF → OIDC keyless auth; versions map → your version pin; migration Job → gated pre-deploy step. RTP variants live in TWO places: infra pins a pre-certified game image tag, and the RGS selects the band at runtime (`config:(variant)=>rtp94/rtp96`) — don't conflate them.
 
 ## Process
 1. **One bundle, N RTP SKUs.** Build once. The server keys the RTP table off the reported `gameCode`; deploy injects which pre-certified variant is active via env/config — never rebuild per SKU. The client only DISPLAYS the active advertised percent (read from server/auth), never decides it.

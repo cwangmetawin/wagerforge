@@ -23,6 +23,7 @@ constraints: C8
 
 ## Pitfalls / red flags
 Naive `hashInt % range` on a narrow window; biased shuffles (`i` vs `i+1` off-by-one); trusting a server-side decode instead of re-deriving (→ `fair-verify`).
+- **Full-range draw, wrong-size source.** A *large* source still biases if its size isn't a multiple of `range`. Live: snakes-pro maps a range-1000 draw to a 26×26 grid via `r % 26` / `floor(r/26) % 26` — but 1000 = 38·26+12, so columns/rows 0–11 are over-sampled (~2.6%). Mapper-side fix: draw a multiple of the target (`range = 676`, or one `nextInt(26)` per axis) or rejection-sample; never `% range` over a mismatched source.
 
 ## Verification
 `nextInt` stays in range, deterministic, ~uniform for non-power-of-two ranges (see `fair-rng.test.mjs`).

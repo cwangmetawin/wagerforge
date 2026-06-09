@@ -19,13 +19,15 @@ If "verify" calls a server endpoint and re-renders whatever the server returns, 
 ## Process
 1. Check `SHA256(serverSeed) === publishedHash`.
 2. Re-derive: run the game's exact `deriveFn(stream)` (the reduction, NOT the server's decode) over `byteStream(serverSeed, clientSeed, nonce)`.
-3. Deep-equal recomputed vs settled outcome; surface a precise diff on mismatch.
+3. Feed `deriveFn` the SAME per-game extras the server used, or a correct recompute mismatches a correct server: `rtp` (rtp-bearing games), `difficulty`/`stopIndex` (frog-crossing/pump/snakes), `noZero` (roulette0/2), `variant` (packs/cases/tarot). Real wire form: `encodeURIComponent(JSON.stringify(data))`.
+4. Pick the contract by mode, not by marketing name: single-player = per-round `{clientSeed,serverSeed,nonce}`; multiplayer = hash-chain `{hash,seed,hashIndex}` (→ `fair-hash-chain`). Branch on the multiplayer flag.
+5. Deep-equal recomputed vs settled outcome; surface a precise diff on mismatch.
 
 ## Correctness constraints
 - **C8:** The verifier MUST re-implement the integer reduction (rejection-sampled `nextInt`, Fisher-Yates) itself. Trusting the server's already-decoded `gameEvent` makes verification circular and hides any biased mapping.
 
 ## Pitfalls / red flags
-Re-rendering a server response; trusting the server's decoded outcome; wrong message format (`clientSeed:nonce` vs counter blocks) silently passing.
+Re-rendering a server response; trusting the server's decoded outcome; wrong message format (`clientSeed:nonce` vs counter blocks) silently passing; dropping the `data` extras (`rtp`/`difficulty`/`stopIndex`) so a correct recompute "fails" — a missing-input bug, not a fairness failure. Snakes trap: single-player `snakes` is NOT in `multiplayerGameCodes` (=crash0/slide/aviator/aviator0/sicbo) — verify it as single-player `{clientSeed,serverSeed,nonce}` + `{difficulty,stopIndex}`, not the hash-chain contract.
 
 ## Verification
 Round-trip tests: derive → `verify` returns `ok:true`; tampered hash → `commitOk:false`; tampered outcome → `match:false` (see `fair-rng.test.mjs`).

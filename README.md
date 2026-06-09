@@ -29,6 +29,14 @@ Prefer a menu? Run `/plugin`, choose **Add marketplace** (enter the path), then 
 - The commands resolve: `/wagerforge:fairness-audit`, `/wagerforge:rtp-check`, `/wagerforge:settlement-check`, `/wagerforge:new-minigame`.
 - Try: ask Claude to "design the math for a new plinko game" — it should route through `wagerforge:brainstorming` → `math-*`.
 
+### Already using superpowers?
+
+wagerforge is dual-install safe. If you already have the `superpowers` plugin enabled, wagerforge
+auto-detects it and **defers** — it will not re-inject the session bootstrap (no duplication), and its
+bundled process skills remain available namespaced as `wagerforge:*` (they never override `superpowers:*`).
+Override the auto-detection with `WAGERFORGE_BOOTSTRAP=force` (always inject wagerforge's bootstrap) or
+`WAGERFORGE_BOOTSTRAP=off` (always defer). If settings can't be read, wagerforge fails safe to the full bootstrap.
+
 ## Pillars (skill prefixes)
 - `math-` — probability, RTP, paytables, crash/ladder/cluster/lottery math
 - `fair-` — provable fairness (HMAC commit-reveal), RNG integrity, independent verification
@@ -44,6 +52,6 @@ wagerforge bundles the generic engineering-process skills from [superpowers](htt
 
 ## Develop
 - `node scripts/validate.mjs` — validate all skills
-- `node --test 'scripts/**/*.test.mjs'` — run tooling tests (glob form; newer Node treats a bare `scripts/` arg as a module, not a dir)
+- `node --test '{scripts,hooks}/**/*.test.mjs'` — run tooling + hook tests (brace glob covers both dirs; newer Node treats a bare dir arg as a module, not a dir)
 
 See `docs/specs/` for the design and `docs/research/` for the grounding dossier.

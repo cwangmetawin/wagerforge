@@ -1,35 +1,26 @@
 #!/usr/bin/env node
-// SessionStart: inject the bundled using-superpowers bootstrap (vendored from
-// superpowers, MIT) wrapped in <EXTREMELY_IMPORTANT>, plus nudge the
-// wagerforge:using-wagerforge router. Output JSON on stdout.
+// SessionStart: emit the wagerforge bootstrap context. Mode (full|defer) is decided by
+// scripts/bootstrap-mode.mjs. Dual-install safe: defers to an enabled superpowers instead of
+// double-injecting. Fail-open: any error -> full bootstrap. Output JSON on stdout.
 import { readFileSync } from 'node:fs'
 
-let usingSp = ''
-try {
-  usingSp = readFileSync(new URL('../skills/using-superpowers/SKILL.md', import.meta.url), 'utf8')
-} catch {
-  usingSp = ''
+function emit(ctx) {
+  process.stdout.write(JSON.stringify({
+    hookSpecificOutput: { hookEventName: 'SessionStart', additionalContext: ctx },
+  }))
+}
+function readBody() {
+  try { return readFileSync(new URL('../skills/using-superpowers/SKILL.md', import.meta.url), 'utf8') } catch { return '' }
 }
 
-const router = [
-  'wagerforge plugin active. For any iGaming / slot / crypto-minigame task, first invoke the `wagerforge:using-wagerforge` skill to route correctly.',
-  'wagerforge bundles the generic engineering-process skills (vendored from superpowers, MIT). Invoke them as `wagerforge:<name>` via the Skill tool.',
-].join(' ')
-
-const context = usingSp
-  ? [
-      '<EXTREMELY_IMPORTANT>',
-      'You have superpowers (bundled into wagerforge).',
-      '',
-      "**Below is the full content of your 'wagerforge:using-superpowers' skill — your introduction to using skills. For all other skills, use the 'Skill' tool:**",
-      '',
-      usingSp,
-      '',
-      router,
-      '</EXTREMELY_IMPORTANT>',
-    ].join('\n')
-  : router
-
-process.stdout.write(JSON.stringify({
-  hookSpecificOutput: { hookEventName: 'SessionStart', additionalContext: context },
-}))
+try {
+  const m = await import('../scripts/bootstrap-mode.mjs')
+  const mode = m.resolveBootstrapMode(
+    process.env.WAGERFORGE_BOOTSTRAP,
+    () => m.detectSuperpowers({ settingsPaths: m.defaultSettingsPaths() }),
+  )
+  emit(m.renderContext(mode, { usingSuperpowersBody: mode === 'full' ? readBody() : '' }))
+} catch {
+  // Hook-level fail-open. Must NOT depend on the module (the import itself may have failed).
+  emit('<EXTREMELY_IMPORTANT>\nYou have superpowers (bundled into wagerforge).\n\n' + readBody() + '\n</EXTREMELY_IMPORTANT>')
+}

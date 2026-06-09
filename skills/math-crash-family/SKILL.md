@@ -17,13 +17,13 @@ description: Use when building constant-house-edge continuous-target games - cra
 2. **Survival law.** `P(crash > x) = (1−h)/x` for `x ≥ 1`, and `1` for `x < 1`. This is `crashSurvival(x, h)`.
 3. **Instabust atom.** Probability mass `1 − S(1) = h` sits exactly at `x = 1.0` (the "instabust"). Without this atom the distribution does not integrate to 1 and EV leaks.
 4. **EV invariance.** Payout at target `m` is `m·bet`; EV `= winChance·m·bet = (1−h)/m·m·bet = (1−h)·bet` for ALL `m`. The target is a variance dial, never an EV dial. `crashEV(h) = 1−h`.
-5. **Inverse-CDF sampler.** Given uniform `u`: if `u < h` → bust at `1.0` (consume the atom); else `crashPoint = (1−h)/u`. That is `rollCrashPoint(u, h)`. Floor/round to display precision only after deriving the raw value.
+5. **Inverse-CDF sampler.** Given uniform `u`: if `u < h` → bust at `1.0` (consume the atom); else `crashPoint = (1−h)/(1−u)` — the survival-side uniform: continuous at `u=h` (→ exactly `1.0`) and never below `1.0`. That is `rollCrashPoint(u, h)`; `h` is per-game and **server-sourced** (live from `/game/info`; never hardcode `0.98`). Floor/round to display precision only after the raw value. (A second valid construction the RGS uses: a separate RTP-gating roll `prob ≤ targetRTP` with multiplier `1/(1−u)`.)
 6. **N parallel rungs.** Running `N` independent geometric streaks each staking `bet/N` preserves total EV `(1−h)·bet`; it reshapes variance, not edge.
 
 ## Pitfalls / red flags
 - Dropping the instabust atom at `x=1` (mass `h`): probabilities no longer sum to 1; EV silently exceeds `1−h`.
 - Letting EV drift with the target — if `winChance·payout` is not constant across `m`, the survival law is wrong.
-- Mapping `u → (1−h)/u` without the `u < h` branch (division blows up / never busts).
+- Pairing the `u<h` bust atom with `crashPoint=(1−h)/u` instead of `(1−h)/(1−u)` — yields sub-`1.0` values as `u→1` and a discontinuity at `u=h` (the shipped Chase/RGS code uses `(1−u)`). Omitting the `u<h` branch entirely also blows up / never busts.
 - Applying display rounding before the inverse-CDF, biasing the realized edge.
 - Splitting `N` rungs but rescaling stake by anything other than `bet/N`.
 

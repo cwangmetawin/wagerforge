@@ -1,7 +1,7 @@
 {
   "name": "wagerforge",
   "description": "iGaming superpowers — self-contained skills for slot math, provable fairness, RGS & durable settlement, economy, QA and compliance (bundles superpowers process skills, MIT).",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "author": { "name": "Chao Wang" },
   "license": "MIT",
   "keywords": ["igaming", "slots", "crypto-minigames", "provably-fair", "rtp", "rgs", "skills"]

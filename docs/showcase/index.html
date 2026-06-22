@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>wagerforge — iGaming superpowers for Claude Code</title>
+  <meta name="description" content="wagerforge — Claude Code skills for slot math, provable fairness, RGS & durable settlement, game economy, math/RNG QA, and gambling compliance. Self-contained, MIT." />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            ink: {
+              950: '#06080d',
+              900: '#0a0e16',
+              850: '#0e131e',
+              800: '#131a28',
+              700: '#1b2434',
+              600: '#27324a',
+            },
+            forge: {
+              300: '#7ee0c5',
+              400: '#3fd6a8',
+              500: '#16c089',
+              600: '#0f9d6f',
+            },
+            ember: {
+              300: '#ffcf8b',
+              400: '#ffae4a',
+              500: '#f7901e',
+            },
+          },
+          fontFamily: {
+            sans: ['ui-sans-serif', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', 'sans-serif'],
+            mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Consolas', 'monospace'],
+          },
+        },
+      },
+    };
+  </script>
+  <style>
+    html { scroll-behavior: smooth; }
+    body { -webkit-font-smoothing: antialiased; }
+    /* Subtle forge-glow background */
+    .bg-mesh {
+      background:
+        radial-gradient(60rem 40rem at 12% -10%, rgba(22,192,137,0.16), transparent 55%),
+        radial-gradient(50rem 36rem at 92% 0%, rgba(247,144,30,0.12), transparent 50%),
+        radial-gradient(70rem 50rem at 50% 120%, rgba(22,192,137,0.08), transparent 60%);
+    }
+    .grid-overlay {
+      background-image:
+        linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
+      background-size: 44px 44px;
+    }
+    .card-glow { transition: transform .18s ease, border-color .18s ease, background-color .18s ease; }
+    .card-glow:hover { transform: translateY(-2px); }
+    :focus-visible { outline: 2px solid #3fd6a8; outline-offset: 2px; border-radius: 6px; }
+    /* Respect reduced motion */
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      .card-glow { transition: none; }
+    }
+  </style>
+</head>
+<body class="bg-ink-950 text-slate-200 font-sans antialiased selection:bg-forge-500/30">
+
+  <a href="#main" class="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:top-3 focus:left-3 focus:rounded-md focus:bg-forge-500 focus:px-4 focus:py-2 focus:text-ink-950 focus:font-semibold">Skip to content</a>
+
+  <!-- ============ HEADER ============ -->
+  <header class="sticky top-0 z-40 border-b border-white/5 bg-ink-950/80 backdrop-blur supports-[backdrop-filter]:bg-ink-950/60">
+    <nav class="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6" aria-label="Primary">
+      <a href="#top" class="flex items-center gap-2.5 font-semibold tracking-tight">
+        <span aria-hidden="true" class="grid h-8 w-8 place-items-center rounded-lg bg-gradient-to-br from-forge-500 to-forge-600 text-ink-950 shadow-lg shadow-forge-500/20">
+          <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="m14 3-1 2-3 8-1 3 3 1 2-3 2-2"/><path d="M3 21h7"/><path d="m18 9 3 3-6 6-3-3"/>
+          </svg>
+        </span>
+        <span class="text-slate-100">wagerforge</span>
+      </a>
+      <ul class="hidden items-center gap-6 text-sm text-slate-400 md:flex">
+        <li><a class="hover:text-forge-300 transition-colors" href="#what">What is it</a></li>
+        <li><a class="hover:text-forge-300 transition-colors" href="#install">Install</a></li>
+        <li><a class="hover:text-forge-300 transition-colors" href="#pillars">Pillars</a></li>
+        <li><a class="hover:text-forge-300 transition-colors" href="#router">Router</a></li>
+      </ul>
+      <a href="#install" class="rounded-lg border border-forge-500/40 bg-forge-500/10 px-3.5 py-1.5 text-sm font-medium text-forge-300 transition-colors hover:bg-forge-500/20">Get started</a>
+    </nav>
+  </header>
+
+  <main id="main">
+    <!-- ============ HERO ============ -->
+    <section id="top" class="relative overflow-hidden bg-mesh">
+      <div class="absolute inset-0 grid-overlay opacity-60" aria-hidden="true"></div>
+      <div class="relative mx-auto max-w-7xl px-4 py-20 sm:px-6 sm:py-28 lg:py-32">
+        <div class="mx-auto max-w-3xl text-center">
+          <div class="mb-6 flex flex-wrap items-center justify-center gap-2 text-xs">
+            <span class="inline-flex items-center gap-1.5 rounded-full border border-forge-500/30 bg-forge-500/10 px-3 py-1 font-medium text-forge-300">
+              <span class="h-1.5 w-1.5 rounded-full bg-forge-400" aria-hidden="true"></span>
+              Self-contained
+            </span>
+            <span class="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-3 py-1 font-medium text-slate-300">MIT</span>
+            <span class="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-3 py-1 font-mono text-slate-400">v0.2.1</span>
+            <span class="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-3 py-1 font-medium text-slate-300">Claude Code plugin</span>
+          </div>
+
+          <h1 class="text-balance text-4xl font-bold tracking-tight text-slate-50 sm:text-6xl">
+            iGaming <span class="bg-gradient-to-r from-forge-400 to-ember-400 bg-clip-text text-transparent">superpowers</span> for Claude&nbsp;Code
+          </h1>
+
+          <p class="mx-auto mt-6 max-w-2xl text-balance text-lg leading-relaxed text-slate-300">
+            Skills for slot math, provable fairness, RGS &amp; durable settlement, game economy,
+            math/RNG QA, and gambling compliance — each carrying the one hard-won correction that
+            keeps real money safe.
+          </p>
+
+          <div class="mt-9 flex flex-wrap items-center justify-center gap-3">
+            <a href="#pillars" class="rounded-xl bg-forge-500 px-5 py-3 text-sm font-semibold text-ink-950 shadow-lg shadow-forge-500/25 transition-colors hover:bg-forge-400">Explore the 6 pillars</a>
+            <a href="#install" class="rounded-xl border border-white/15 bg-white/5 px-5 py-3 text-sm font-semibold text-slate-200 transition-colors hover:bg-white/10">Install in Claude Code</a>
+          </div>
+
+          <dl class="mx-auto mt-14 grid max-w-2xl grid-cols-3 gap-4 text-center">
+            <div class="rounded-xl border border-white/5 bg-white/[0.03] px-3 py-4">
+              <dt class="sr-only">Pillars</dt>
+              <dd class="text-2xl font-bold text-slate-50">6</dd>
+              <dd class="mt-1 text-xs uppercase tracking-wide text-slate-400">Pillars</dd>
+            </div>
+            <div class="rounded-xl border border-white/5 bg-white/[0.03] px-3 py-4">
+              <dt class="sr-only">Domain skills</dt>
+              <dd class="text-2xl font-bold text-slate-50">52</dd>
+              <dd class="mt-1 text-xs uppercase tracking-wide text-slate-400">Skills</dd>
+            </div>
+            <div class="rounded-xl border border-white/5 bg-white/[0.03] px-3 py-4">
+              <dt class="sr-only">Server authority</dt>
+              <dd class="text-2xl font-bold text-slate-50">100%</dd>
+              <dd class="mt-1 text-xs uppercase tracking-wide text-slate-400">Server-authoritative</dd>
+            </div>
+          </dl>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ WHAT IS THIS ============ -->
+    <section id="what" class="border-t border-white/5 bg-ink-900">
+      <div class="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:py-20">
+        <div class="grid items-start gap-10 lg:grid-cols-2">
+          <div>
+            <p class="text-sm font-semibold uppercase tracking-widest text-forge-400">What is this</p>
+            <h2 class="mt-3 text-3xl font-bold tracking-tight text-slate-50">A domain layer that codifies the math, fairness, and money rules of real iGaming.</h2>
+            <p class="mt-5 text-base leading-relaxed text-slate-300">
+              wagerforge is a single, self-contained Claude Code plugin. Each skill captures the
+              <span class="font-medium text-slate-100">distilled top-tier insight</span> — the place where
+              the obvious approach quietly ships a bug: a confidently-precise but wrong RTP, a double-pay in the
+              crash/retry gap, a verifier that just trusts the house, a folk "modulo bias" that isn't the real exploit.
+            </p>
+            <p class="mt-4 text-base leading-relaxed text-slate-300">
+              It also bundles the generic engineering-process skills (brainstorm, plan, TDD, debug, review),
+              vendored from <a class="text-forge-300 underline decoration-forge-500/40 underline-offset-2 hover:text-forge-200" href="https://github.com/obra/superpowers" rel="noopener noreferrer">superpowers</a>
+              (MIT, © 2025 Jesse Vincent). No separate plugin required.
+            </p>
+          </div>
+
+          <ul class="grid gap-4 sm:grid-cols-2">
+            <li class="rounded-2xl border border-white/5 bg-white/[0.03] p-5">
+              <h3 class="font-semibold text-slate-100">Skill is the source of truth</h3>
+              <p class="mt-2 text-sm leading-relaxed text-slate-400">Knowledge is written once in a skill. Commands, agents, and hooks stay thin and reference skills by name.</p>
+            </li>
+            <li class="rounded-2xl border border-white/5 bg-white/[0.03] p-5">
+              <h3 class="font-semibold text-slate-100">Server-authoritative always</h3>
+              <p class="mt-2 text-sm leading-relaxed text-slate-400">The client renders server-resolved results. It never computes payouts, RTP, or outcomes.</p>
+            </li>
+            <li class="rounded-2xl border border-white/5 bg-white/[0.03] p-5">
+              <h3 class="font-semibold text-slate-100">Correctness is law</h3>
+              <p class="mt-2 text-sm leading-relaxed text-slate-400">Constraints C1–C14 encode the corrected statement from the spec — never the refuted folk version.</p>
+            </li>
+            <li class="rounded-2xl border border-white/5 bg-white/[0.03] p-5">
+              <h3 class="font-semibold text-slate-100">Opinionated default stack</h3>
+              <p class="mt-2 text-sm leading-relaxed text-slate-400">TS + PixiJS/Phaser + Node + decimal.js by default, with a concept mapping for other stacks.</p>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ INSTALL ============ -->
+    <section id="install" class="border-t border-white/5 bg-ink-950">
+      <div class="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:py-20">
+        <p class="text-sm font-semibold uppercase tracking-widest text-forge-400">Install</p>
+        <h2 class="mt-3 text-3xl font-bold tracking-tight text-slate-50">A single self-contained plugin — no companion install.</h2>
+        <p class="mt-4 max-w-3xl text-base leading-relaxed text-slate-300">
+          The <code class="rounded bg-white/5 px-1.5 py-0.5 font-mono text-sm text-forge-300">/plugin</code> commands below are run
+          <span class="font-medium text-slate-100">inside Claude Code</span> — they are built-in commands, not shell commands.
+        </p>
+
+        <div class="mt-8 grid gap-6 lg:grid-cols-3">
+          <ol class="space-y-5 lg:col-span-1">
+            <li class="flex gap-3">
+              <span class="grid h-7 w-7 flex-none place-items-center rounded-full border border-forge-500/40 bg-forge-500/10 text-sm font-semibold text-forge-300">1</span>
+              <p class="text-sm leading-relaxed text-slate-300">Add the folder as a marketplace — point at the directory containing <code class="rounded bg-white/5 px-1 py-0.5 font-mono text-xs text-slate-200">.claude-plugin/marketplace.json</code>.</p>
+            </li>
+            <li class="flex gap-3">
+              <span class="grid h-7 w-7 flex-none place-items-center rounded-full border border-forge-500/40 bg-forge-500/10 text-sm font-semibold text-forge-300">2</span>
+              <p class="text-sm leading-relaxed text-slate-300">Install the plugin from that marketplace (<code class="rounded bg-white/5 px-1 py-0.5 font-mono text-xs text-slate-200">wagerforge</code> is the plugin, <code class="rounded bg-white/5 px-1 py-0.5 font-mono text-xs text-slate-200">wagerforge-dev</code> the marketplace).</p>
+            </li>
+            <li class="flex gap-3">
+              <span class="grid h-7 w-7 flex-none place-items-center rounded-full border border-forge-500/40 bg-forge-500/10 text-sm font-semibold text-forge-300">3</span>
+              <p class="text-sm leading-relaxed text-slate-300">Restart Claude Code so the <code class="rounded bg-white/5 px-1 py-0.5 font-mono text-xs text-slate-200">SessionStart</code> hook loads the <code class="rounded bg-white/5 px-1 py-0.5 font-mono text-xs text-slate-200">using-wagerforge</code> router.</p>
+            </li>
+          </ol>
+
+          <div class="lg:col-span-2">
+            <div class="overflow-hidden rounded-2xl border border-white/10 bg-ink-900 shadow-xl shadow-black/40">
+              <div class="flex items-center gap-2 border-b border-white/5 bg-white/[0.02] px-4 py-2.5">
+                <span class="h-3 w-3 rounded-full bg-red-400/70" aria-hidden="true"></span>
+                <span class="h-3 w-3 rounded-full bg-amber-400/70" aria-hidden="true"></span>
+                <span class="h-3 w-3 rounded-full bg-forge-400/70" aria-hidden="true"></span>
+                <span class="ml-2 text-xs font-medium text-slate-500">Claude Code</span>
+              </div>
+              <pre class="overflow-x-auto p-5 text-sm leading-relaxed"><code class="font-mono text-slate-300"><span class="text-slate-500"># 1. Add this folder as a marketplace</span>
+<span class="text-forge-300">/plugin</span> marketplace add ~/Documents/Developments/wagerforge
+
+<span class="text-slate-500"># 2. Install the plugin</span>
+<span class="text-forge-300">/plugin</span> install wagerforge@wagerforge-dev
+
+<span class="text-slate-500"># 3. Restart Claude Code, then start any iGaming task by</span>
+<span class="text-slate-500">#    invoking the router skill:</span>
+<span class="text-ember-300">using-wagerforge</span></code></pre>
+            </div>
+            <p class="mt-4 text-sm leading-relaxed text-slate-400">
+              <span class="font-medium text-slate-300">Already using superpowers?</span> wagerforge is dual-install safe — it auto-detects
+              the <code class="rounded bg-white/5 px-1 py-0.5 font-mono text-xs text-slate-300">superpowers</code> plugin and defers its bootstrap (no duplication). Its bundled process skills stay
+              available namespaced as <code class="rounded bg-white/5 px-1 py-0.5 font-mono text-xs text-slate-300">wagerforge:*</code> and never override <code class="rounded bg-white/5 px-1 py-0.5 font-mono text-xs text-slate-300">superpowers:*</code>.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ PILLARS ============ -->
+    <section id="pillars" class="border-t border-white/5 bg-ink-900">
+      <div class="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:py-20">
+        <div class="max-w-3xl">
+          <p class="text-sm font-semibold uppercase tracking-widest text-forge-400">The six pillars</p>
+          <h2 class="mt-3 text-3xl font-bold tracking-tight text-slate-50">Every skill, with its distilled Core insight.</h2>
+          <p class="mt-4 text-base leading-relaxed text-slate-300">
+            Skills group by prefix. Each card shows the skill name and the single insight that separates the
+            correct implementation from the plausible-looking bug.
+          </p>
+        </div>
+
+        <!-- Pillar nav -->
+        <nav class="mt-8 flex flex-wrap gap-2 text-sm" aria-label="Jump to pillar">
+          <a href="#pillar-math"  class="rounded-full border border-white/10 bg-white/5 px-3.5 py-1.5 text-slate-300 transition-colors hover:border-forge-500/40 hover:text-forge-200"><span class="font-mono text-forge-300">math-</span> Probability &amp; RTP</a>
+          <a href="#pillar-fair"  class="rounded-full border border-white/10 bg-white/5 px-3.5 py-1.5 text-slate-300 transition-colors hover:border-forge-500/40 hover:text-forge-200"><span class="font-mono text-forge-300">fair-</span> Provable fairness</a>
+          <a href="#pillar-build" class="rounded-full border border-white/10 bg-white/5 px-3.5 py-1.5 text-slate-300 transition-colors hover:border-forge-500/40 hover:text-forge-200"><span class="font-mono text-forge-300">build-</span> Engine &amp; settlement</a>
+          <a href="#pillar-econ"  class="rounded-full border border-white/10 bg-white/5 px-3.5 py-1.5 text-slate-300 transition-colors hover:border-forge-500/40 hover:text-forge-200"><span class="font-mono text-forge-300">econ-</span> Economy &amp; liveops</a>
+          <a href="#pillar-qa"    class="rounded-full border border-white/10 bg-white/5 px-3.5 py-1.5 text-slate-300 transition-colors hover:border-forge-500/40 hover:text-forge-200"><span class="font-mono text-forge-300">qa-</span> Sim &amp; certification</a>
+          <a href="#pillar-comp"  class="rounded-full border border-white/10 bg-white/5 px-3.5 py-1.5 text-slate-300 transition-colors hover:border-forge-500/40 hover:text-forge-200"><span class="font-mono text-forge-300">comp-</span> Compliance &amp; RG</a>
+        </nav>
+
+        <div id="pillar-grids" class="mt-12 space-y-16"><!-- pillars injected here --></div>
+      </div>
+    </section>
+
+    <!-- ============ ROUTER ============ -->
+    <section id="router" class="border-t border-white/5 bg-ink-950">
+      <div class="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:py-20">
+        <div class="overflow-hidden rounded-3xl border border-forge-500/20 bg-gradient-to-br from-ink-900 to-ink-850">
+          <div class="grid items-center gap-8 p-8 sm:p-10 lg:grid-cols-[1.2fr_1fr]">
+            <div>
+              <span class="inline-flex items-center rounded-full border border-ember-500/30 bg-ember-500/10 px-3 py-1 font-mono text-xs text-ember-300">using-wagerforge</span>
+              <h2 class="mt-4 text-3xl font-bold tracking-tight text-slate-50">The one path that loads the law.</h2>
+              <p class="mt-4 text-base leading-relaxed text-slate-300" id="router-insight"><!-- insight injected --></p>
+            </div>
+            <div class="rounded-2xl border border-white/10 bg-ink-950/60 p-6">
+              <p class="text-sm font-medium uppercase tracking-widest text-slate-500">Start here</p>
+              <p class="mt-3 text-sm leading-relaxed text-slate-300">
+                Invoke <code class="rounded bg-white/5 px-1.5 py-0.5 font-mono text-forge-300">using-wagerforge</code> first.
+                The prefix router maps your task to the right <span class="font-mono text-slate-200">math-</span>,
+                <span class="font-mono text-slate-200">fair-</span>, <span class="font-mono text-slate-200">build-</span>,
+                <span class="font-mono text-slate-200">econ-</span>, <span class="font-mono text-slate-200">qa-</span>, or
+                <span class="font-mono text-slate-200">comp-</span> skill — carrying the C1–C14 corrections with it.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ============ FOOTER ============ -->
+  <footer class="border-t border-white/5 bg-ink-900">
+    <div class="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-10 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+      <div>
+        <p class="font-semibold text-slate-200">wagerforge <span class="font-mono text-sm font-normal text-slate-500">v0.2.1</span></p>
+        <p class="mt-1 text-sm text-slate-500">iGaming superpowers for Claude Code. Self-contained · MIT.</p>
+      </div>
+      <p class="text-sm text-slate-500">
+        Bundles process skills vendored from
+        <a class="text-forge-300 underline decoration-forge-500/40 underline-offset-2 hover:text-forge-200" href="https://github.com/obra/superpowers" rel="noopener noreferrer">superpowers</a>
+        (MIT, © 2025 Jesse Vincent).
+      </p>
+    </div>
+  </footer>
+
+  <script>
+    // ---- Pillar definitions (from README §Pillars) ----
+    const PILLARS = [
+      {
+        id: 'math', prefix: 'math-', title: 'Probability & RTP',
+        blurb: 'Probability, RTP, paytables, and the closed-form vs Monte-Carlo math for crash, ladder, cluster, and lottery families.',
+      },
+      {
+        id: 'fair', prefix: 'fair-', title: 'Provable fairness',
+        blurb: 'HMAC commit-reveal, RNG integrity, outcome mapping, and independent client-side verification — never trust the house.',
+      },
+      {
+        id: 'build', prefix: 'build-', title: 'Engine, RGS, wallet & durable settlement',
+        blurb: 'Rendering and asset pipeline, the game server (RGS), atomic wallet, durable multi-leg settlement, and RTP-variant deploy.',
+      },
+      {
+        id: 'econ', prefix: 'econ-', title: 'Economy & liveops',
+        blurb: 'Bonus and jackpot design, A/B testing, LTV/CAC, sinks and faucets, tournaments, and the true cost of margin moves.',
+      },
+      {
+        id: 'qa', prefix: 'qa-', title: 'Simulation & certification',
+        blurb: 'Monte-Carlo certification, golden regression, RNG statistics, settlement integrity, and load + observability.',
+      },
+      {
+        id: 'comp', prefix: 'comp-', title: 'Compliance & responsible gaming',
+        blurb: 'Responsible gaming, RNG/RTP certification, affordability, self-exclusion, geo/edge security, and audit & privacy.',
+      },
+    ];
+
+    // ---- All Core insights (one per skill) ----
+    const INSIGHTS = [
+      { skill: "build-asset-pipeline", insight: "On Android's unified memory there is no VRAM pool to \"save\" — atlasing/batching cuts CPU submit count, not memory. Draw-call/MB caps are soft and workload-dependent; profile a real mid-range device, never gate on a number." },
+      { skill: "build-deploy-and-rtp-variant", insight: "Switching among pre-certified RTP variants needs no re-cert — it's a deploy-time env flip, not a rebuild. Re-cert triggers ONLY when the math model changes; operator promotions outside the RNG never touch certified RTP." },
+      { skill: "build-durable-settlement", insight: "Idempotency keys belong on each side-effecting STEP, not the round/bet — a multi-leg settle has many keys. And a silently dropped step is never a no-op; it freezes player money. Every path must accept OR cancel." },
+      { skill: "build-game-flow", insight: "The flow engine animates an outcome that already exists — turbo/skip collapses presentation time to the server-settled frame, never re-deriving a result; pre- and post-skip board states must be bit-identical." },
+      { skill: "build-game-server-rgs", insight: "`wins` is a control signal, not just a payout: emit it eagerly and you settle prematurely, push it mid-multiplayer-tick and GDK silently swallows messages — defer it, cap with `>=` never `==`, and accept-or-cancel every command." },
+      { skill: "build-host-bridge", insight: "Slot play is RGS-direct via the connector SDK; the parent `postMessage` channel is send-only notify, never the play transport — never await a result posted back. Origin-validation belongs to the host consumer, not the send-only slot." },
+      { skill: "build-instant-crash-games", insight: "One wager spans many HTTP calls; the server alone judges round liveness from `state`'s shape (empty=settled), so a truthy-empty `{}` on recovery reads as live and spawns a phantom round." },
+      { skill: "build-minigame-from-scratch", insight: "The minigame is a thin skin; the only thing it must own is the server-authoritative seam. But never trust the shared GDK's money helpers — its `MathOperations.roundDown()` uses `ROUND_CEIL` (rounding inverted), which silently corrupts house edge." },
+      { skill: "build-mobile-performance", insight: "On Android GPU/CPU share unified RAM, so \"VRAM\" is no separate budget; batching cuts CPU driver submissions, not GPU load — and overdraw, not call count, is what actually stutters." },
+      { skill: "build-slot-reels-symbols", insight: "The reel spin is pure theatre painted onto an already-final server stop index; certification needs that audit-logged outcome, not commit-reveal, and a visual/server mismatch is a bug to fix, never a re-roll." },
+      { skill: "build-wallet-and-money", insight: "Daily reconciliation only detects an overdraft after the money left; prevention is atomic at debit time — guarded `balance>=:amt` UPDATE + `CHECK(balance>=0)` co-committed with the ledger row, never authorized from a cache/replica." },
+      { skill: "build-win-presentation", insight: "Win presentation is read-only theatre over `totalWin`: tier, count-up, and lines are derived from the settled server value, never inputs to it — a too-low band hides cash but cannot shrink the credited win." },
+      { skill: "comp-affordability", insight: "\"Affordability\" is a server-authoritative net-loss/CRA vulnerability gate run before debit — not a wallet balance check. MetaWin's `useCheckAffordability` is the latter; the name collides, the logic must not." },
+      { skill: "comp-audit-and-privacy", insight: "GDPR erasure and the regulator-mandated immutable financial trail don't conflict — they partition by data class: keep the append-only money/state records intact, pseudonymize the PII around them. Deleting the trail breaks both regimes." },
+      { skill: "comp-geo-edge-security", insight: "Exempt money paths by negating their regex *inside* the throttle rule's own match — not via a separate allow rule, which would also skip OWASP inspection. Geo-block only the edge's server-computed region, never a client header." },
+      { skill: "comp-math-cert-report", insight: "Certification proof is a CI-width property, not a spin count: accept only when the closed-form RTP lies *inside* the simulated CI. A miss means model≠implementation — a bug to fix, never an interval to pad with more N." },
+      { skill: "comp-responsible-gaming", insight: "Server-authority is necessary but not sufficient: elapsed-time limits need a *monotonic* clock (wall-clock NTP jumps corrupt session timers); only absolute cut-offs care about wall-clock precision." },
+      { skill: "comp-rng-certification", insight: "Labs certify a PROPERTY (unpredictability), not a named algorithm; the real fault is a recoverable seed or non-CSPRNG, never lack of per-bet reseeding — a stateless `HMAC(serverSeed, clientSeed‖nonce)` is fully secure." },
+      { skill: "comp-rtp-certification", insight: "Re-cert is gated on a math-model diff (weights/paytable/feature logic), not on RTP changing. Switching pre-certified variants or running RNG-external promos shifts effective return yet needs no re-cert." },
+      { skill: "comp-self-exclusion", insight: "A register timeout means \"unknown,\" not \"not excluded\" — fail closed on money paths, and pin a static egress IP, or cloud-ephemeral source IPs drop off the allowlist and every scan silently passes." },
+      { skill: "econ-ab-testing", insight: "\"Enough spins\" is a CI-half-width property (`1.96·SD/√N`), never a round count — high-volatility variants need up to 1e9 spins; accept only when declared RTP lands inside the converged CI (C4)." },
+      { skill: "econ-bonus-design", insight: "Playthrough is operator revenue that OFFSETS the give-away, not an additive cost — high WR can pencil EV-positive. Real cost hides in completion rate and sticky-vs-cashable, never the arithmetic." },
+      { skill: "econ-ltv-cac", insight: "LTV is the lever, not CAC. Raise retained value upfront with per-segment offers; chasing cheap traffic buys low-LTV cohorts that collapse the ratio. And freebet stakes add zero deposit revenue." },
+      { skill: "econ-progressive-jackpot", insight: "Contribution `c` is not all player return: it splits into a meter slice (the only RTP summand, `jackpotContributionRTP ≈ c_meter`) and a reserve slice that repays the seed — outside-stream capital, never an RTP line." },
+      { skill: "econ-rtp-cost", insight: "Certified RTP tracks only the math model (weights/paytable/feature logic) — not money flow. Off-RNG bonuses and pre-certified variant switches move margin, never RTP; only re-simulating real game code proves the published number." },
+      { skill: "econ-sink-faucet", insight: "The sink is `Σ wager × houseEdge`, not turnover — and theoretical-loss-based winback is a faucet that scales off that same edge, so tightening RTP raises both and partly self-cancels." },
+      { skill: "econ-tournament", insight: "A parimutuel pool has no fixed odds — you bet against rivals' final composition, so every stake you add moves your own odds; absent `P(win) > outcomePool/totalPool`, mean EV is exactly `−rake × stake`." },
+      { skill: "fair-commit-reveal", insight: "The commit hash is plain `SHA256(serverSeed)`, not HMAC — length-extension cannot invert it or two-open it. Don't \"harden\" the commit; HMAC belongs only to keyed outcome derivation in `fair-rng-core`." },
+      { skill: "fair-hash-chain", insight: "Hash-chain mode is selected by the `multiplayerGameCodes` allowlist, NOT the `IMultiplayerGame` interface — `snakes` is server-side multiplayer yet verifies single-player commit-reveal; guessing by interface picks the wrong protocol." },
+      { skill: "fair-outcome-mappers", insight: "Modulo bias on a full 32-bit draw is ~1e-8, not the folklore \"11%\" — the real trap is splitting one big draw into a grid via `% range` when the source size isn't a multiple of `range`." },
+      { skill: "fair-rng-core", insight: "The exploitable bug here isn't HMAC — it's non-injective message encoding: an unsanitized `:` in player-controlled `clientSeed` makes `(seed,nonce)` ambiguous, a grinding vector. Reject the delimiter before building the message." },
+      { skill: "fair-verification-ui", insight: "A verifier that fetches and renders the server's decoded `gameEvent` proves nothing — it's circular trust-the-house. Real verification re-implements the integer reduction client-side and recomputes the outcome with zero network calls." },
+      { skill: "fair-verify", insight: "Independence lives in the integer reduction, not the hash. Re-implement `nextInt`/Fisher-Yates yourself; trusting the server's decoded `gameEvent` is circular and hides biased mappings — and feed it the exact same `data` extras or a correct recompute falsely \"fails\"." },
+      { skill: "math-cascade-tumble", insight: "The geometric/retrigger closed form silently returns a confidently-precise WRONG RTP the moment multipliers grow, symbols stick, or wins cap — path-dependence breaks it structurally, not approximately; only CI-bounded Monte-Carlo (large N near p·R=1) is exact." },
+      { skill: "math-crash-family", insight: "The edge IS the instabust atom: all of `h` sits as point-mass at `x=1`. Because survival is `(1−h)/x`, `winChance·m·bet` cancels to `(1−h)·bet` for every target — target is a variance dial, never EV." },
+      { skill: "math-feature-buy-and-jackpot", insight: "A buy never raises EV (only compresses variance in time), so its price = E[feature]/buyVariantRTP at parity; and a progressive's reset seed is outside-RNG operator capital — never a third RTP summand." },
+      { skill: "math-ladder-and-progression", insight: "Per-step survival `(safe/total)^r` and multiplier `(total/safe)^r` are exact reciprocals, so EV is flat at every cash-out row — difficulty is a volatility dial, never an RTP knob." },
+      { skill: "math-lines-ways-cluster", insight: "The cluster multiplier is `pay × multiplierSum` — the SUM of the cluster's grid cells, not a per-cell product; and grid `0` means a legitimate dimmed x1, only `-1` means absent. Get these backwards and RTP breaks." },
+      { skill: "math-montecarlo-simulation", insight: "\"Enough spins\" is never a count — it's a CI-width target. Since half-width scales as SD/√N, a high-volatility game can need 1000× more spins than a flat one for the same tolerance." },
+      { skill: "math-paytable-config", insight: "Two distinct weights coexist: `dropWeight` is cosmetic cascade visibility, NEVER probability. Real payline odds live only in server reel-strip int arrays — and RTP is multilinear in them, so one weight's bump can move RTP the opposite way." },
+      { skill: "math-plinko-lottery", insight: "Slot/bucket/case probabilities are FIXED (binomial/hypergeometric); only multipliers are calibrated — so a huge headline jackpot costs nothing extra, and `E[bucket]·E[ball]` factorizes for RTP only when the two axes are independent." },
+      { skill: "math-rtp-modeling", insight: "RTP is multilinear in per-reel weights: bumping one symbol re-normalizes the reel, shrinking every other symbol's contribution — so net RTP moves little and can flip sign. Recompute fully; never scale by win fraction." },
+      { skill: "math-volatility-tuning", insight: "A distribution reshape is EV-neutral and closed-form provable; a server-side regenerate-on-hit win-discard rule is path-dependent, silently DROPS RTP, and is unprovable except by large-N sim — never conflate the two." },
+      { skill: "math-table-game-edge", insight: "Table-game edge is the gap between paid odds and TRUE odds, baked into the payout multiplier/table itself — and it is per-bet-type, not per-game. There is no post-roll RTP gate; the GAME RTP is the bet-weighted blend of every bet type's RTP." },
+      { skill: "qa-cosmetic-sim-guard", insight: "Snapshot the physics-derived bucket BEFORE the client overwrites it with the server `multiplierIndex`. Asserting after compares the server index to itself — the shipped Plinko \"check\" does exactly this and catches nothing." },
+      { skill: "qa-fairness-verification", insight: "Statistical uniformity proves no modulo bias but never catches the real exploit: a player-controlled `:` in clientSeed collides HMAC message strings across distinct (seed,nonce) pairs — a grinding vector only a fail-closed format test pins." },
+      { skill: "qa-load-and-observability", insight: "A round timing out at the client is not a failed bet — under burst it likely settled server-side; the SLO must span bet-received→settle-acked, and recovery must reconcile that already-settled round idempotently, never re-pay." },
+      { skill: "qa-math-validation", insight: "A realized mean near target proves nothing — accept only when the confidence interval itself sits below tolerance, after sizing N so its half-width does; a \"close\" mean at small N is just sampling noise." },
+      { skill: "qa-monte-carlo-cert", insight: "The cert's value is the gap, not the agreement: a closed-form EV vs simulation through the real resolve path catches implementation drift. Sufficiency is a CI-width property — derive N from SD_perSpin, never hardcode \"1M spins.\"" },
+      { skill: "qa-regression-golden", insight: "Freeze the recorded draw sequence (the `*Cheats.json` entropy replayed via `TrackedRNG.load`), not just the seed — a seed only reproduces outcomes if draw count and order stay byte-stable, which logic changes silently break." },
+      { skill: "qa-rng-statistical", insight: "Passing every battery proves uniformity, never unpredictability: Mersenne-Twister sails through BigCrush yet leaks its full state in ~624 outputs. CSPRNG is a property to prove, not a verdict batteries grant." },
+      { skill: "qa-settlement-integrity", insight: "A green happy-path suite proves nothing — the double-pay bug lives in the crash/retry gap between debit and credit legs. The test itself must inject that crash and replay; assert pooled splits equal the pot exactly, not ≈." },
+      { skill: "using-wagerforge", insight: "The prefix router is the only path that loads the law-bound (C1–C14, server-authoritative) corrections; \"just coding the payout/RNG\" while skipping it is precisely how refuted folk-math ships." },
+    ];
+
+    // ---- Helpers ----
+    const ROUTER_SKILL = 'using-wagerforge';
+
+    // Render inline code spans (`...`) safely without raw HTML injection.
+    function renderInsight(text) {
+      const frag = document.createDocumentFragment();
+      const parts = text.split('`');
+      parts.forEach((part, i) => {
+        if (i % 2 === 1) {
+          const code = document.createElement('code');
+          code.className = 'rounded bg-forge-500/10 px-1 py-0.5 font-mono text-[0.85em] text-forge-200';
+          code.textContent = part;
+          frag.appendChild(code);
+        } else if (part) {
+          frag.appendChild(document.createTextNode(part));
+        }
+      });
+      return frag;
+    }
+
+    function pillarForSkill(name) {
+      const p = PILLARS.find((p) => name.startsWith(p.prefix));
+      return p ? p.id : null;
+    }
+
+    function makeCard(item) {
+      const li = document.createElement('li');
+      li.className = 'card-glow rounded-2xl border border-white/8 bg-white/[0.025] p-5 hover:border-forge-500/30 hover:bg-white/[0.04]';
+
+      const head = document.createElement('div');
+      head.className = 'flex items-center gap-2';
+      const dot = document.createElement('span');
+      dot.className = 'h-2 w-2 flex-none rounded-full bg-forge-400';
+      dot.setAttribute('aria-hidden', 'true');
+      const h3 = document.createElement('h4');
+      h3.className = 'font-mono text-sm font-semibold text-slate-100';
+      h3.textContent = item.skill;
+      head.appendChild(dot);
+      head.appendChild(h3);
+
+      const p = document.createElement('p');
+      p.className = 'mt-3 text-sm leading-relaxed text-slate-400';
+      p.appendChild(renderInsight(item.insight));
+
+      li.appendChild(head);
+      li.appendChild(p);
+      return li;
+    }
+
+    // ---- Build pillar sections ----
+    (function build() {
+      const grids = document.getElementById('pillar-grids');
+      const byPillar = Object.fromEntries(PILLARS.map((p) => [p.id, []]));
+      const orphans = [];
+
+      INSIGHTS.forEach((item) => {
+        if (item.skill === ROUTER_SKILL) return; // rendered in router section
+        const id = pillarForSkill(item.skill);
+        if (id) byPillar[id].push(item);
+        else orphans.push(item.skill);
+      });
+
+      PILLARS.forEach((pillar) => {
+        const items = byPillar[pillar.id].slice().sort((a, b) => a.skill.localeCompare(b.skill));
+
+        const section = document.createElement('section');
+        section.id = 'pillar-' + pillar.id;
+        section.setAttribute('aria-labelledby', 'pillar-' + pillar.id + '-h');
+        section.className = 'scroll-mt-24';
+
+        const header = document.createElement('div');
+        header.className = 'flex flex-col gap-3 border-b border-white/5 pb-5 sm:flex-row sm:items-end sm:justify-between';
+
+        const left = document.createElement('div');
+        const badge = document.createElement('span');
+        badge.className = 'inline-flex items-center rounded-md border border-forge-500/30 bg-forge-500/10 px-2.5 py-1 font-mono text-sm font-semibold text-forge-300';
+        badge.textContent = pillar.prefix;
+        const h3 = document.createElement('h3');
+        h3.id = 'pillar-' + pillar.id + '-h';
+        h3.className = 'mt-3 text-2xl font-bold tracking-tight text-slate-50';
+        h3.textContent = pillar.title;
+        const blurb = document.createElement('p');
+        blurb.className = 'mt-2 max-w-2xl text-sm leading-relaxed text-slate-400';
+        blurb.textContent = pillar.blurb;
+        left.appendChild(badge);
+        left.appendChild(h3);
+        left.appendChild(blurb);
+
+        const count = document.createElement('span');
+        count.className = 'flex-none text-sm text-slate-500';
+        count.textContent = items.length + (items.length === 1 ? ' skill' : ' skills');
+
+        header.appendChild(left);
+        header.appendChild(count);
+
+        const ul = document.createElement('ul');
+        ul.className = 'mt-7 grid gap-4 sm:grid-cols-2 lg:grid-cols-3';
+        ul.setAttribute('role', 'list');
+        items.forEach((item) => ul.appendChild(makeCard(item)));
+
+        section.appendChild(header);
+        section.appendChild(ul);
+        grids.appendChild(section);
+      });
+
+      // Router insight
+      const router = INSIGHTS.find((i) => i.skill === ROUTER_SKILL);
+      if (router) {
+        const target = document.getElementById('router-insight');
+        target.appendChild(renderInsight(router.insight));
+      }
+
+      if (orphans.length) {
+        console.warn('wagerforge showcase: skills with no matching pillar prefix:', orphans);
+      }
+    })();
+  </script>
+</body>
+</html>

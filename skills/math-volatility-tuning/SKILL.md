@@ -6,6 +6,8 @@ constraints: C4
 
 # math-volatility-tuning
 
+> **Core insight:** A distribution reshape is EV-neutral and closed-form provable; a server-side regenerate-on-hit win-discard rule is path-dependent, silently DROPS RTP, and is unprovable except by large-N sim — never conflate the two.
+
 ## When to use / When NOT
 - Use when: classifying low/medium/high volatility, reshaping the payout distribution, or moving hit frequency at constant RTP.
 - NOT for: deriving/recalibrating RTP/house edge itself (→ `math-rtp-modeling`); empirically validating an implementation (→ `math-montecarlo-simulation` / `qa-math-validation`).

@@ -6,6 +6,8 @@ constraints: C8
 
 # fair-outcome-mappers
 
+> **Core insight:** Modulo bias on a full 32-bit draw is ~1e-8, not the folklore "11%" — the real trap is splitting one big draw into a grid via `% range` when the source size isn't a multiple of `range`.
+
 ## When to use / When NOT
 - Use when: turning a hash/stream into integers, permutations, or distribution samples.
 - NOT for: the keyed derivation itself (→ `fair-rng-core`).

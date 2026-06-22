@@ -6,6 +6,8 @@ constraints: C4
 
 # comp-math-cert-report
 
+> **Core insight:** Certification proof is a CI-width property, not a spin count: accept only when the closed-form RTP lies *inside* the simulated CI. A miss means model≠implementation — a bug to fix, never an interval to pad with more N.
+
 ## When to use / When NOT
 - Use when: assembling the artifact a third-party lab (GLI/iTech/BMM/eCOGRA) signs off — theoretical RTP, max win, volatility, hit frequency, plus simulation evidence with CIs.
 - Do NOT use for: deriving RTP (→ `math-rtp-modeling`); running the sim engine (→ `math-montecarlo-simulation`); empirical implementation checks (→ `qa-math-validation`).

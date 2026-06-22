@@ -5,6 +5,8 @@ description: Use when designing ladder games (Dragon Tower, Mines, Pump, Pepe, p
 
 # math-ladder-and-progression
 
+> **Core insight:** Per-step survival `(safe/total)^r` and multiplier `(total/safe)^r` are exact reciprocals, so EV is flat at every cash-out row — difficulty is a volatility dial, never an RTP knob.
+
 ## When to use / When NOT
 - Use when: per-row multipliers/survival for a climb-or-cash-out game (Dragon Tower, Mines, Towers), or a deterministic level meter replacing probabilistic free-spin triggers.
 - NOT for: base RTP/paytable/weight modeling (→ `math-rtp-modeling`); empirical validation (→ `math-montecarlo-simulation`); provable-fairness draw derivation (→ `fair-*`); deck-conditional escalators where step odds depend on cards already drawn, so no fixed `safe/total` (Hilo → conditional-probability model).

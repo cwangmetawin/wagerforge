@@ -5,6 +5,8 @@ description: Use when adding a CI guard that a game visual or physics simulation
 
 # qa-cosmetic-sim-guard
 
+> **Core insight:** Snapshot the physics-derived bucket BEFORE the client overwrites it with the server `multiplierIndex`. Asserting after compares the server index to itself — the shipped Plinko "check" does exactly this and catches nothing.
+
 ## When to use / When NOT
 - Use when: a game runs a physics/visual sim (Plinko balls, wheels, dice) but the SERVER decides the outcome, and you need a guard that the simulated landing equals the server bucket.
 - NOT for: validating server math (→ `qa-monte-carlo-cert`, `qa-math-validation`); generic image-diff UI regression (→ Playwright/screenshot).

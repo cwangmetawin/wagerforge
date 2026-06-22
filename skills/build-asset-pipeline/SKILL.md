@@ -6,6 +6,8 @@ constraints: C10
 
 # build-asset-pipeline
 
+> **Core insight:** On Android's unified memory there is no VRAM pool to "save" — atlasing/batching cuts CPU submit count, not memory. Draw-call/MB caps are soft and workload-dependent; profile a real mid-range device, never gate on a number.
+
 ## When to use / When NOT
 - Use when: packing sprites/atlases, the Spine triad, incremental builds, or a swappable AI-asset provider.
 - NOT for: rendering/playback (→ symbol/scene/win-presentation skills); renderer choice/bootstrap (→ `setup-engine`).

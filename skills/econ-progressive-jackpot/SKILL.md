@@ -6,6 +6,8 @@ constraints: C14
 
 # econ-progressive-jackpot
 
+> **Core insight:** Contribution `c` is not all player return: it splits into a meter slice (the only RTP summand, `jackpotContributionRTP ≈ c_meter`) and a reserve slice that repays the seed — outside-stream capital, never an RTP line.
+
 ## When to use / When NOT
 - Use when: sizing a progressive/network/mystery jackpot's per-wager contribution, seed, reset, and player-base viability — a pool ACCUMULATING from bets between hits.
 - NOT for: **fixed-tier instant jackpots** (Mini/Minor/Major/Mega/Grand at fixed bet-multiples, e.g. 20×/100×/500×/2000×/20000×, picked by weighted RNG and **summed into the certified RTP** — MetaWin's only real jackpot pattern) → `econ-rtp-cost` / `math-rtp-modeling`; base+bonus accounting → `econ-rtp-cost`; RTP from weights → `math-rtp-modeling`; certification → `comp-rtp-certification`.

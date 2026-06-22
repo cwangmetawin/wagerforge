@@ -5,6 +5,8 @@ description: Use when computing wins for paylines, ways-to-win (243/Megaways), o
 
 # math-lines-ways-cluster
 
+> **Core insight:** The cluster multiplier is `pay × multiplierSum` — the SUM of the cluster's grid cells, not a per-cell product; and grid `0` means a legitimate dimmed x1, only `-1` means absent. Get these backwards and RTP breaks.
+
 ## When to use / When NOT
 - Use when: modelling the payline, ways-to-win (243/Megaways), or cluster-pays win model — including the persistent doubling multiplier grid over cluster wins.
 - NOT for: RTP/house-edge/hit-frequency (→ `math-rtp-modeling`); empirical validation (→ `math-montecarlo-simulation` / `qa-math-validation`); reel-strip / symbol-table data (→ `build-slot-reels-symbols`).

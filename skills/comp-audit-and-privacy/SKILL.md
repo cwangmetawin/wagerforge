@@ -5,6 +5,8 @@ description: Use when building immutable audit trails and data-privacy controls 
 
 # comp-audit-and-privacy
 
+> **Core insight:** GDPR erasure and the regulator-mandated immutable financial trail don't conflict — they partition by data class: keep the append-only money/state records intact, pseudonymize the PII around them. Deleting the trail breaks both regimes.
+
 ## When to use / When NOT
 - Use when: logging every bet/transaction immutably for regulators, applying GDPR data-privacy controls, or auditing UI for dark patterns.
 - NOT for: enforcing player limits/self-exclusion (→ `comp-responsible-gaming`, `comp-self-exclusion`); player-verifiable fairness proofs (→ `fair-commit-reveal`, `fair-hash-chain`); RNG/RTP lab certification (→ `comp-rng-certification`, `comp-rtp-certification`).

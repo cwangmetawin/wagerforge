@@ -6,6 +6,8 @@ constraints: C2
 
 # build-wallet-and-money
 
+> **Core insight:** Daily reconciliation only detects an overdraft after the money left; prevention is atomic at debit time — guarded `balance>=:amt` UPDATE + `CHECK(balance>=0)` co-committed with the ledger row, never authorized from a cache/replica.
+
 ## When to use / When NOT
 - Use when: building balance/debit/credit, the journal, or money arithmetic.
 - NOT for: the bet→settle orchestration (→ `build-durable-settlement`).

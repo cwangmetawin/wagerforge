@@ -6,6 +6,8 @@ constraints: C2
 
 # build-instant-crash-games
 
+> **Core insight:** One wager spans many HTTP calls; the server alone judges round liveness from `state`'s shape (empty=settled), so a truthy-empty `{}` on recovery reads as live and spawns a phantom round.
+
 ## When to use / When NOT
 - Use when: writing the server-side multi-step state machine for an instant/crash minigame (mines, crash, tower) — deferred settlement, round locking, hidden server state.
 - NOT for: reel/cascade slot flow (→ `build-game-flow`/`build-game-flow`); wallet debit/credit mechanics (→ `build-wallet-and-money`); RTP tuning (→ `math-rtp-modeling`).

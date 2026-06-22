@@ -6,6 +6,8 @@ constraints: C13
 
 # comp-responsible-gaming
 
+> **Core insight:** Server-authority is necessary but not sufficient: elapsed-time limits need a *monotonic* clock (wall-clock NTP jumps corrupt session timers); only absolute cut-offs care about wall-clock precision.
+
 ## When to use / When NOT
 - Use when: enforcing player protection limits.
 - NOT for: jurisdiction certification paperwork (→ `comp-rtp-certification`, out of MVP scope).

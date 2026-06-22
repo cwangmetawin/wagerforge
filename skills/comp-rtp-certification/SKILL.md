@@ -6,6 +6,8 @@ constraints: C14,C9
 
 # comp-rtp-certification
 
+> **Core insight:** Re-cert is gated on a math-model diff (weights/paytable/feature logic), not on RTP changing. Switching pre-certified variants or running RNG-external promos shifts effective return yet needs no re-cert.
+
 ## When to use / When NOT
 - Use when: assembling cert evidence (theoretical vs field RTP at CIs), deciding which variant to deploy, or judging whether a change forces re-cert.
 - NOT for: deriving the theoretical RTP from the model (→ `math-rtp-modeling`); empirical convergence sims (→ `math-montecarlo-simulation`); the commit-reveal/provably-fair flow (→ `fair-commit-reveal`).

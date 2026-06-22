@@ -6,6 +6,8 @@ constraints: C9
 
 # build-slot-reels-symbols
 
+> **Core insight:** The reel spin is pure theatre painted onto an already-final server stop index; certification needs that audit-logged outcome, not commit-reveal, and a visual/server mismatch is a bug to fix, never a re-roll.
+
 ## When to use / When NOT
 - Use when: animating a slot reel spin, rendering the symbol matrix, or wiring deterministic stop positions to a server-resolved result.
 - Do NOT use for: deciding the outcome (the server does — see `math-rtp-modeling`, `build-game-server-rgs`); win lines/count-up presentation (sibling win-presentation skill); RNG or fairness (`fair-rng-core`, `fair-commit-reveal`).

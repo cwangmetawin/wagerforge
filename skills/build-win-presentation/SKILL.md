@@ -4,18 +4,19 @@ description: Use when building win presentation - tiering (big/mega/epic by x-be
 ---
 
 # build-win-presentation
+> **Core insight:** Win presentation is read-only theatre over `totalWin`: tier, count-up, and lines are derived from the settled server value, never inputs to it — a too-low band hides cash but cannot shrink the credited win.
 
 ## When to use / When NOT
 - Use when: choosing a win tier, animating a currency count-up, driving win-line show/hide, or laying out the celebration scene responsively.
 - NOT for: computing win amount or RTP (server-authoritative — see math/RGS skills); reels or symbols (sibling `build-*` skills); asset packing (`asset-pipeline`).
 
 ## Default stack (+ escape hatch)
-Default: TS + PixiJS; tiering/scene as JSON; count-up driven by your game's per-frame timeline (interpolate `elapsed/duration`), NOT a tween lib (real games ship no GSAP). Other stacks: GSAP/your tween engine is an acceptable escape hatch; PixiJS containers→your display tree; tier band config and scene JSON schema stay engine-agnostic.
+Default: TS + PixiJS; tiering/scene as JSON; count-up driven by your game's per-frame timeline (interpolate `elapsed/duration`), NOT a tween lib (real games ship no GSAP). Other stacks: GSAP/your tween engine is an acceptable escape hatch; PixiJS containers→your display tree; band config and scene JSON stay engine-agnostic.
 
 ## Process
 1. **Tier selection (presentational only).** Keep a descending-ordered band config: `winThresholds[{ name, threshold, isBigWin?, isMegaWin?, isEpicWin?, isMidWin?, isLowWin?, isBoring?, noCelebration?, loopDur, loopFrames }]` where `threshold` is a `bet` multiple and tier is set by boolean flags (not an `action` string). Pick the highest band where `totalWin >= threshold * bet`. Never changes the credited amount — `totalWin` is the server result.
 2. **Tier → action map.** Derive the action from the band's flags: `isBigWin/isMegaWin/isEpicWin` → big-win posting; max-win flag → max-win posting; else ordinary `PRESENT_WIN`; `noCelebration`/boring presents nothing special.
-3. **Count-up.** Interpolate a value from the prior running win (`server total − this win`, or 0) up to server `totalWin` over a band-driven duration, rendering each frame via an **injected currency handler** (symbol + grouping/decimals from session/auth currency — never hardcode). Big-win count-ups step `countFrom → countTo` across tier bands. Never format money inline.
+3. **Count-up.** Interpolate from the prior running win (`server total − this win`, or 0) up to server `totalWin` over a band-driven duration, rendering each frame via an **injected currency handler** (symbol + grouping/decimals from session/auth currency — never hardcode). Big-win count-ups step `countFrom → countTo` across bands. Never format money inline.
 4. **Win-line / symbol lifecycle.** Payline games sequence each winning line: show line + symbol highlight, hold, then hide before the next — hold/loop durations server-parameterizable (band config or result, not a magic constant). Cascade/cluster-pay games instead drive per-symbol win states, not animated lines.
 5. **Scene graph.** Build the responsive scene from a flat layout JSON `{ layouts: { <container-name>: { landscape:{x,y,scaleX,scaleY}, portrait:{...} } } }`. A resizer iterates named containers and, on each resize/orientation change, reads `layouts[name][orientation]` and re-applies position/scale.
 

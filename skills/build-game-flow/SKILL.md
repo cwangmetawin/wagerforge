@@ -5,6 +5,8 @@ description: Use when structuring the game runtime control flow - a Sequence/Ste
 
 # build-game-flow
 
+> **Core insight:** The flow engine animates an outcome that already exists — turbo/skip collapses presentation time to the server-settled frame, never re-deriving a result; pre- and post-skip board states must be bit-identical.
+
 ## When to use / When NOT
 - Use when: orchestrating a round's runtime control flow — spin → resolve → cascade → win-present → idle — and choosing how steps sequence, run concurrently, and skip.
 - NOT for: deciding the outcome (server-authoritative — outcome arrives before flow runs); win-tier visuals (→ `build-win-presentation`); reel motion physics (→ `build-slot-reels-symbols`); scene layout (→ `build-win-presentation`).

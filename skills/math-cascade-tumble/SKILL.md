@@ -6,6 +6,8 @@ constraints: C6
 
 # math-cascade-tumble
 
+> **Core insight:** The geometric/retrigger closed form silently returns a confidently-precise WRONG RTP the moment multipliers grow, symbols stick, or wins cap — path-dependence breaks it structurally, not approximately; only CI-bounded Monte-Carlo (large N near p·R=1) is exact.
+
 ## When to use / When NOT
 - Use when: modeling tumble/avalanche/cascade rounds, win-then-drop chains, growing/sticky multipliers, or retrigger variance.
 - NOT for: single-event paytable/RTP derivation with no state carry (→ `math-rtp-modeling`); empirically validating an implementation generically (→ `math-montecarlo-simulation` / `qa-math-validation`).

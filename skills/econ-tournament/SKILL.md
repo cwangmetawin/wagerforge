@@ -5,6 +5,8 @@ description: Use when designing tournaments, leaderboards, or parimutuel/predict
 
 # econ-tournament
 
+> **Core insight:** A parimutuel pool has no fixed odds — you bet against rivals' final composition, so every stake you add moves your own odds; absent `P(win) > outcomePool/totalPool`, mean EV is exactly `−rake × stake`.
+
 ## When to use / When NOT
 - Use when: a leaderboard/tournament or parimutuel/prediction-market pool's split, rake, per-participant EV.
 - NOT for: one game's aggregate RTP/house edge (→ `math-rtp-modeling`) or bonus pricing (→ `econ-bonus-design`).

@@ -6,6 +6,8 @@ constraints: C7
 
 # fair-commit-reveal
 
+> **Core insight:** The commit hash is plain `SHA256(serverSeed)`, not HMAC — length-extension cannot invert it or two-open it. Don't "harden" the commit; HMAC belongs only to keyed outcome derivation in `fair-rng-core`.
+
 ## When to use / When NOT
 - Use when: deciding when to publish `SHA256(serverSeed)`, when to reveal it, and how to rotate.
 - NOT for: deriving outcomes (→ `fair-rng-core`) or re-deriving to verify (→ `fair-verify`).

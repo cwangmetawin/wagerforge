@@ -6,6 +6,8 @@ constraints: C4
 
 # qa-monte-carlo-cert
 
+> **Core insight:** The cert's value is the gap, not the agreement: a closed-form EV vs simulation through the real resolve path catches implementation drift. Sufficiency is a CI-width property — derive N from SD_perSpin, never hardcode "1M spins."
+
 ## When to use / When NOT
 - Use when: certifying a math model by simulating millions of spins through the REAL game code, proving RTP convergence, plus the golden math suite.
 - NOT for: deriving theoretical RTP (→ `math-rtp-modeling`); raw simulation utilities (→ `math-montecarlo-simulation`); RNG fitness like NIST/chi-square (→ `qa-rng-statistical`); invariant/paytable assertions alone (→ `qa-math-validation`).

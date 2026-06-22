@@ -6,6 +6,8 @@ constraints: C5, C8
 
 # qa-fairness-verification
 
+> **Core insight:** Statistical uniformity proves no modulo bias but never catches the real exploit: a player-controlled `:` in clientSeed collides HMAC message strings across distinct (seed,nonce) pairs — a grinding vector only a fail-closed format test pins.
+
 ## When to use / When NOT
 - Use when: building the test suite that proves the fairness core is correct and unbiased.
 - NOT for: implementing the core (→ `fair-rng-core`) — this is its QA counterpart.

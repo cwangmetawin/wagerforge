@@ -91,8 +91,8 @@ test('description without a "use when" trigger is a warning', () => {
   rmSync(root, { recursive: true, force: true })
 })
 
-test('body over the word budget (>500) is a warning, not an error', () => {
-  const body = Array.from({ length: 501 }, () => 'w').join(' ')
+test('body over the word budget (>540) is a warning, not an error', () => {
+  const body = Array.from({ length: 541 }, () => 'w').join(' ')
   const root = makeSkills({ 'fair-verify': `---\nname: fair-verify\ndescription: Use when X.\n---\n${body}` })
   const { warnings, errors } = validate(root)
   assert.equal(errors.length, 0)

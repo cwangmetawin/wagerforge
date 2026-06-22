@@ -6,6 +6,8 @@ constraints: C3
 
 # econ-bonus-design
 
+> **Core insight:** Playthrough is operator revenue that OFFSETS the give-away, not an additive cost — high WR can pencil EV-positive. Real cost hides in completion rate and sticky-vs-cashable, never the arithmetic.
+
 ## When to use / When NOT
 - Use when: setting a wagering requirement, estimating a bonus's expected cost / break-even.
 - NOT for: aggregate game RTP accounting (→ `econ-rtp-cost`) — out of MVP scope.

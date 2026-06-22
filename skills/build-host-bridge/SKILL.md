@@ -4,6 +4,7 @@ description: Use when integrating a game into an operator shell - a connector SD
 ---
 
 # build-host-bridge
+> **Core insight:** Slot play is RGS-direct via the connector SDK; the parent `postMessage` channel is send-only notify, never the play transport — never await a result posted back. Origin-validation belongs to the host consumer, not the send-only slot.
 
 ## When to use / When NOT
 - Use when: wiring a finished game into an operator/RGS shell — slots via a global connector SDK (+ one-way notify), minigames via inline DOM mount — bracketing every round with start/end session calls.

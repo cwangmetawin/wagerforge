@@ -6,6 +6,8 @@ constraints: C4
 
 # math-montecarlo-simulation
 
+> **Core insight:** "Enough spins" is never a count — it's a CI-width target. Since half-width scales as SD/√N, a high-volatility game can need 1000× more spins than a flat one for the same tolerance.
+
 ## When to use / When NOT
 - Use when: running large-N simulations and reporting RTP with confidence bands.
 - NOT for: the closed-form model (→ `math-rtp-modeling`).

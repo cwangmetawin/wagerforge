@@ -5,6 +5,8 @@ description: Use when building constant-house-edge continuous-target games - cra
 
 # math-crash-family
 
+> **Core insight:** The edge IS the instabust atom: all of `h` sits as point-mass at `x=1`. Because survival is `(1−h)/x`, `winChance·m·bet` cancels to `(1−h)·bet` for every target — target is a variance dial, never EV.
+
 ## When to use / When NOT
 - Use when: deriving the math for a continuous cash-out / target game where one house edge `h` must hold for EVERY chosen target (crash, limbo, dice over/under, aviator).
 - NOT for: discrete-outcome RTP from reel weights/paytables (→ `math-rtp-modeling`); ladder/Mines survival-cancel games; empirical convergence (→ `math-montecarlo-simulation`).

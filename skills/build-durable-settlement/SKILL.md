@@ -6,6 +6,8 @@ constraints: C2
 
 # build-durable-settlement
 
+> **Core insight:** Idempotency keys belong on each side-effecting STEP, not the round/bet — a multi-leg settle has many keys. And a silently dropped step is never a no-op; it freezes player money. Every path must accept OR cancel.
+
 ## When to use / When NOT
 - Use when: composing the bet→result→settle lifecycle, especially with external/on-chain payouts.
 - NOT for: the ledger primitive itself (→ `build-wallet-and-money`).

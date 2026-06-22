@@ -6,6 +6,8 @@ constraints: C5,C12
 
 # comp-rng-certification
 
+> **Core insight:** Labs certify a PROPERTY (unpredictability), not a named algorithm; the real fault is a recoverable seed or non-CSPRNG, never lack of per-bet reseeding — a stateless `HMAC(serverSeed, clientSeed‖nonce)` is fully secure.
+
 ## When to use / When NOT
 - Use when: selecting an RNG, sourcing entropy, or assembling the evidence pack (source review, seeding audit, field-vs-theoretical RTP) for an accredited lab.
 - NOT for: deriving theoretical RTP (→ `math-rtp-modeling`); player-verifiable commit/reveal (→ `fair-verify`); live RTP drift monitoring (→ `comp-rtp-certification`).

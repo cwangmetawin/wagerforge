@@ -6,6 +6,8 @@ constraints: C8
 
 # fair-verify
 
+> **Core insight:** Independence lives in the integer reduction, not the hash. Re-implement `nextInt`/Fisher-Yates yourself; trusting the server's decoded `gameEvent` is circular and hides biased mappings — and feed it the exact same `data` extras or a correct recompute falsely "fails".
+
 ## When to use / When NOT
 - Use when: implementing the "verify" path or auditing whether verification is genuinely independent.
 - NOT for: the derivation primitives (→ `fair-rng-core`/`fair-outcome-mappers`).

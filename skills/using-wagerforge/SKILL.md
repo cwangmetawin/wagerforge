@@ -5,6 +5,8 @@ description: Use when starting any iGaming, slot, or crypto-minigame task (RTP/h
 
 # Using wagerforge
 
+> **Core insight:** The prefix router is the only path that loads the law-bound (C1–C14, server-authoritative) corrections; "just coding the payout/RNG" while skipping it is precisely how refuted folk-math ships.
+
 wagerforge is the domain layer for building real-money slot & crypto-minigame software. It **bundles** the generic engineering-process skills (vendored from superpowers, MIT — see `THIRD-PARTY-NOTICES.md`); wagerforge owns the iGaming WHAT.
 
 ## Routing

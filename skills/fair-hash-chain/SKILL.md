@@ -6,6 +6,8 @@ constraints: C7
 
 # fair-hash-chain
 
+> **Core insight:** Hash-chain mode is selected by the `multiplayerGameCodes` allowlist, NOT the `IMultiplayerGame` interface — `snakes` is server-side multiplayer yet verifies single-player commit-reveal; guessing by interface picks the wrong protocol.
+
 ## When to use / When NOT
 - Use when: verifying a multiplayer hash-chain round (current set: `crash0`, `slide`, `aviator`, `aviator0`, `sicbo`) whose operator committed ONE terminal hash up front and reveals rounds backward down a SHA-256 hash chain.
 - NOT for: per-round HMAC commit-reveal games (`{clientSeed, serverSeedHash, nextServerSeedHash, nonce}`) — use `fair-commit-reveal` / `fair-verify`. NOT for deriving payouts (server-authoritative).

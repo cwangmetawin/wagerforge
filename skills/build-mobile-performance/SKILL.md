@@ -6,6 +6,8 @@ constraints: C10
 
 # build-mobile-performance
 
+> **Core insight:** On Android GPU/CPU share unified RAM, so "VRAM" is no separate budget; batching cuts CPU driver submissions, not GPU load — and overdraw, not call count, is what actually stutters.
+
 ## When to use / When NOT
 - Use when: a web game janks, stutters, or OOMs on phones, or you're budgeting frame time, draw calls, textures, or memory for mobile.
 - NOT for: desktop-only perf; settled-outcome correctness (→ `build-game-server-rgs`); asset/atlas authoring (→ `game-art`).

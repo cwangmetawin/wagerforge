@@ -6,6 +6,8 @@ constraints: C5,C8
 
 # qa-rng-statistical
 
+> **Core insight:** Passing every battery proves uniformity, never unpredictability: Mersenne-Twister sails through BigCrush yet leaks its full state in ~624 outputs. CSPRNG is a property to prove, not a verdict batteries grant.
+
 ## When to use / When NOT
 - Use when: running a statistical battery on an RNG stream and confirming the generator is a CSPRNG.
 - NOT for: RTP/payout math (→ `qa-monte-carlo-cert` / `math-rtp-modeling`); deterministic seed/replay regression (→ `qa-fairness-verification`).

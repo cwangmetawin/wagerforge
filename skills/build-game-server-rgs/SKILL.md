@@ -5,6 +5,8 @@ description: Use when building the server side of a game (the RGS) — the game 
 
 # build-game-server-rgs
 
+> **Core insight:** `wins` is a control signal, not just a payout: emit it eagerly and you settle prematurely, push it mid-multiplayer-tick and GDK silently swallows messages — defer it, cap with `>=` never `==`, and accept-or-cancel every command.
+
 ## When to use / When NOT
 - Use when: implementing the authoritative game server / remote game server.
 - NOT for: the wallet/settlement internals (→ `build-wallet-and-money`/`build-durable-settlement`).

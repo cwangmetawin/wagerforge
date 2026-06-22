@@ -6,6 +6,8 @@ constraints: C8
 
 # fair-verification-ui
 
+> **Core insight:** A verifier that fetches and renders the server's decoded `gameEvent` proves nothing — it's circular trust-the-house. Real verification re-implements the integer reduction client-side and recomputes the outcome with zero network calls.
+
 ## When to use / When NOT
 - Use when: building the player-facing verifier UX, the change-client-seed flow, or CSPRNG client-seed generation.
 - NOT for: the local re-derivation engine itself (→ `fair-verify`); seed lifecycle / commit-reveal (→ `fair-commit-reveal`); range-reduction mappers (→ `fair-outcome-mappers`).

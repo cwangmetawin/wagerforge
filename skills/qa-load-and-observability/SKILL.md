@@ -5,6 +5,8 @@ description: Use when load-testing a game server and defining its observability 
 
 # qa-load-and-observability
 
+> **Core insight:** A round timing out at the client is not a failed bet — under burst it likely settled server-side; the SLO must span bet-received→settle-acked, and recovery must reconcile that already-settled round idempotently, never re-pay.
+
 ## When to use / When NOT
 - Use when: load/burst-testing a game server, or defining its metrics, dashboards, and latency/error SLOs.
 - NOT for: math/RTP convergence (→ `qa-monte-carlo-cert`); RNG statistical suites (→ `qa-rng-statistical`); pure browser-flow assertions with no load/SLO concern (→ `webapp-testing`).

@@ -6,6 +6,8 @@ constraints: C14
 
 # math-feature-buy-and-jackpot
 
+> **Core insight:** A buy never raises EV (only compresses variance in time), so its price = E[feature]/buyVariantRTP at parity; and a progressive's reset seed is outside-RNG operator capital — never a third RTP summand.
+
 ## When to use / When NOT
 - Use when: pricing a bonus-buy/feature-buy entry, or reporting a jackpot's RTP contribution — fixed-multiplier tiers (MetaWin's real pattern) or a pooled/networked progressive.
 - NOT for: base RTP/house-edge/weight derivation (→ `math-rtp-modeling`); empirical convergence (→ `math-montecarlo-simulation`).

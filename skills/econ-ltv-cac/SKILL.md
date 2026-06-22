@@ -5,6 +5,8 @@ description: Use when modeling player lifetime value vs acquisition cost - cohor
 
 # econ-ltv-cac
 
+> **Core insight:** LTV is the lever, not CAC. Raise retained value upfront with per-segment offers; chasing cheap traffic buys low-LTV cohorts that collapse the ratio. And freebet stakes add zero deposit revenue.
+
 ## When to use / When NOT
 - Use when: forecasting cohort LTV, comparing to CAC, segmenting players, or sizing a dynamic offer for true acquisition ROI.
 - NOT for: pricing a single bonus / wagering requirement (→ `econ-bonus-design`); aggregate game RTP margin accounting (→ `math-rtp-modeling`).

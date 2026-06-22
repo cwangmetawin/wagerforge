@@ -5,6 +5,7 @@ constraints: C14
 ---
 
 # econ-rtp-cost
+> **Core insight:** Certified RTP tracks only the math model (weights/paytable/feature logic) — not money flow. Off-RNG bonuses and pre-certified variant switches move margin, never RTP; only re-simulating real game code proves the published number.
 
 ## When to use / When NOT
 - Use when: rolling base + bonus + free spins + multipliers + jackpot into one published aggregate RTP, attributing bonus cost to margin, or deciding if a change triggers re-cert.

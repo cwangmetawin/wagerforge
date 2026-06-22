@@ -5,6 +5,8 @@ description: Use when building golden-result regression tests for deterministic 
 
 # qa-regression-golden
 
+> **Core insight:** Freeze the recorded draw sequence (the `*Cheats.json` entropy replayed via `TrackedRNG.load`), not just the seed — a seed only reproduces outcomes if draw count and order stay byte-stable, which logic changes silently break.
+
 ## When to use / When NOT
 - Use when: locking known-good game outcomes against an exact seed so any logic change that perturbs results fails loudly.
 - NOT for: statistical RNG quality (→ `qa-rng-statistical`); RTP convergence/distribution (→ `qa-monte-carlo-cert`); invariant math proofs (→ `qa-math-validation`).

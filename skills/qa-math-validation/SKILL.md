@@ -6,6 +6,8 @@ constraints: C4
 
 # qa-math-validation
 
+> **Core insight:** A realized mean near target proves nothing — accept only when the confidence interval itself sits below tolerance, after sizing N so its half-width does; a "close" mean at small N is just sampling noise.
+
 ## When to use / When NOT
 - Use when: gating a build on "does the implemented game hit its certified RTP, and do its paytable invariants still hold?".
 - NOT for: designing the target RTP (→ `math-rtp-modeling`); the large-N sim harness, stats module, or record/replay RNG (→ `qa-monte-carlo-cert`).

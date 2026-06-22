@@ -5,6 +5,8 @@ description: Use when implementing affordability or financial-vulnerability chec
 
 # comp-affordability
 
+> **Core insight:** "Affordability" is a server-authoritative net-loss/CRA vulnerability gate run before debit — not a wallet balance check. MetaWin's `useCheckAffordability` is the latter; the name collides, the logic must not.
+
 ## When to use / When NOT
 - Use when: gating a deposit/bet on net-loss thresholds, running a frictionless CRA check, or applying gross deposit limits and pre-deposit prompts.
 - NOT for: self-exclusion/GamStop (→ `comp-self-exclusion`); reality checks, break intervals, session/loss caps (→ `comp-responsible-gaming`); audit-log integrity (→ `comp-audit-and-privacy`).

@@ -6,7 +6,9 @@ const SKILL_NAME_RE = /^[a-z0-9-]+$/
 const WHEN_TRIGGER_RE = /\buse (when|during|before|after|this)\b/i
 const CONSTRAINT_TAG_RE = /\[(C(?:1[0-4]|[1-9]))\]/g
 const CORRECTNESS_HEADING_RE = /^#{1,6}\s*correctness constraints\b/im
-const WORD_BUDGET = 500
+// Budget raised 500→540 (2026-06-22): every domain skill now carries a mandated
+// one-line `> **Core insight:**` (~35 words); 540 = prior 500 + that allowance. Hard cap unchanged.
+const WORD_BUDGET = 540
 const WORD_HARD_CAP = 800
 // Vendored skills (from superpowers, MIT) carry this marker; they are intentionally
 // longer than the domain-skill budget and must never reference the old `superpowers:` namespace.

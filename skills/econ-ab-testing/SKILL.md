@@ -6,6 +6,8 @@ constraints: C4
 
 # econ-ab-testing
 
+> **Core insight:** "Enough spins" is a CI-half-width property (`1.96·SD/√N`), never a round count — high-volatility variants need up to 1e9 spins; accept only when declared RTP lands inside the converged CI (C4).
+
 ## When to use / When NOT
 - Use when: designing an A/B test on a game parameter (RTP, volatility, trigger odds, bet multiplier), sizing it, or pre-validating the variant by simulation.
 - NOT for: theoretical RTP impact of a weight change (→ `math-rtp-modeling`); building the simulator itself (→ `math-montecarlo-simulation`); generic experiment plumbing (→ `wagerforge:*`).

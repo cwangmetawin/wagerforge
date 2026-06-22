@@ -6,6 +6,8 @@ constraints: C1
 
 # math-paytable-config
 
+> **Core insight:** Two distinct weights coexist: `dropWeight` is cosmetic cascade visibility, NEVER probability. Real payline odds live only in server reel-strip int arrays — and RTP is multilinear in them, so one weight's bump can move RTP the opposite way.
+
 ## When to use / When NOT
 - Use when: authoring or parsing reel strips, RLE paytables, or symbol tables, and wiring config into the math model.
 - NOT for: computing RTP/variance from that config (→ `math-rtp-modeling`); validating an implementation (→ `math-montecarlo-simulation`).

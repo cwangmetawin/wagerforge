@@ -6,6 +6,8 @@ constraints: C1
 
 # math-rtp-modeling
 
+> **Core insight:** RTP is multilinear in per-reel weights: bumping one symbol re-normalizes the reel, shrinking every other symbol's contribution — so net RTP moves little and can flip sign. Recompute fully; never scale by win fraction.
+
 ## When to use / When NOT
 - Use when: deriving RTP/house-edge/hit-frequency from a model, or estimating a weight change's RTP impact.
 - NOT for: empirically validating an implementation (→ `math-montecarlo-simulation` / `qa-math-validation`).

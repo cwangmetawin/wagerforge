@@ -5,6 +5,8 @@ description: Use when integrating self-exclusion - GamStop, static-IP whitelisti
 
 # comp-self-exclusion
 
+> **Core insight:** A register timeout means "unknown," not "not excluded" — fail closed on money paths, and pin a static egress IP, or cloud-ephemeral source IPs drop off the allowlist and every scan silently passes.
+
 ## When to use / When NOT
 - Use when: integrating a national self-exclusion register (e.g. GamStop) so excluded players are blocked across the platform.
 - NOT for: operator-internal limits, reality checks, or cool-offs (→ `comp-responsible-gaming`); certification paperwork (→ `comp-rtp-certification`, out of MVP scope).

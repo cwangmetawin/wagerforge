@@ -6,6 +6,8 @@ constraints: C14
 
 # build-deploy-and-rtp-variant
 
+> **Core insight:** Switching among pre-certified RTP variants needs no re-cert — it's a deploy-time env flip, not a rebuild. Re-cert triggers ONLY when the math model changes; operator promotions outside the RNG never touch certified RTP.
+
 ## When to use / When NOT
 - Use when: shipping ONE bundle to N RTP SKUs, wiring keyless CI/CD, gating migrations on version, or setting round-latency SLOs.
 - NOT for: deriving an RTP value (→ `math-rtp-modeling`); cert evidence (→ `comp-rtp-certification` / `comp-math-cert-report`); generic deploy process (→ `wagerforge:executing-plans`).

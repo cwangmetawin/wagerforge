@@ -6,6 +6,8 @@ constraints: C2
 
 # qa-settlement-integrity
 
+> **Core insight:** A green happy-path suite proves nothing — the double-pay bug lives in the crash/retry gap between debit and credit legs. The test itself must inject that crash and replay; assert pooled splits equal the pot exactly, not ≈.
+
 ## When to use / When NOT
 - Use when: writing the integrity suite for the wallet/settlement layer.
 - NOT for: implementing settlement (→ `build-durable-settlement`).

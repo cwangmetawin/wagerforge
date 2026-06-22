@@ -5,6 +5,8 @@ description: Use when balancing a game or casino economy - sinks (wagering, hous
 
 # econ-sink-faucet
 
+> **Core insight:** The sink is `Σ wager × houseEdge`, not turnover — and theoretical-loss-based winback is a faucet that scales off that same edge, so tightening RTP raises both and partly self-cancels.
+
 ## When to use / When NOT
 - Use when: auditing whether faucets (wins, bonuses, loyalty) and the wagering sink are in balance per cohort, or diagnosing margin compression / bonus-driven churn.
 - NOT for: deriving a single game's RTP/house edge (→ `math-rtp-modeling`); per-offer bonus cost and wagering requirements (→ `econ-bonus-design`); LTV:CAC forecasting (→ `econ-ltv-cac`).

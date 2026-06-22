@@ -6,6 +6,8 @@ constraints: C7, C12
 
 # fair-rng-core
 
+> **Core insight:** The exploitable bug here isn't HMAC — it's non-injective message encoding: an unsanitized `:` in player-controlled `clientSeed` makes `(seed,nonce)` ambiguous, a grinding vector. Reject the delimiter before building the message.
+
 ## When to use / When NOT
 - Use when: deriving outcomes from `(serverSeed, clientSeed, nonce)`; choosing the keyed primitive; generating seeds.
 - NOT for: mapping randomness to a game shape (→ `fair-outcome-mappers`) or the commit/reveal lifecycle (→ `fair-commit-reveal`).

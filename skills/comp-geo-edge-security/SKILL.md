@@ -5,6 +5,8 @@ description: Use when implementing geo-blocking and edge security - route allowl
 
 # comp-geo-edge-security
 
+> **Core insight:** Exempt money paths by negating their regex *inside* the throttle rule's own match — not via a separate allow rule, which would also skip OWASP inspection. Geo-block only the edge's server-computed region, never a client header.
+
 ## When to use / When NOT
 - Use when: configuring the CDN/load-balancer edge — route allowlist, OWASP/Cloud-Armor rules, country/state geo-block, IP rate-limit.
 - NOT for: in-app authz/session limits (→ `comp-responsible-gaming`); provable fairness (→ `fair-verify`).

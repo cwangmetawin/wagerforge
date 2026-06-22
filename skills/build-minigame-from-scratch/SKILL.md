@@ -5,6 +5,8 @@ description: Use when scaffolding a new crypto minigame (plinko, mines, limbo, d
 
 # build-minigame-from-scratch
 
+> **Core insight:** The minigame is a thin skin; the only thing it must own is the server-authoritative seam. But never trust the shared GDK's money helpers — its `MathOperations.roundDown()` uses `ROUND_CEIL` (rounding inverted), which silently corrupts house edge.
+
 ## When to use / When NOT
 - Use when: starting a new crypto minigame from zero.
 - NOT for: slot-specific reel/symbol work (a slot is a different shape).

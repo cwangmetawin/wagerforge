@@ -5,6 +5,8 @@ description: Use when computing the Plinko two-axis economy (E[bucket] times E[b
 
 # math-plinko-lottery
 
+> **Core insight:** Slot/bucket/case probabilities are FIXED (binomial/hypergeometric); only multipliers are calibrated — so a huge headline jackpot costs nothing extra, and `E[bucket]·E[ball]` factorizes for RTP only when the two axes are independent.
+
 ## When to use / When NOT
 - Use when: calibrating Plinko multiplier arrays to an RTP target, decomposing a two-axis (bucket x ball) economy, or building keno/diamonds/blitz paytables from a discrete distribution.
 - NOT for: reel-strip slot RTP (→ `math-rtp-modeling`); constant-house-edge crash/dice/limbo or ladder games (→ those sibling skills); empirical validation (→ `math-montecarlo-simulation`).

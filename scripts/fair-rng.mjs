@@ -170,6 +170,9 @@ export function isOutcome(value) {
 
 // Strict structural equality of two plain outcome copies (copyOutcome).
 export function sameOutcome(left, right) {
+  // Array pairs already found equal: a shared sub-array is compared once per partner, not once
+  // per path to it, so shared structure cannot make the walk exponential.
+  const equal = new Map()
   const stack = [{ left, right, index: 0 }]
   while (stack.length) {
     const frame = stack.at(-1)
@@ -179,10 +182,13 @@ export function sameOutcome(left, right) {
       stack.pop()
     } else {
       if (!Array.isArray(b) || a.length !== b.length) return false
-      if (frame.index === a.length) stack.pop()
-      else {
+      if (frame.index === a.length) {
+        stack.pop()
+        if (!equal.has(a)) equal.set(a, new Set())
+        equal.get(a).add(b)
+      } else {
         const i = frame.index++
-        stack.push({ left: a[i], right: b[i], index: 0 })
+        if (!equal.get(a[i])?.has(b[i])) stack.push({ left: a[i], right: b[i], index: 0 })
       }
     }
   }

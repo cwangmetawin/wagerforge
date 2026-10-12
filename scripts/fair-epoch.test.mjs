@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import vm from 'node:vm'
-import { byteStream, nextFloat, hashServerSeed, fairFloat, verify } from './fair-rng.mjs'
+import { byteStream, nextFloat, hashServerSeed, fairFloat, sameOutcome, verify } from './fair-rng.mjs'
 import { verifyEpoch } from './fair-epoch.mjs'
 
 const SERVER = 'epoch-server-seed-0001'
@@ -96,7 +96,7 @@ const withoutEvidence = (rounds, playerLog, missing) => verifyEpoch({
   serverSeed: missing.includes('serverSeed') ? undefined : SERVER,
   playerLog: playerLog.filter((entry) => !missing.includes(entry.type)),
   rounds,
-  deriveFn: () => assert.fail('missing seed evidence must not derive outcomes'),
+  deriveFn: missing.includes('serverSeed') ? () => assert.fail('an unrevealed server seed derives nothing') : derive,
 })
 
 test('missing seed evidence does not hide an incomplete history', () => {
@@ -152,7 +152,7 @@ test('a revealed server seed is checked against the commitment even without a cl
   assert.deepEqual(withoutEvidence(rounds, playerLog, ['clientSeed']), { status: 'FAIL', reason: 'commitment' })
 })
 
-test('consistent partial evidence stays UNVERIFIABLE without deriving any outcomes', () => {
+test('consistent partial evidence stays UNVERIFIABLE', () => {
   const rounds = honest(3)
   for (const missing of missingSeedEvidence) {
     assert.deepEqual(withoutEvidence(rounds, logFor(rounds), missing), { status: 'UNVERIFIABLE', missing })
@@ -197,10 +197,59 @@ test('the rounds of one epoch share one client seed, even when the player log la
   const noSeed = logFor(rounds).filter((entry) => entry.type !== 'clientSeed')
   for (const serverSeed of [SERVER, undefined]) {
     for (const playerLog of [noSeed, undefined, null]) {
-      assert.deepEqual(verifyEpoch({ serverSeed, playerLog, rounds, deriveFn: () => assert.fail('no derivation') }),
+      assert.deepEqual(verifyEpoch({ serverSeed, playerLog, rounds, deriveFn: derive }),
         { status: 'FAIL', reason: 'client_seed', index: 2 })
     }
   }
+})
+
+test('without the seeds, a history outcome that contradicts the receipt still fails', () => {
+  for (const state of ['settled', 'voided']) {
+    const rounds = [{ nonce: 0, clientSeed: CLIENT, state, outcome: 0 }]
+    const playerLog = [...logFor([]), { type: 'bet', nonce: 0, state, outcome: 1, ...(state === 'voided' ? { stake: 10n, payout: 10n } : {}) }]
+    for (const missing of missingSeedEvidence.filter((items) => items.includes('serverSeed'))) {
+      assert.deepEqual(withoutEvidence(rounds, playerLog, missing), { status: 'FAIL', reason: 'receipt', index: 0 }, state + ' ' + missing.join(','))
+    }
+  }
+})
+
+test('a revealed server seed checks the history outcomes before the commitment or the logged seed', () => {
+  const rounds = honest(2).map((r, i) => (i === 1 ? { ...r, outcome: 1 - r.outcome } : r))
+  const log = logFor(rounds)
+  for (const playerLog of [log.filter((e) => e.type !== 'commitment'), log.filter((e) => e.type !== 'clientSeed'), undefined, null]) {
+    assert.deepEqual(verifyEpoch({ serverSeed: SERVER, playerLog, rounds, deriveFn: derive }), { status: 'FAIL', reason: 'outcome', index: 1 })
+  }
+})
+
+test('without the seeds, a payment that contradicts the recorded outcome still fails', () => {
+  for (const stake of [10n, 10]) {
+    const double = (_outcome, amount) => amount + amount
+    for (const [state, payout, reason] of [['settled', stake - stake, 'payout'], ['voided', stake, 'voided_win']]) {
+      const rounds = [{ nonce: 0, clientSeed: CLIENT, state, outcome: 1 }]
+      const playerLog = [...logFor([]), { type: 'bet', nonce: 0, state, outcome: 1, stake, payout }]
+      assert.deepEqual(verifyEpoch({ serverSeed: undefined, playerLog, rounds, deriveFn: () => assert.fail('unrevealed'), payoutFn: double }),
+        { status: 'FAIL', reason, index: 0 }, `${state} ${typeof stake}`)
+    }
+  }
+})
+
+test('a stake that is given is a valid amount even when the receipt has no payout', () => {
+  const rounds = honest(1)
+  for (const stake of [-1, -1n, NaN, Infinity, '10', null, {}]) {
+    const playerLog = logFor(rounds).map((e) => (e.type === 'bet' ? { ...e, stake } : e))
+    assert.throws(() => epoch(rounds, playerLog), TypeError, String(stake))
+  }
+})
+
+test('shared arrays in a derived outcome are compared in polynomial time', () => {
+  let shared = [1]
+  for (let depth = 0; depth < 26; depth++) shared = [shared, shared]
+  const started = performance.now()
+  assert.equal(sameOutcome(shared, shared), true)
+  assert.equal(verify(SERVER, COMMIT, CLIENT, 0, () => shared, shared).ok, true)
+  const rounds = [{ nonce: 0, clientSeed: CLIENT, outcome: shared }]
+  assert.deepEqual(verifyEpoch({ serverSeed: SERVER, playerLog: logFor(rounds), rounds, deriveFn: () => shared }), { status: 'PASS', rounds: 1 })
+  assert.ok(performance.now() - started < 500, 'each comparison must not walk all 2^26 paths')
 })
 
 test('invalid evidence throws instead of passing, even for an empty epoch', () => {

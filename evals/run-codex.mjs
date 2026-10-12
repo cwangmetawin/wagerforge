@@ -87,12 +87,25 @@ export const compareArms = (withGraders, withoutGraders) => {
   const withScore = scoreArm(withGraders, 'with'), withoutScore = scoreArm(withoutGraders, 'without')
   return { with: withScore, without: withoutScore, delta: withScore - withoutScore }
 }
+// A skill counts as read when a command Codex ran to completion (exit code 0) names its SKILL.md.
+// A path in a command's output (a file listing), in a message or in reasoning is not a read.
+// Listed in first-read order.
+export function skillsRead(jsonl, skills) {
+  const known = new Set(skills), read = new Set()
+  for (const line of jsonl.split(/\r?\n/)) {
+    let event
+    try { event = JSON.parse(line) } catch { continue }
+    const item = event?.item
+    if (event?.type !== 'item.completed' || item?.type !== 'command_execution' || item.exit_code !== 0 || typeof item.command !== 'string') continue
+    for (const match of item.command.matchAll(/(?:^|[^\w.-])\.codex\/skills\/([a-z][a-z0-9-]*)\/SKILL\.md(?![\w./-])/g)) {
+      if (known.has(match[1])) read.add(match[1])
+    }
+  }
+  return [...read]
+}
 export function skillRead(jsonl, skill) {
   if (!/^[a-z][a-z0-9-]*$/.test(skill)) fail('Invalid skill name')
-  const pattern = new RegExp('(?:^|[^\\w.-])\\.codex/skills/' + skill + '/SKILL\\.md(?![\\w./-])')
-  // Re-encoding JSON hides whitespace before a path; inspect decoded strings.
-  const mentions = value => typeof value === 'string' ? pattern.test(value) : value !== null && typeof value === 'object' && Object.entries(value).some(([key, item]) => mentions(key) || mentions(item))
-  return jsonl.split(/\r?\n/).some(line => { try { return mentions(JSON.parse(line)) } catch { return false } })
+  return skillsRead(jsonl, [skill]).includes(skill)
 }
 export function parseJudgeReply(reply) {
   const parse = text => {
@@ -215,9 +228,11 @@ function runChild(command, timeoutS) {
 }
 async function evaluateArm(evaluation, arm, skills, options) {
   const started = Date.now(), results = []
+  let readSkills = []
   try {
     return await workspace(arm, skills, async dir => {
       const events = await runChild(buildCommand(dir, evaluation.prompt.body, options), options.timeoutS)
+      readSkills = skillsRead(events, skills)
       const answer = await readFile(join(dir, 'last.md'), 'utf8')
       if (!answer.trim()) fail('Empty assistant answer')
       for (const grader of evaluation.graders) {
@@ -235,10 +250,10 @@ async function evaluateArm(evaluation, arm, skills, options) {
           results.push({ ...grader, ...judgeVerdict(votes) })
         }
       }
-      return { answer, graders: results, elapsedMs: Date.now() - started }
+      return { answer, graders: results, skillsRead: readSkills, elapsedMs: Date.now() - started }
     })
   } catch (error) {
-    return { error: error.message, graders: evaluation.graders.map(g => ({ ...g, pass: false })), elapsedMs: Date.now() - started }
+    return { error: error.message, graders: evaluation.graders.map(g => ({ ...g, pass: false })), skillsRead: readSkills, elapsedMs: Date.now() - started }
   }
 }
 async function pool(jobs, concurrency, work) {
@@ -278,10 +293,10 @@ export async function main(argv = process.argv.slice(2)) {
   } finally { process.off('SIGINT', interrupt).off('SIGTERM', interrupt) }
   if (stopping) fail('Run interrupted; active process groups stopped and workspaces cleaned')
   const results = cases.map((evaluation, index) => ({ case: evaluation.name, ...compareArms(runs[index * 2].graders, runs[index * 2 + 1].graders), arms: { with: runs[index * 2], without: runs[index * 2 + 1] } }))
-  console.log('case | with | without | delta | skill-read')
+  console.log('case | with | without | delta | skill-read | skills-read')
   for (const result of results) {
     const read = arm => result.arms[arm].graders.find(g => g.type === 'tool_used').pass ? 'yes' : 'no'
-    console.log([result.case, result.with.toFixed(3), result.without.toFixed(3), result.delta.toFixed(3), read('with') + '/' + read('without')].join(' | '))
+    console.log([result.case, result.with.toFixed(3), result.without.toFixed(3), result.delta.toFixed(3), read('with') + '/' + read('without'), result.arms.with.skillsRead.length + '/' + result.arms.without.skillsRead.length].join(' | '))
   }
   await saveJson(options.json, { options, results })
   return exitCode(results)

@@ -1,5 +1,6 @@
 // Closed-form and Monte-Carlo RTP / volatility tooling.
 import { plainItems, plainRecord } from './plain-data.mjs'
+import { dyadic, add, subtract, multiply, compare, toNumber, sqrtNumber } from './dyadic.mjs'
 // RTP is a SUM over outcomes of probability × payout — and a MULTILINEAR function of
 // per-reel weights (see C1): never assume a single weight scales RTP proportionally.
 
@@ -25,9 +26,10 @@ function crashEdge(houseEdge) {
 }
 
 // The table is plain data (plain-data.mjs), copied by index: no iterator, getter or Proxy from the
-// input runs, so the checks and the sums see the same table. The sums are double precision: the
-// result can differ from the exact table value by rounding (relative error about n·2^-53), far below
-// any reported RTP digit; use exact rational arithmetic where the last bits matter.
+// input runs, so the checks and the sums see the same table. Every input double is an exact dyadic:
+// sums, products and the probability tolerance check use BigInt. Each result rounds to the nearest
+// double, ties to even, including subnormals; exact values outside the finite range throw. Variance
+// uses the exact RTP, and sd is the correctly rounded square root of the exact variance.
 export function rtpFromOutcomes(outcomes) {
   const rows = plainItems(outcomes, 'outcomes')
   if (!rows.length) throw new RangeError('outcomes must be non-empty')
@@ -39,24 +41,34 @@ export function rtpFromOutcomes(outcomes) {
     if (payout < 0) throw new RangeError('payout must be >= 0')
     return { p, payout }
   })
-  let rtp = 0
-  let hitFreq = 0
-  let pSum = 0
+  const zero = dyadic(0)
+  const one = dyadic(1)
+  let rtp = zero
+  let hitFreq = zero
+  let pSum = zero
+  let secondMoment = zero
   for (const { p, payout } of table) {
-    pSum += p
-    rtp += p * payout
-    if (payout > 0) hitFreq += p
+    const probability = dyadic(p)
+    const value = dyadic(payout)
+    const weighted = multiply(probability, value)
+    pSum = add(pSum, probability)
+    rtp = add(rtp, weighted)
+    secondMoment = add(secondMoment, multiply(weighted, value))
+    if (payout > 0) hitFreq = add(hitFreq, probability)
   }
-  if (Math.abs(pSum - 1) > 1e-9) throw new RangeError(`probabilities must sum to 1, got ${pSum}`)
-  finite(rtp, 'rtp')
-  let variance = 0
-  for (const { p, payout } of table) {
-    const deviation = payout - rtp
-    // Weight before squaring to avoid overflowing a deviation with zero/tiny probability.
-    variance += p * deviation * deviation
+  const pError = subtract(pSum, one)
+  if (compare({ m: pError.m < 0n ? -pError.m : pError.m, e: pError.e }, dyadic(1e-9)) > 0) {
+    throw new RangeError(`probabilities must sum to 1, got ${toNumber(pSum)}`)
   }
-  finite(variance, 'variance')
-  return { rtp, houseEdge: 1 - rtp, hitFreq, variance, sd: Math.sqrt(variance) }
+  // Σp·(payout-rtp)² = Σp·payout² + rtp²·(Σp-2), even when Σp differs slightly from 1.
+  const variance = add(secondMoment, multiply(multiply(rtp, rtp), subtract(pSum, dyadic(2))))
+  return {
+    rtp: toNumber(rtp, 'rtp'),
+    houseEdge: toNumber(subtract(one, rtp), 'houseEdge'),
+    hitFreq: toNumber(hitFreq, 'hitFreq'),
+    variance: toNumber(variance, 'variance'),
+    sd: sqrtNumber(variance),
+  }
 }
 
 export function monteCarlo(sampleFn, n, options = {}) {
@@ -93,17 +105,6 @@ export function monteCarlo(sampleFn, n, options = {}) {
   // An overflowing bound stays Infinity: it cannot certify anything, so validateRtp fails closed.
   const meanError = Number.EPSILON * (2 * absDeltas + weightedMeans) / n + 2 * n * Number.MIN_VALUE
   return { rtp: mean, n, variance, sd, hitFreq: hits / n, ciHalfWidth, ci, meanError }
-}
-
-// Every finite double is an exact dyadic rational m·2^e, so a product ratio of doubles can be
-// rounded up exactly in BigInt: Math.ceil of a rounded ratio can fall one sample short.
-function dyadic(x) {
-  const view = new DataView(new ArrayBuffer(8))
-  view.setFloat64(0, x)
-  const bits = view.getBigUint64(0)
-  const biased = Number((bits >> 52n) & 0x7ffn)
-  const fraction = bits & 0xfffffffffffffn
-  return biased === 0 ? { m: fraction, e: -1074 } : { m: fraction | (1n << 52n), e: biased - 1075 }
 }
 
 // ceil(product(numerators) / product(denominators)) for non-negative finite doubles, computed
@@ -144,12 +145,14 @@ function nextUp(x) {
 // (Popoviciu: maxPayout / 2).
 const sampleSize = (sd, tolerance, z, divisor = 1) => ceilRatio([z, z, sd, sd], [tolerance, tolerance, divisor, divisor])
 
+// The least n >= 1 with z·sdPerSpin/sqrt(n) <= tolerance; a zero SD still needs one sample. Exact
+// up to 2^53, above it the least double at or above n; a RangeError when n is above Number.MAX_VALUE.
 export function requiredN(sdPerSpin, tolerance, z = 1.96) {
   finite(sdPerSpin, 'sdPerSpin')
   if (sdPerSpin < 0) throw new RangeError('sdPerSpin must be >= 0')
   positive(tolerance, 'tolerance')
   positive(z, 'z')
-  return sampleSize(sdPerSpin, tolerance, z)
+  return Math.max(1, sampleSize(sdPerSpin, tolerance, z))
 }
 
 // Certification needs a bound on the tail the sample may never have seen: the model's sd, or the

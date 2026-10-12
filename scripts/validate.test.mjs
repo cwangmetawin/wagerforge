@@ -101,6 +101,45 @@ test('correctness constraints: section required, non-empty, whole-token referenc
   assert.ok(has(tagged('Uses [C15].\n\n## Correctness constraints\n- C15: a constraint that does not exist.').errors, /unknown correctness constraint C15/))
 })
 
+for (const [constraint, phrase] of [['C5', '624'], ['C10', 'unified memory'], ['C12', '800-90']]) {
+  test(`metadata constraint ${constraint} requires the spec phrase "${phrase}" in the body`, () => {
+    const result = check({ 'fair-verify': skill('fair-verify', {
+      description: `Use when testing ${phrase}.`,
+      fm: `metadata:\n  constraints: ${constraint}\n  note: ${phrase}\n`,
+      body: `## Correctness constraints\n- ${constraint}: Follow the corrected rule from the spec.`,
+    }) })
+    assert.deepEqual(result, { errors: [`[fair-verify] constraint ${constraint} missing required phrase "${phrase}"`], warnings: [] })
+  })
+}
+
+test('constraint phrases are case-insensitive and may appear anywhere in the body, including fences', () => {
+  for (const text of ['624 outputs; Android UNIFIED MEMORY; NIST 800-90A/B/C.', '```text\n624 outputs; Android UNIFIED MEMORY; NIST 800-90A/B/C.\n```']) {
+    const result = check({ 'fair-verify': skill('fair-verify', {
+      fm: 'metadata:\n  constraints: C5, C10 C12\n',
+      body: `## Correctness constraints\n- C5, C10, C12: Follow the corrected rules.\n\n## Details\n${text}`,
+    }) })
+    assert.deepEqual(result, { errors: [], warnings: [] })
+  }
+})
+
+test('each missing metadata phrase is reported once, even when the constraints section is absent', () => {
+  const result = check({ 'fair-verify': skill('fair-verify', {
+    fm: 'metadata:\n  constraints: C5, C10, C12, C5\n',
+  }) })
+  for (const [constraint, phrase] of [['C5', '624'], ['C10', 'unified memory'], ['C12', '800-90']]) {
+    assert.equal(result.errors.filter((error) => error === `[fair-verify] constraint ${constraint} missing required phrase "${phrase}"`).length, 1)
+  }
+  assert.ok(has(result.errors, /no "Correctness constraints" section/))
+})
+
+test('body tags alone and other metadata constraints do not require the new phrases', () => {
+  const result = check({ 'fair-verify': skill('fair-verify', {
+    fm: 'metadata:\n  constraints: C7\n',
+    body: 'Body [C5] [C10] [C12].\n\n## Correctness constraints\n- C5, C7, C10, C12: Follow the corrected rules.',
+  }) })
+  assert.deepEqual(result, { errors: [], warnings: [] })
+})
+
 test('a heading inside a fenced code block does not count as the Correctness constraints section', () => {
   const body = 'Uses [C7].\n\n```md\n## Correctness constraints\nC7: only an example, not a real section.\n```'
   assert.ok(has(check({ 'fair-rng-core': skill('fair-rng-core', { body }) }).errors, /no "Correctness constraints" section/))

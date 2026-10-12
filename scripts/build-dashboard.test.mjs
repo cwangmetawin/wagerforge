@@ -40,10 +40,25 @@ const coverage = () => ({
   ]
 })
 
-const summary = () => ({
+const legacySummary = () => ({
   date: '2026-06-02',
   claude: { model: 'Claude fixture', cases: [{ name: 'z-loss', with: 2, without: 5 }, { name: 'a-gain', with: 8, without: 5 }] },
   codex: { model: 'Codex fixture', cases: [{ name: 'equal', with: 4, without: 4 }] }
+})
+const summary = () => ({
+  date: '2026-06-02',
+  claude: {
+    model: 'Claude fixture', runs: 2, runMeans: [{ with: 0.5, without: 0.75 }, { with: 1, without: 1 }],
+    cases: [
+      { name: 'z-loss', with: 1, without: 2, withScores: [0, 1], withoutScores: [1, 1] },
+      { name: 'a-gain', with: 2, without: 1, withScores: [1, 1], withoutScores: [0.5, 1] }
+    ]
+  },
+  codex: {
+    model: 'Codex fixture', runs: 3, runMeans: [{ with: 1, without: 0 }, { with: 0, without: 1 }, { with: 1, without: 1 }],
+    cases: [{ name: 'equal', with: 2, without: 2, withScores: [1, 0, 1], withoutScores: [0, 1, 1] }],
+    skillReadRates: { any: 2 / 3, expected: 1 / 3 }
+  }
 })
 
 function fixture(t) {
@@ -203,21 +218,74 @@ scenario('search filters by name, description and insight, hides empty pillars a
   linkListener({ target: { closest: () => ({}) } })
   assert.deepEqual(cards.map((item) => item.hidden), [false, false, false])
 })
-scenario('evals absent means not run yet; present results show both agents and signed deltas', (root) => {
+scenario('evals absent means not run yet; multi-run results show means, pass counts and skill shares', (root) => {
   assert.match(buildDashboard(root), /尚未运行/)
   json(root, 'evals/summary.json', summary())
   const html = buildDashboard(root)
   assert.doesNotMatch(html, /尚未运行/)
-  matches(html, [/claude[\s\S]*?装技能均分 <strong>5\.00<\/strong> · 不装 <strong>5\.00<\/strong> · 差值 <strong>0\.00<\/strong>/,
-    /codex[\s\S]*?装技能均分 <strong>4\.00<\/strong> · 不装 <strong>4\.00<\/strong>/])
+  matches(html, [/claude[\s\S]*?共 <strong>2<\/strong> 轮[\s\S]*?装技能均分 <strong>0\.75<\/strong> · 不装 <strong>0\.88<\/strong> · 差值 <strong>-0\.13<\/strong>/,
+    /codex[\s\S]*?共 <strong>3<\/strong> 轮[\s\S]*?装技能均分 <strong>0\.67<\/strong> · 不装 <strong>0\.67<\/strong>/])
   for (const value of ['2026-06-02', 'Claude fixture', 'Codex fixture', 'claude', 'codex']) assert.ok(html.includes(value))
-  matches(html, [/a-gain<\/th><td>8<\/td><td>5<\/td><td>\+3<\/td>/,
-    /z-loss<\/th><td>2<\/td><td>5<\/td><td>-3<\/td>/, /equal<\/th><td>4<\/td><td>4<\/td><td>0<\/td>/])
+  matches(html, [/a-gain<\/th><td>2 \/ 2<\/td><td>1 \/ 2<\/td><td>\+1<\/td>/,
+    /z-loss<\/th><td>1 \/ 2<\/td><td>2 \/ 2<\/td><td>-1<\/td>/, /equal<\/th><td>2 \/ 3<\/td><td>2 \/ 3<\/td><td>0<\/td>/,
+    /claude 每轮均分/, /codex 每轮均分/, /<th scope="row">1<\/th><td>0\.50<\/td><td>0\.75<\/td><td>-0\.25<\/td>/,
+    /<th scope="row">2<\/th><td>1\.00<\/td><td>1\.00<\/td><td>0\.00<\/td>/,
+    /读取任意 wagerforge 技能 <strong>66\.7%<\/strong>/, /读取预期技能 <strong>33\.3%<\/strong>/])
   assert.ok(html.indexOf('a-gain') < html.indexOf('z-loss'))
   const reversed = summary()
   reversed.claude.cases.reverse()
   json(root, 'evals/summary.json', reversed)
   assert.equal(buildDashboard(root), html)
+})
+scenario('legacy single-run summaries still show their original scores and signed deltas', (root) => {
+  json(root, 'evals/summary.json', legacySummary())
+  const html = buildDashboard(root)
+  matches(html, [/装技能均分 <strong>5\.00<\/strong> · 不装 <strong>5\.00<\/strong>/,
+    /a-gain<\/th><td>8<\/td><td>5<\/td><td>\+3<\/td>/, /z-loss<\/th><td>2<\/td><td>5<\/td><td>-3<\/td>/])
+})
+scenario('unavailable legacy skill metrics are shown as unrecorded instead of zero', (root) => {
+  const value = summary()
+  value.codex.skillReadRates = { any: null, expected: 0 }
+  json(root, 'evals/summary.json', value)
+  matches(buildDashboard(root), [/读取任意 wagerforge 技能 <strong>未记录<\/strong>/, /读取预期技能 <strong>0\.0%<\/strong>/])
+})
+scenario('multi-run fields cannot be silently rendered as legacy scores when runs is missing', (root) => {
+  for (const edit of [
+    v => { delete v.claude.runs }, v => { delete v.codex.runs },
+    v => {
+      delete v.claude.runs
+      delete v.claude.runMeans
+    }
+  ]) {
+    const value = summary()
+    edit(value)
+    json(root, 'evals/summary.json', value)
+    assert.throws(() => buildDashboard(root), /evals\/summary\.json.*runs/)
+  }
+})
+scenario('malformed multi-run summaries fail without replacing the existing dashboard', (root) => {
+  write(root, output, 'keep this page')
+  const edits = [
+    v => { v.claude.runs = 0 }, v => { v.claude.runs = 1.5 }, v => { v.claude.runs = '2' },
+    v => { v.claude.runMeans = {} }, v => { v.claude.runMeans.pop() },
+    v => { v.claude.runMeans[0].with = 1.5 }, v => { v.claude.runMeans[0].with = 0.4 },
+    v => { v.claude.cases[0].with = 0.5 }, v => { v.claude.cases[0].without = 3 },
+    v => { v.claude.cases[0].with = 0 }, v => { v.claude.cases[0].withScores = {} },
+    v => { v.claude.cases[0].withScores.pop() }, v => { v.claude.cases[0].withoutScores[0] = -0.5 },
+    v => { v.claude.cases[0].withoutScores[0] = '1' }, v => { v.claude.cases[0].withScores[0] = null },
+    v => { v.claude.cases[0].name = v.claude.cases[1].name }, v => { v.claude.cases = [] },
+    v => { delete v.codex.skillReadRates }, v => { v.codex.skillReadRates.any = '0.5' },
+    v => { v.codex.skillReadRates.expected = 1.1 }, v => { v.codex.skillReadRates.expected = -0.1 },
+    v => { v.codex.skillReadRates.expected = 1 }
+  ]
+  for (const edit of edits) {
+    const value = summary()
+    edit(value)
+    json(root, 'evals/summary.json', value)
+    assert.throws(() => buildDashboard(root), /evals\/summary\.json/)
+    assert.equal(cli(root).status, 1)
+    assert.equal(read(root, output), 'keep this page')
+  }
 })
 
 const invalidCoverage = [

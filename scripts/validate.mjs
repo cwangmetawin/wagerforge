@@ -6,6 +6,12 @@ const SKILL_NAME_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 const WHEN_TRIGGER_RE = /\buse (when|during|before|after|this)\b/i
 const CONSTRAINT_TAG_RE = /\[(C\d{1,2})\]/g
 const KNOWN_CONSTRAINTS = new Set(Array.from({ length: 14 }, (_, i) => `C${i + 1}`))
+// Spec section 7 key phrases required anywhere in the body for metadata-declared constraints.
+const CONSTRAINT_KEY_PHRASES = new Map([
+  ['C5', ['624']],
+  ['C10', ['unified memory']],
+  ['C12', ['800-90']],
+])
 const CORRECTNESS_HEADING_RE = /^#{1,6}\s*correctness constraints\b/im
 const CORE_INSIGHT_RE = /^> \*\*Core insight:\*\* \S/
 // Skill references: the namespaced form anywhere, and a bare pillar-prefixed name in backticks.
@@ -82,6 +88,13 @@ function checkFrontmatterKeys(tag, fm, errors) {
 
 function checkConstraints(tag, fm, body, errors, warnings) {
   const declared = String(fm.metadata?.constraints || '').split(/[,\s]+/).filter(Boolean)
+  const lowerBody = body.toLowerCase()
+  for (const c of new Set(declared)) {
+    for (const phrase of CONSTRAINT_KEY_PHRASES.get(c) ?? []) {
+      if (!lowerBody.includes(phrase)) errors.push(`${tag} constraint ${c} missing required phrase "${phrase}"`)
+    }
+  }
+  body = stripFences(body)
   const tagged = [...body.matchAll(CONSTRAINT_TAG_RE)].map((m) => m[1])
   const ids = [...new Set([...declared, ...tagged])]
   for (const c of ids) if (!KNOWN_CONSTRAINTS.has(c)) errors.push(`${tag} unknown correctness constraint ${c} (known: C1..C14)`)
@@ -126,7 +139,7 @@ function checkSkill(skillsDir, dir, known, secrets, errors, warnings) {
   const wc = wordCount(parsed.body)
   if (wc > WORD_HARD_CAP) errors.push(`${tag} body ${wc} words > hard cap ${WORD_HARD_CAP}`)
   else if (wc > WORD_BUDGET) warnings.push(`${tag} body ${wc} words > budget ${WORD_BUDGET}`)
-  checkConstraints(tag, fm, body, errors, warnings)
+  checkConstraints(tag, fm, parsed.body, errors, warnings)
   checkText(tag, text, known, errors, secrets)
 }
 

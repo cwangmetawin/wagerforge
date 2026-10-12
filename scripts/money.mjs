@@ -27,9 +27,10 @@ export function toAtoms(amount, decimals) {
   // common/settlementModule/money.ts); no real wallet amount comes near them.
   const exponent = Number(parts[3] ?? 0)
   if (!Number.isSafeInteger(exponent) || Math.abs(exponent) > 300) throw new RangeError('exponent out of range')
-  // Every decimal with at most 15 significant digits survives a round trip through a double, so 15 is
-  // the safe limit for a Number; a longer spelling may already have been changed by JSON.parse (or by
-  // the arithmetic that produced the Number) before it arrives here. The
+  // In the normal range, without overflow or underflow, every decimal with at most 15 significant
+  // digits survives a round trip through a double; the exponent limit above keeps Number inputs in
+  // that range. A longer spelling may already have been changed by JSON.parse (or by the arithmetic
+  // that produced the Number) before it arrives here. The
   // rule cannot see digits the parser already dropped (JSON 0.10000000000000001 arrives as 0.1), so
   // amounts should travel as decimal strings; a Number input is only as good as its source.
   if (numeric && (parts[1] + (parts[2] ?? '')).replace(/^0+/, '').replace(/0+$/, '').length > 15) {

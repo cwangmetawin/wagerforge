@@ -1,6 +1,6 @@
 ---
 name: comp-rtp-certification
-description: Use when deciding RTP variant approval scope, certifying actual payout routes, checking displayed economics, or investigating field RTP drift after math changes.
+description: Use when deciding RTP variant approval scope, certifying actual payout routes, deciding what a certified slot's result needs before animation (server-determined and audit-logged, not commit-reveal), checking displayed economics, or investigating field RTP drift after math changes.
 metadata:
   constraints: C4, C9, C14
 ---

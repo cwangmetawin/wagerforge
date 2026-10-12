@@ -1,6 +1,6 @@
 # wagerforge behavioural evals
 
-These 25 English engineering prompts tempt specific money, math, fairness and certification mistakes. One case format runs in Claude Code's plugin eval and in the Codex runner. The LLM criteria require the corrected rules and explicitly fail endorsements of the folk claims.
+These 27 English engineering prompts tempt specific money, math, fairness and certification mistakes. One case format runs in Claude Code's plugin eval and in the Codex runner. The LLM criteria require the corrected rules and explicitly fail endorsements of the folk claims.
 
 This suite measures whether an agent gives the required guidance and whether the intended skill appears to fire. It does not certify a game, prove reference-script correctness, establish real wallet atomicity, or replace RNG/math laboratory assessment. Unit tests validate the harness and case contracts; actual model runs provide separate behavioural evidence.
 
@@ -60,7 +60,7 @@ codex exec -m <model> -c model_reasoning_effort="<effort>" --sandbox read-only -
 
 Each child is detached in its own POSIX process group. A timeout or oversized event output kills that entire group with process.kill(-pid, 'SIGKILL'); there is no pkill/killall. Workspaces are removed in finally blocks. SIGINT/SIGTERM stop active groups and queued work. macOS/Linux process-group behavior is required.
 
-A full run makes 50 answer calls plus 150 judge calls. --dry-run makes zero calls and prints JSON command records, including argv, stdin, source filename and placeholder judge answers. Its optional JSON file is a **plan**, with dryRun true and no scores.
+A full run makes 54 answer calls plus 162 judge calls. --dry-run makes zero calls and prints JSON command records, including argv, stdin, source filename and placeholder judge answers. Its optional JSON file is a **plan**, with dryRun true and no scores.
 
 Codex's project-directory ablation does not remove already installed global skills/plugins or inherited CLI configuration. Use an environment without global wagerforge skills for a clean control. A path mention in the event stream is an indicator, not proof of a completed successful file read. Claude evaluates the complete plugin; Codex evaluates the copied portable skills. Codex uses --timeout-s and read-only sandboxing; Claude's max_turns and named allowed_tools have no identical enforcement here. Optional per-case model/runs/plugins/env/append_system_prompt/expected_outcome settings are not used by this suite; Codex run controls come from its CLI.
 
@@ -116,7 +116,7 @@ Regex semantics on last_message: an omitted match requires a match; not_contains
 
 ## Coverage
 
-Rules are derived from docs/specs/2026-06-04-wagerforge-design.md §7 and the job2/job3/job4/opusmax audit reports supplied for this implementation. The audits qualify the simplified C3 bonus arithmetic and C8 modulo statement; the expected rules intentionally test those corrections.
+Rules are derived from docs/specs/2026-06-04-wagerforge-design.md §7 and the job2/job3/job4/opusmax audit reports supplied for this implementation. The audits qualify the simplified C3 bonus arithmetic and C8 modulo statement; the expected rules intentionally test those corrections. Feature cases also follow the corresponding domain skills and are calibrated against the production server's reward boundaries.
 
 | Case | Expected skill | Rule tested |
 | --- | --- | --- |
@@ -142,6 +142,11 @@ Rules are derived from docs/specs/2026-06-04-wagerforge-design.md §7 and the jo
 | stake-debit-before-result | build-durable-settlement | Accepted debit/reserve + OPEN + nonce before outcome; terminal rejection |
 | nonce-epoch-contiguity | fair-verify | Player-saved commitment/client seed and contiguous accepted-bet epoch |
 | verify-single-float | fair-verify | Exact first-13-hex no-counter derivation; frozen context adapter |
+| j01-blitz-unique-win | math-plinko-lottery | All draws unique is the winning event; recompute RTP after multiplier rounding |
+| j02-cluster-multiplier-grid | math-lines-ways-cluster | Pay from current cells at x2 or more, then activate/double for later waves |
+| j03-paid-double-split | build-instant-crash-games | Double/Split debit new stakes before cards; Hit/Stand are free continuations |
+| moving-wild-collector-order | math-moving-wild-collection | Move before refill; exclude covered coins; retain each wild's multiplier and horizon |
+| cascade-orb-final-sum | math-cascade-modifiers | Preserve orbs; multiply accumulated spin wins once by the terminal sum, then cap |
 
 C11 shares the C7/C8 derivation and mapping coverage; there is intentionally no separate c11 case.
 
@@ -151,7 +156,7 @@ C11 shares the C7/C8 derivation and mapping coverage; there is intentionally no 
 NODE_OPTIONS=--max-old-space-size=2048 node --test evals/run-codex.test.mjs evals/summarize.test.mjs scripts/build-dashboard.test.mjs
 ~~~
 
-Tests cover pure runner logic, local case contents and the result pipeline with a mocked child process; they never spawn Claude or Codex. The case-contract tests validate all 25 directories, required schema/settings, exact skill mappings, grader counts and explicit MUST-HAVE/disqualifying rules. They do not claim those answers were generated by a model.
+Tests cover pure runner logic, local case contents and the result pipeline with a mocked child process; they never spawn Claude or Codex. The case-contract tests validate all 27 directories, required schema/settings, exact skill mappings, grader counts and explicit MUST-HAVE/disqualifying rules, plus README counts and complete coverage-table mappings. They do not claim those answers were generated by a model.
 
 Exported helpers:
 

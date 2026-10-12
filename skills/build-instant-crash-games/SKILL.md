@@ -1,6 +1,6 @@
 ---
 name: build-instant-crash-games
-description: Use when implementing instant or crash minigame state machines, deferred payout, continuation actions, hidden state, abandoned rounds, or autobet parity.
+description: Use when implementing instant or crash minigame state machines, how to charge and validate paid continuation actions such as Blackjack Double and Split, multi-hand turn order, deferred payout, continuation actions, hidden state, abandoned rounds, or autobet parity.
 metadata:
   constraints: C2
 ---
@@ -11,22 +11,22 @@ metadata:
 
 ## When to use / When NOT
 
-- Use for server-side instant/crash FSMs and continuation payouts.
+- Use for authoritative instant/crash FSMs and continuation payouts.
 - Reel/cascade flow: `build-game-flow`; wallet mechanics: `build-wallet-and-money`; RTP: `math-rtp-modeling`.
 
 ## Default stack + escape hatch
 
-TypeScript IGame + injected RNG + Node, exact money boundaries and PixiJS/Phaser presentation. Other stacks map play/state/next to authoritative round handlers, persisted state and action enums.
+TypeScript IGame + injected RNG + Node, exact money and PixiJS/Phaser presentation. Other stacks map play/state/next to round handlers, persisted state and action enums.
 
 ## Process
 
-1. Declare every action's money semantics: a paying opening, a free continuation, a binding shadow of the opening bet, or a new paid stake (Blackjack Double/Split). Never infer the mode from equal amounts; validate the declared debit mode and active hand before mutation or RNG. MetaWin's production server (MSS) `games/blackjack-multi-hands/index.ts` `server.bets` declares `double`/`split` as paying actions; MSS `games/mealOrNoMeal/index.ts` `server.bets` gives free continuations `available:[]`, `validate:false`. Platform owns wager/round IDs and atomic money movement; game code never mints IDs. Reject opening over a live round; MSS `games/fruitMachine/index.ts` `server.play` guards repeated spin.
-2. Validate params, finite/ranged bets/targets, integer picks, difficulty enums and state shape before RNG/mutation. Re-derive legal actions from state on every call; `next[]` is not an authorization boundary. Throw coded errors for bad input, never return a fake zero-win loss. MSS `games/mealOrNoMeal/index.ts` `requireRound`/`openCase` guard state and offer cadence. Shape checks do not authenticate forged state; require trusted platform persistence.
-3. Snapshot opening math/config and stake for continuations. MSS `games/mealOrNoMeal/index.ts` `pickKept` stores `_config`/`_bet`; continuations must not silently switch economics when a variant changes. Precompute randomness when the mechanics require it; later reveals must follow the same stored outcome.
-4. Preserve all required opaque state in the RGS response, including underscore fields. Redact only client-visible envelope/data; never strip the persisted continuation state. MSS `games/mealOrNoMeal/index.ts` `noDeal` returns complete state. An underscore prefix alone provides no GDK `/play` masking: prove the platform's client projection hides unrevealed outcomes before launch.
-5. For deferred minis using the empty-state convention, non-terminal payout is zero; emit final payout once with `state:{}`, `next:[]`. MSS `games/partyPong/index.ts` `cashout` retains terminal reveal state with `next:[]`; `win>0` is never a generic completion rule. Reconnect/no-open-round envelopes need an explicit platform contract: MSS `docs/GDK_CONTRACT.md` `IGame` has no `recover()` member.
-6. Separate exposure multiplier, platform currency ceiling and certified action-level caps; enforce only applicable caps in matching units, including overshoots. MSS `games/deck52/gameLogic.ts` `playDeck52` has both caps; MSS `games/fruitMachine/index.ts` `spin` has no game currency ceiling. Preserve route-specific 100k substitutions (MSS `games/zeus100k/gamePlay.ts` `playMain`) instead of blanket `min(win,maxWin)`.
-7. Implement abandoned-round `action()` and a paying one-round `autobet`; exemptions are single-step or a product waiver recorded in README. Require identical-draw payout parity and matching RNG consumption. Deliver spec, scaffold, README, SIM_RESULTS, FRONTEND and current GAME_RULES, following MSS `docs/DEVELOPMENT_WORKFLOW.md` Track A.
+1. Declare paying opening, free continuation, opening-bet shadow or new stake; equal amounts never determine debit mode. Validate mode/active hand before RNG/mutation. MetaWin's production server (MSS) `games/blackjack-multi-hands/index.ts` `server.bets` declares paid Double/Split. MSS `games/blackjack-multi-hands/index.ts` `resolvePaidContinuationAtoms` accepts explicitly declared top-level stake or immutable opening-bet echo plus side stake. Bind increment to active-subhand atoms; reject mixed encodings; verify one charge per route and aggregate only new stakes. MSS `games/mealOrNoMeal/index.ts` `server.bets` declares free `available:[]`, `validate:false`. Platform owns wager/round IDs and atomic payments; games never mint IDs. Reject live-round openings: MSS `games/fruitMachine/index.ts` `server.play`.
+2. Validate params, finite/ranged bets/targets, integer picks, difficulty enums and state shape before RNG/mutation. Derive legality every call; `next[]` never authorizes. Throw coded errors, never fake zero-win losses. MSS `games/mealOrNoMeal/index.ts` `requireRound`/`openCase` guard state/offer cadence; shape checks never authenticate forged state: require trusted persistence. Ordered stable IDs plus seat/subhand metadata identify multi-hand turns: insert split siblings immediately after active hand, skip completed/inactive hands, settle when none playable. Reject wrong IDs; verify split/natural/bust transitions. MSS `games/blackjack-multi-hands/index.ts` `advanceOrSettle`.
+3. Snapshot opening economics/stake; continuations never switch economics when variants change. MSS `games/mealOrNoMeal/index.ts` `pickKept` stores `_config`/`_bet`. Precompute randomness when required; reveals follow stored outcomes.
+4. Preserve complete opaque RGS state, including underscore fields; redact only client envelope/data. MSS `games/mealOrNoMeal/index.ts` `noDeal` returns complete state. Underscores provide no GDK `/play` masking: prove client projection hides unrevealed outcomes before launch.
+5. Empty-state deferred minis pay zero non-terminally, final payout once with `state:{}`, `next:[]`. MSS `games/partyPong/index.ts` `cashout` retains terminal reveal state with `next:[]`; `win>0` never determines completion. Reconnect/no-open-round envelopes need platform contracts: MSS `docs/GDK_CONTRACT.md` `IGame` lacks `recover()`.
+6. Distinguish exposure multiplier, platform currency ceiling and certified action caps; enforce applicable units/caps including overshoots. MSS `games/deck52/gameLogic.ts` `playDeck52` has both caps; MSS `games/fruitMachine/index.ts` `spin` lacks game currency ceiling. Preserve route-specific 100k substitutions (MSS `games/zeus100k/gamePlay.ts` `playMain`), never blanket `min(win,maxWin)`.
+7. Implement abandoned-round `action()` and paying one-round `autobet`; document single-step/product-waiver exemptions in README. Require identical-draw payout/RNG parity. Deliver spec, scaffold, README, SIM_RESULTS, FRONTEND and current GAME_RULES, following MSS `docs/DEVELOPMENT_WORKFLOW.md` Track A.
 
 ## Correctness constraints
 
@@ -38,4 +38,4 @@ Deleted hidden state; trusted client state; illegal actions accepted from next a
 
 ## Verification
 
-Prove full persisted continuation and masking, invalid-input rejection without RNG/mutation, terminal payout once, abandoned-round/autobet parity, and clean second-round lifecycle through actual platform integration.
+Prove persisted continuation/masking, rejection without RNG/mutation, terminal payment once, abandonment/autobet parity and second-round lifecycle through platform integration.

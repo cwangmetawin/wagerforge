@@ -43,7 +43,9 @@ const expected = [
   ['verify-single-float', 'fair-verify', ['13', '52', ':0', 'deriveFn(stream, ctx)']],
   ['j01-blitz-unique-win', 'math-plinko-lottery', ['all N draws unique', '0.3971', '2.468']],
   ['j02-cluster-multiplier-grid', 'math-lines-ways-cluster', ['x2 or more', '0.5 x (2 + 4) = 3', 'never zero']],
-  ['j03-paid-double-split', 'build-instant-crash-games', ['NEW paid stakes', 'binding shadow', 'declared debit mode']]
+  ['j03-paid-double-split', 'build-instant-crash-games', ['NEW paid stakes', 'binding shadow', 'declared debit mode']],
+  ['moving-wild-collector-order', 'math-moving-wild-collection', ['before refill', 'covered coins', 'retained multiplier', '18']],
+  ['cascade-orb-final-sum', 'math-cascade-modifiers', ['terminal sum', '63', 'defaulting to one', 'cap']]
 ]
 
 test('frontmatter preserves quoted regex backslashes and splits inline lists', () => {
@@ -249,9 +251,19 @@ test('timeout addresses the whole process group, never pid -1 or zero', () => {
   for (const pid of [0, 1, -2, NaN, undefined]) assert.throws(() => api.processGroup(pid))
 })
 
-test('suite contains exactly the 25 requested cases', () => {
+test('suite contains exactly the 27 requested cases', () => {
   const folders = readdirSync(root, { withFileTypes: true }).filter(entry => entry.isDirectory() && entry.name !== 'results').map(entry => entry.name).sort()
+  assert.equal(expected.length, 27)
   assert.deepEqual(folders, expected.map(([name]) => name).sort())
+})
+test('README counts and coverage table match the complete case suite', () => {
+  const readme = readFileSync(`${root}README.md`, 'utf8')
+  assert.ok(readme.includes(`These ${expected.length} English engineering prompts`))
+  assert.ok(readme.includes(`${expected.length * 2} answer calls plus ${expected.length * 6} judge calls`))
+  assert.ok(readme.includes(`validate all ${expected.length} directories`))
+  const rows = [...readme.matchAll(/^\| ([a-z0-9][a-z0-9-]*) \| ([a-z0-9][a-z0-9-]*) \| /gm)]
+    .map(([, name, skill]) => [name, skill])
+  assert.deepEqual(rows.sort(), expected.map(([name, skill]) => [name, skill]).sort())
 })
 for (const [name, skill, rules] of expected) test(`case contract: ${name}`, () => {
   const promptPath = `${root}${name}/prompt.md`

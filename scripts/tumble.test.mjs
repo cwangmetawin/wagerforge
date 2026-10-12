@@ -81,7 +81,7 @@ test('cascade totals read each wave by index and refuse a getter before it runs'
   assert.throws(() => cascadeTotal(new Proxy(waves, {})), /plain array/)
 })
 
-test('a cascade total a double cannot hold exactly is refused, never rounded silently', () => {
+test('a computed cascade total above 2^53 - 1 is refused', () => {
   const waves = [9007199254740991, 1, 1, 1].map((win) => ({ win, multiplier: 1 }))
   assert.throws(() => tumble.cascadeTotal(waves), RangeError)
   assert.throws(() => tumble.cascadeTotalAbsolute(waves), RangeError)
@@ -120,12 +120,22 @@ test('exact totals keep STEP separate from the MSS absolute wave ladder', () => 
   }
 })
 
+test('an unknown option is refused, so a misspelt rounding rule cannot change a payment', () => {
+  for (const total of atomTotals()) {
+    for (const options of [{ roundat: 'total' }, { mode: 'floor' }, { rounding: 'floor', round: 'total' }, { [Symbol('x')]: 1 }]) {
+      assert.throws(() => total([{ win: 1n, multiplier: '1.5' }], options), TypeError)
+    }
+  }
+})
+
 test('exact totals default to positive half-up per wave before summation', () => {
-  // MSS games/zeus/gameLogic.ts fixValue:170-171, loadBaseGame:672-673.
-  // Its rounding rule maps 0.75 * 1.5 = 1.125 to 1.13; 1.5 is an API extension, not its ladder.
+  // MSS games/zeus/gameLogic.ts fixValue:170-171, loadBaseGame:672-673 round each wave there; its
+  // integer ladder never needs a rounding mode. toFixed rounds the binary double: 0.75 * 1.5 = 1.125 is
+  // exact and gives 1.13, but 0.15 * 1.5 = 0.22499999999999998 gives 0.22 where exact half-up gives 23.
   assert.equal(tumble.cascadeTotalAtoms([{ win: 75n, multiplier: '1.5' }, { win: 75n, multiplier: 1 }]), 226n)
   assert.equal(tumble.cascadeTotalAbsoluteAtoms([{ win: 75n, multiplier: '1.5' }, { win: 75n, multiplier: '1.5' }]), 226n)
   for (const total of atomTotals()) {
+    assert.equal(total([{ win: 15n, multiplier: '1.5' }]), 23n)
     assert.equal(total([{ win: 1n, multiplier: '1.005' }]), 1n)
     assert.equal(total([{ win: 100n, multiplier: '1.005' }]), 101n)
     assert.equal(total([{ win: 100n, multiplier: '1.004999999999999999999' }]), 100n)

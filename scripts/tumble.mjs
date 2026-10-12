@@ -22,7 +22,8 @@ function wavesOf(waves) {
 
 // These helpers work in double-precision payout multiples for RTP math; settle real money in exact
 // integer atoms (math-cascade-tumble). A running multiplier or a positive wave award that leaves the
-// normal double range, or a total above 2^53 - 1 (Number.MAX_SAFE_INTEGER), is refused.
+// normal double range, or a computed (rounded) total above 2^53 - 1 (Number.MAX_SAFE_INTEGER), is
+// refused.
 // A zero win is allowed with any normal running multiplier.
 const MIN_NORMAL = 2 ** -1022
 
@@ -88,8 +89,14 @@ function roundFraction({ numerator, denominator }, rounding) {
   return atoms + (up ? 1n : 0n)
 }
 
+const OPTION_KEYS = ['rounding', 'roundAt']
+
 function totalAtoms(waves, options, absolute) {
-  const { rounding = 'half-up', roundAt = 'wave' } = plainRecord(options, 'options', ['rounding', 'roundAt'])
+  const { rounding = 'half-up', roundAt = 'wave' } = plainRecord(options, 'options', OPTION_KEYS)
+  // A misspelt key would silently fall back to the default rule; options is already a plain object,
+  // so listing its own keys runs no input code.
+  const unknown = Reflect.ownKeys(options).find((key) => !OPTION_KEYS.includes(key))
+  if (unknown !== undefined) throw new TypeError(`unknown option ${String(unknown)}: only rounding and roundAt`)
   if (typeof rounding !== 'string') throw new TypeError('rounding must be a string')
   if (!['floor', 'half-up', 'half-even'].includes(rounding)) throw new RangeError('rounding must be floor, half-up or half-even')
   if (typeof roundAt !== 'string') throw new TypeError('roundAt must be a string')
@@ -106,10 +113,12 @@ function totalAtoms(waves, options, absolute) {
   return roundAt === 'wave' ? total : roundFraction(sum, rounding)
 }
 
-// Default: half-up each multiplied wave to one atom, then sum. That is where MetaWin's production
-// server (MSS) games/zeus/gameLogic.ts rounds: fixValue takes each wave to cents. Exact half-up can
-// differ from its binary Number(x.toFixed(2)) on fractional multipliers (100 atoms x 1.005: exact
-// 101, toFixed 100); Zeus's ABSOLUTE ladder is integers, where the two agree.
+// Default: half-up each multiplied wave to one atom, then sum. That is the rounding point of
+// MetaWin's production server (MSS) games/zeus/gameLogic.ts, whose fixValue takes each ABSOLUTE wave
+// (cascadeTotalAbsoluteAtoms) to cents; its integer ladder on whole cents never needs a rounding
+// mode, so Zeus fixes the point, not the mode. Number(x.toFixed(2)) rounds the binary double, not the
+// exact value (0.15 x 1.5: toFixed 0.22, exact half-up 0.23). Caps (Zeus: maxWin x bet) are the
+// caller's.
 // Wins are pre-priced BigInt atoms; multipliers are positive decimal strings or safe integers.
 // options.rounding: half-up, half-even or floor; options.roundAt: wave or total.
 // STEP factors compound exactly, including factors on zero-win waves; never round the factors.

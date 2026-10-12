@@ -29,7 +29,9 @@ function crashEdge(houseEdge) {
 // input runs, so the checks and the sums see the same table. Every input double is an exact dyadic:
 // sums, products and the probability tolerance check use BigInt. Each result rounds to the nearest
 // double, ties to even, including subnormals; exact values outside the finite range throw. Variance
-// uses the exact RTP, and sd is the correctly rounded square root of the exact variance.
+// uses the exact RTP, and sd is the correctly rounded square root of the exact variance. The 1e-9
+// probability tolerance absorbs decimal rounding, not entry errors: it can move the RTP by up to
+// about 1e-9 times the largest payout, so check a table with huge payouts row by row.
 export function rtpFromOutcomes(outcomes) {
   const rows = plainItems(outcomes, 'outcomes')
   if (!rows.length) throw new RangeError('outcomes must be non-empty')

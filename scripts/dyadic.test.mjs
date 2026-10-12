@@ -50,3 +50,8 @@ test('exact square roots round subnormal ties without underflowing the radicand'
   assert.equal(sqrtNumber({ m: 49n, e: -2150 }), 4 * Number.MIN_VALUE)
   assert.throws(() => sqrtNumber({ m: -1n, e: 0 }), RangeError)
 })
+
+test('dyadic refuses what is not a finite number instead of decoding its bits', () => {
+  for (const value of [NaN, Infinity, -Infinity]) assert.throws(() => dyadic(value), RangeError)
+  for (const value of ['1.5', undefined, null, 1n, { valueOf: () => assert.fail('no input code runs') }]) assert.throws(() => dyadic(value), TypeError)
+})

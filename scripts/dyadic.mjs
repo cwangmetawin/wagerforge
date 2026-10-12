@@ -16,6 +16,8 @@ function normalized(m, e) {
 }
 
 export function dyadic(x) {
+  if (typeof x !== 'number') throw new TypeError('dyadic needs a number')
+  if (!Number.isFinite(x)) throw new RangeError('dyadic needs a finite number')
   view.setFloat64(0, x)
   const bits = view.getBigUint64(0)
   const biased = Number((bits >> 52n) & 0x7ffn)

@@ -4,6 +4,13 @@
     "commit": "356fa2a6eee30d8ea3f0b7b2bf2fa370e68e4cb2",
     "date": "2026-10-09"
   },
+  "check": {
+    "date": "2026-10-12",
+    "method": "independent blind check (fresh Codex gpt-6.1-sol ultra thread given only the written definition)",
+    "full": 1,
+    "families": 34,
+    "details": "docs/coverage/mss-gaps.json"
+  },
   "families": [
     {
       "id": "s01-paylines-feature-coins",
@@ -31,7 +38,7 @@
         "bookOfDead",
         "burningChili"
       ],
-      "notes": "线赢、FG/买入、respin与floor已有；缺扩展/堆叠wild及金币盘增高、collector触发交互。"
+      "notes": "未专门讲到：可复用机制 27 条、单一游戏机制 1 条，例如：strip sampler：每 reel 独立均匀抽取一个合法 st…；ToTheTop FG 的独占全 wild 补奖：先排除本轮已支付普…。逐条见 docs/coverage/mss-gaps.json。"
     },
     {
       "id": "s02-nudge-paylines",
@@ -51,7 +58,7 @@
         "sheriffNudge",
         "sheriffNudge100k"
       ],
-      "notes": "线赢、最高wild、注额与floor已有；缺nudge/reset状态转换及Sheriff死特征的专门模型。"
+      "notes": "未专门讲到：可复用机制 7 条、单一游戏机制 0 条，例如：每个动作使用对应的 private reel strip；各 ree…；payline 的第一个普通 paying symbol 固定 wi…。逐条见 docs/coverage/mss-gaps.json。"
     },
     {
       "id": "s03-connected-ways-wilds",
@@ -76,7 +83,7 @@
         "treasureHunter",
         "treasureHunter100k"
       ],
-      "notes": "connected剪枝、jackpot、选择续步与floor已有；缺移动/跳跃wild、金币收集及其交互转换。"
+      "notes": "未专门讲到：可复用机制 17 条、单一游戏机制 0 条，例如：每卷独立均匀抽取本卷 strip stop，再按同一 stop 取循…；连通评估以相邻卷同一行或上下相邻一行连接：第 1 卷仅要求右邻，第 …。逐条见 docs/coverage/mss-gaps.json。"
     },
     {
       "id": "s04-hybrid-wins-collection",
@@ -98,7 +105,7 @@
         "cetusOnly",
         "perseusCetusOnly"
       ],
-      "notes": "线/ways、买入与floor已有；缺evaluator切换、Elvis/宝箱收集、shift及Cetus倍率meter。"
+      "notes": "未专门讲到：可复用机制 20 条、单一游戏机制 0 条，例如：AATF/Perseus 的 ways evaluator 对连续全…；AATF 计算 wild 自身 ways 时每列把 wild 数量加…。逐条见 docs/coverage/mss-gaps.json。"
     },
     {
       "id": "s05-ways-coin-ladder",
@@ -117,7 +124,7 @@
         "cowAbduction100k",
         "cowAbductionPromo"
       ],
-      "notes": "ways、固定jackpot、FG奖励/播放cap和floor已有；缺coin重复lift、tall-reel分布及hot-round模型。"
+      "notes": "未专门讲到：可复用机制 5 条、单一游戏机制 0 条，例如：landing jackpot 的 coin 后续 progress…；base scatter 数只作为独立 Bernoulli FG t…。逐条见 docs/coverage/mss-gaps.json。"
     },
     {
       "id": "s06-count-anywhere-tumbles",
@@ -147,7 +154,7 @@
         "zeusPromo",
         "bloodMoonRising"
       ],
-      "notes": "OAK、绝对wave、选择续步与floor已有；缺分级wild及spin结束时orb/乘数求和的具体规则。"
+      "notes": "未专门讲到：可复用机制 15 条、单一游戏机制 1 条，例如：每 reel 独立均匀抽 strip stop，读取循环连续窗口作为…；Tartarus/Medusa/Zeus 开局每 reel 可均匀选…。逐条见 docs/coverage/mss-gaps.json。"
     },
     {
       "id": "s07-clusters-persistent-grid",
@@ -172,7 +179,7 @@
         "riseOfTheWolf100k",
         "riseOfTheWolfPromo"
       ],
-      "notes": "flood-fill、先付款后升格、FG网格与scatter进阶已有；缺Column Surge按列充能的具体规则。"
+      "notes": "未专门讲到：可复用机制 7 条、单一游戏机制 1 条，例如：逐列加权抽 symbol，再加权抽 stack 长度并截断到剩余格数…；普通符号盘填完后按列独立检验 scatter，再在该列均匀选一格覆盖…。逐条见 docs/coverage/mss-gaps.json。"
     },
     {
       "id": "s08-clusters-bomb-detonation",
@@ -192,7 +199,7 @@
         "metaStrike100k",
         "metaStrike100kPromo"
       ],
-      "notes": "cluster、cascade、买入与floor已有；缺bomb/square触发、blast分带及dead-spin/model协调。"
+      "notes": "未专门讲到：可复用机制 7 条、单一游戏机制 0 条，例如：初始盘和补格按加权符号、加权堆叠长度逐段生成；相邻堆叠禁止同符号，补…；Scatter 按列概率覆盖：初始盘每列最多一个；cascade 只…。逐条见 docs/coverage/mss-gaps.json。"
     },
     {
       "id": "s09-retained-respin-board",
@@ -207,12 +214,12 @@
         "coins",
         "coinUp"
       ],
-      "notes": "CoinUp顺序、carry、Grand及cell留存已教；缺coins多收集器逐轮累计付款的专门规则。"
+      "notes": "未专门讲到：可复用机制 6 条、单一游戏机制 7 条，例如：coins 按每列均匀 stop 抽取环绕连续三格，落到普通币或特殊…；coins 只有总 Coin 数达到触发门槛且至少含一个特殊收集币才…。逐条见 docs/coverage/mss-gaps.json。"
     },
     {
       "id": "m01-discrete-single-shot",
       "name": "discrete one-shot",
-      "coverage": "full",
+      "coverage": "partial",
       "skills": [
         "math-table-game-edge",
         "math-plinko-lottery",
@@ -227,7 +234,7 @@
         "ringOfFortune",
         "popParade"
       ],
-      "notes": "离散EV、颜色/target赔率、stake份额归一化、单步付款及完整draw回放已教；未见该行机制缺口。"
+      "notes": "未专门讲到：可复用机制 4 条、单一游戏机制 1 条，例如：Bars 每格 multiplier/count 先量化，所选倍率合…；Hotdeck normal 抽一个均匀 strip stop，hi…。逐条见 docs/coverage/mss-gaps.json。"
     },
     {
       "id": "m02-independent-compound-draws",
@@ -243,7 +250,7 @@
         "tarot",
         "regattaRivals"
       ],
-      "notes": "独立三卡乘积和全draw回放已教；Regatta胜者/阵风联合模型及航道stake向量付款仍仅通用教学。"
+      "notes": "未专门讲到：可复用机制 1 条、单一游戏机制 0 条，例如：Tarot 先对 gold×silver1×silver2 的倍率乘…。逐条见 docs/coverage/mss-gaps.json。"
     },
     {
       "id": "m03-correlated-wire-payout",
@@ -259,12 +266,12 @@
       "games": [
         "circuitSnap"
       ],
-      "notes": "生存乘积、相关EV相加及单步回放已有；缺bulb前缀RTP分摊、整数余项定价和wire合法路径模型。"
+      "notes": "未专门讲到：可复用机制 0 条、单一游戏机制 1 条，例如：CircuitSnap 必须从 power 相邻格起步，路径在 gr…。逐条见 docs/coverage/mss-gaps.json。"
     },
     {
       "id": "m04-cosmetic-flight-impacts",
       "name": "cosmetic flight/impact one-shot",
-      "coverage": "partial",
+      "coverage": "full",
       "skills": [
         "math-plinko-lottery",
         "build-minigame-from-scratch",
@@ -276,12 +283,12 @@
         "flockShot",
         "captainCannonCashFlight"
       ],
-      "notes": "加权单步与装饰飞行边界已有；缺盲选多击归一化、落点条件金币和rung条件feature的具体模型。"
+      "notes": "按书面定义完整：每个游戏用到的机制都有技能专门讲到（2026-10-12 独立盲判）。"
     },
     {
       "id": "m05-replacement-draw-occupancy",
       "name": "replacement draw/occupancy",
-      "coverage": "full",
+      "coverage": "partial",
       "skills": [
         "math-plinko-lottery",
         "build-instant-crash-games",
@@ -291,7 +298,7 @@
         "blitz",
         "deck52"
       ],
-      "notes": "无重复胜率、replacement占格、重叠行列付款、caps及完整draw回放已教；未见该行机制缺口。"
+      "notes": "未专门讲到：可复用机制 1 条、单一游戏机制 0 条，例如：Deck52行列同时完成时按completedRows×rowPay…。逐条见 docs/coverage/mss-gaps.json。"
     },
     {
       "id": "m06-cases-packs-loot",
@@ -308,12 +315,12 @@
         "packs",
         "hitDraw"
       ],
-      "notes": "现金case/pack与外部幂等已有；缺实物分配、责任量纲、结果schema回放及签名award证据合同。"
+      "notes": "未专门讲到：可复用机制 1 条、单一游戏机制 1 条，例如：HIT Draw cash在抽样前检查每一个潜在结果：下注必须使倍率…；实物奖数量采用两阶段不同舍入：先referenceMicroUsd=…。逐条见 docs/coverage/mss-gaps.json。"
     },
     {
       "id": "m07-plinko-bucket-multipliers",
       "name": "Plinko",
-      "coverage": "full",
+      "coverage": "partial",
       "skills": [
         "math-plinko-lottery",
         "build-minigame-from-scratch",
@@ -324,7 +331,7 @@
         "plinko100k",
         "plinko100kWorldCup"
       ],
-      "notes": "binomial bucket、独立ball乘数、cap、headline最大倍率、单步付款及proof/cosmetic边界已教；无命名缺口。"
+      "notes": "未专门讲到：可复用机制 1 条、单一游戏机制 0 条，例如：Plinko只有risk=insane才启用随机ball multi…。逐条见 docs/coverage/mss-gaps.json。"
     },
     {
       "id": "m08-target-crash-distribution",
@@ -340,12 +347,12 @@
         "drill",
         "crash"
       ],
-      "notes": "crash分布、floor/cap及Chase共用tiers已教；缺Drill多结果流及legacy crash悬置续步的具体合同。"
+      "notes": "未专门讲到：可复用机制 0 条、单一游戏机制 1 条，例如：legacy crash autobet返回首项wins[0]作为绝…。逐条见 docs/coverage/mss-gaps.json。"
     },
     {
       "id": "m09-survival-cashout-ladders",
       "name": "survival/cash-out ladders",
-      "coverage": "full",
+      "coverage": "partial",
       "skills": [
         "math-ladder-and-progression",
         "build-instant-crash-games",
@@ -365,12 +372,12 @@
         "polarMines",
         "scoville"
       ],
-      "notes": "条件生存、RPS tie/终局、row mines、一次stake续步和autobet/action-proof差异已教；无命名缺口。"
+      "notes": "未专门讲到：可复用机制 5 条、单一游戏机制 9 条，例如：Moles每轮重新均匀抽k个不同目标洞，选择洞在molePositi…；Snakes每轮两颗独立公平六面骰，以和数索引该difficulty…。逐条见 docs/coverage/mss-gaps.json。"
     },
     {
       "id": "m10-conditional-higher-lower",
       "name": "conditional higher/lower",
-      "coverage": "full",
+      "coverage": "partial",
       "skills": [
         "math-conditional-value-games",
         "build-wallet-and-money",
@@ -381,7 +388,7 @@
       "games": [
         "highLowHit"
       ],
-      "notes": "排除同rank、首风险edge、保证步、随机舍入、强制bank及免费续步/回放已教；未见该行机制缺口。"
+      "notes": "未专门讲到：可复用机制 1 条、单一游戏机制 1 条，例如：liability cap 取 stake 相对上限、绝对金额上限与…；分别计数风险选择和全部牌 draw：保证移动仅增加 totalDra…。逐条见 docs/coverage/mss-gaps.json。"
     },
     {
       "id": "m11-fair-gamble-stopping",
@@ -398,7 +405,7 @@
         "sniperRange",
         "twist"
       ],
-      "notes": "条件EV、可选停止与免费续步已有；缺Kiln开局/伸展、Sniper随机步乘和Twist状态递推的具体模型。"
+      "notes": "未专门讲到：可复用机制 6 条、单一游戏机制 4 条，例如：Kiln 成功 stretch 对 multiplier produ…；Kiln 达最大 stretch 数或 tMax<tMin 后只允许…。逐条见 docs/coverage/mss-gaps.json。"
     },
     {
       "id": "m12-conditional-value-dig",
@@ -416,7 +423,7 @@
         "cheeseHeist",
         "thinIce"
       ],
-      "notes": "条件生存价、列状态、共享engine及续步回放已教；缺因子表具体求值与开局权重求解的教学。"
+      "notes": "未专门讲到：可复用机制 8 条、单一游戏机制 0 条，例如：开局每一列各 row 从该 row 允许 block kinds 独…；preDugRows 直接把初始 frontier 下移到预挖行之后…。逐条见 docs/coverage/mss-gaps.json。"
     },
     {
       "id": "m13-wheel-bonus-doubleup",
@@ -433,12 +440,12 @@
       "games": [
         "fruitMachine"
       ],
-      "notes": "weighted wheel、fair double、bank及eager recursive proof已有；缺逐symbol公平权重及有界递归bonus EV推导。"
+      "notes": "未专门讲到：可复用机制 2 条、单一游戏机制 0 条，例如：只有普通 non-bonus direct win>0 才进入 ga…；正确 gamble 在未达到 maxGambleRounds 时只更…。逐条见 docs/coverage/mss-gaps.json。"
     },
     {
       "id": "m14-deal-reveal-offers",
       "name": "Deal/No-Deal reveal/offer",
-      "coverage": "full",
+      "coverage": "partial",
       "skills": [
         "math-conditional-value-games",
         "fair-outcome-mappers",
@@ -448,7 +455,7 @@
       "games": [
         "mealOrNoMeal"
       ],
-      "notes": "covered含kept的offer/ceiling、Fisher-Yates、hidden/config snapshot及一次付款/abandonment已教；无命名缺口。"
+      "notes": "未专门讲到：可复用机制 4 条、单一游戏机制 0 条，例如：banker factor 按 round/offerRounds …；kept plate 永不允许 openCase，已揭 plate …。逐条见 docs/coverage/mss-gaps.json。"
     },
     {
       "id": "m15-interactive-multihand-blackjack",
@@ -463,7 +470,7 @@
       "games": [
         "blackjack-multi-hands"
       ],
-      "notes": "策略RTP、额外扣款、终局credit及shoe框架已有；缺座位/子手轮转、Surrender和双扣款编码的专门合同。"
+      "notes": "未专门讲到：可复用机制 10 条、单一游戏机制 4 条，例如：main 的 handBets 必须与座位数一致、逐手位于钱包网格、…；开局按逐手自然牌最大 gross return 之和检查 expos…。逐条见 docs/coverage/mss-gaps.json。"
     },
     {
       "id": "m16-automated-bankroll-tables",
@@ -479,12 +486,12 @@
         "blackjack-1000",
         "roulette-1000"
       ],
-      "notes": "一次买入、分块账本、免费STOP、迁移和两种return分母已有；缺四词展开/warmup及run级proof的具体配方。"
+      "notes": "未专门讲到：可复用机制 22 条、单一游戏机制 3 条，例如：Blackjack run 的 takeProfit/stopLos…；Baccarat 每手前依据 strategy 算下一 stake；…。逐条见 docs/coverage/mss-gaps.json。"
     },
     {
       "id": "r01-shared-housebanked-sicbo",
       "name": "shared house-banked Sic Bo",
-      "coverage": "full",
+      "coverage": "partial",
       "skills": [
         "math-table-game-edge",
         "build-live-table-games",
@@ -495,7 +502,7 @@
       "games": [
         "sicbo"
       ],
-      "notes": "共享骰的逐bet gross EV、profit转return、timed house phases、退款与三骰draw回放框架已教；无命名缺口。"
+      "notes": "未专门讲到：可复用机制 6 条、单一游戏机制 0 条，例如：small/big 按总和区间判赢；odd/even 按总和奇偶判赢…；anyTriple 要求三个骰子相同；specificTriple …。逐条见 docs/coverage/mss-gaps.json。"
     },
     {
       "id": "r02-live-housebanked-tables",
@@ -512,7 +519,7 @@
         "blackjack-table-live",
         "roulette-live"
       ],
-      "notes": "paid actions、private projection、退款及shoe ledger已有；缺并发/单活动玩家调度差异和轮盘封盘抽样时点。"
+      "notes": "未专门讲到：可复用机制 28 条、单一游戏机制 2 条，例如：新鞋先翻一张并额外烧掉按其牌值决定的张数；baccarat A=1、…；blackjack-live 新鞋洗牌后只烧一张；途中 cut ca…。逐条见 docs/coverage/mss-gaps.json。"
     },
     {
       "id": "r03-pooled-parimutuel-markets",
@@ -529,7 +536,7 @@
         "snakes-pro",
         "hit"
       ],
-      "notes": "份额交易、池分配、费用和恢复已有；旧hit的价格oracle/PF不一致及replay缺失未专门教学。"
+      "notes": "未专门讲到：可复用机制 13 条、单一游戏机制 12 条，例如：Sell 必须指定自有 source roundId；可挂份额扣掉该…；Sell 默认 ask 按当前报价加价并封顶；horse/footb…。逐条见 docs/coverage/mss-gaps.json。"
     },
     {
       "id": "r04-quoted-fixed-odds-markets",
@@ -546,7 +553,7 @@
         "snakes-hit",
         "hit-ai-wars"
       ],
-      "notes": "事件定价、overround区分、锁价、legacy pool及舍入已有；缺cashout价比乘费用的具体估值公式。"
+      "notes": "未专门讲到：可复用机制 28 条、单一游戏机制 35 条，例如：Wars priceE4 对 targetRtp/p 向上取整到 E…；Wars 每 context 的房间净负债按 selection 剩…。逐条见 docs/coverage/mss-gaps.json。"
     },
     {
       "id": "r05-shared-clock-crash",
@@ -564,7 +571,7 @@
         "skyfall",
         "hitCrashers"
       ],
-      "notes": "分布、生存定价、offset回放与tick已有；缺每玩家fade/全桌crash区分、末存活池及catch时间优先级。"
+      "notes": "未专门讲到：可复用机制 13 条、单一游戏机制 11 条，例如：skyfall 的 auto threshold 为非正值或无效输入…；两个游戏以持久化 phase 接纳排队下注，而非独立兑现已排定 cu…。逐条见 docs/coverage/mss-gaps.json。"
     },
     {
       "id": "r06-weighted-geography-parlay",
@@ -581,7 +588,7 @@
       "games": [
         "world-spin"
       ],
-      "notes": "weighted draw、关联Parlay、有理报价及wallet floor已有；缺双承诺绑定与抽样前后void揭示的专门合同。"
+      "notes": "未专门讲到：可复用机制 1 条、单一游戏机制 5 条，例如：在 OPEN 且 tick deadline 前，free undo…；每位玩家 SINGLE 与 PARLAY 使用互不共享的 round…。逐条见 docs/coverage/mss-gaps.json。"
     },
     {
       "id": "r07-realtime-target-shots",
@@ -594,7 +601,7 @@
       "games": [
         "giftBox"
       ],
-      "notes": "server几何/clock、hybrid RNG与shot资金守恒已有；缺Piercing分腿成本及Ricochet并行terminalAt排序合同。"
+      "notes": "未专门讲到：可复用机制 5 条、单一游戏机制 4 条，例如：概率 gate 先把 targetRTP/multiplier 乘 …；v3 在 authoritative shotTime 冻结所有 O…。逐条见 docs/coverage/mss-gaps.json。"
     },
     {
       "id": "r08-skill-life-authority",
@@ -608,7 +615,7 @@
       "games": [
         "hitShooter"
       ],
-      "notes": "现行tick权威模拟、life资金守恒和零money-RNG已有；旧HMAC报告链、epoch/tick去重证明仍未专门教学。"
+      "notes": "未专门讲到：可复用机制 14 条、单一游戏机制 7 条，例如：同一 money room 所有 life 必须等于 tier 固定…；lowest-free seat 分配与 FIFO holding …。逐条见 docs/coverage/mss-gaps.json。"
     },
     {
       "id": "r09-signed-realtime-settlement",
@@ -623,7 +630,7 @@
         "hitShooterLife",
         "hitSpaceshipLife"
       ],
-      "notes": "签名规范、key/round绑定、免费settle与失败留OPEN已有；缺死亡/退款/撤离逐杀fee和杀奖cap的具体付款式。"
+      "notes": "未专门讲到：可复用机制 2 条、单一游戏机制 0 条，例如：Outcome/cause 合法矩阵：killed 只允许 kill…；Kill-credit legality：kill/mutual 的…。逐条见 docs/coverage/mss-gaps.json。"
     }
   ]
 }

@@ -43,6 +43,15 @@ export function validateCoverage(value, skillNames) {
   for (const key of ['repo', 'commit']) string(value.source[key], `${COVERAGE}.source.${key}`)
   date(value.source.date, `${COVERAGE}.source.date`)
   array(value.families, `${COVERAGE}.families`)
+  // Optional record of the check behind the verdicts: who judged, when, how many families came out full.
+  if (value.check !== undefined) {
+    const label = `${COVERAGE}.check`
+    object(value.check, label)
+    date(value.check.date, `${label}.date`)
+    for (const key of ['method', 'details']) requireValue(typeof value.check[key] === 'string' && value.check[key].trim() !== '', `${label}.${key} must be a non-empty string`)
+    requireValue(value.check.families === value.families.length, `${label}.families must equal the number of families`)
+    requireValue(Number.isSafeInteger(value.check.full) && value.check.full >= 0 && value.check.full <= value.check.families, `${label}.full must be a count of families`)
+  }
   const seen = new Set()
   value.families.forEach((family, index) => {
     const label = `${COVERAGE}.families[${index}]`
@@ -211,8 +220,9 @@ function constraintsSection(constraints, skills) {
 function coverageSection(coverage) {
   const { source, families } = coverage
   const rows = sorted(families, 'id').map((family) => `<tr><th scope="row"><span lang="en">${escape(family.name)}</span><small>${escape(family.id)}</small></th><td>${badge(family.coverage)}</td><td>${skillLinks(family.skills)}</td><td><details><summary>${family.games.length} 款游戏</summary>${list([...family.games].sort())}</details></td><td>${escape(family.notes)}</td></tr>`).join('\n')
-  const legend = '<p class="meta">完整：该家族列出的每个机制都有技能专门讲到。部分：核心机制已覆盖，个别游戏的特定玩法尚未专门讲。未覆盖：没有技能讲它的核心模型。</p>'
-  return `<section id="coverage"><h2>MSS 游戏覆盖</h2><p class="meta">来源：${escape(source.repo)} · 提交 <code>${escape(source.commit)}</code> · ${escape(source.date)}</p>${legend}${table('游戏家族', ['家族', '覆盖', '技能', '游戏', '说明'], rows)}</section>`
+  const legend = '<p class="meta">完整：按书面定义（docs/plans/2026-10-12-v0.3.1-backlog.md），家族里每个游戏用到的每个机制（改变钱、RTP、结果分布、状态或结算的规则；配置数值和表现不算）都有技能专门讲到。部分：还有机制没讲到。未覆盖：没有技能讲它的核心模型。</p>'
+  const check = coverage.check ? `<p class="meta">判定：${escape(coverage.check.method)} · ${escape(coverage.check.date)} · 完整 ${coverage.check.full}/${coverage.check.families} · 逐条缺口 <code>${escape(coverage.check.details)}</code></p>` : ''
+  return `<section id="coverage"><h2>MSS 游戏覆盖</h2><p class="meta">来源：${escape(source.repo)} · 提交 <code>${escape(source.commit)}</code> · ${escape(source.date)}</p>${check}${legend}${table('游戏家族', ['家族', '覆盖', '技能', '游戏', '说明'], rows)}</section>`
 }
 
 function runEvals(agent, value) {

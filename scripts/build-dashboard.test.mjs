@@ -162,7 +162,17 @@ scenario('coverage matrix includes provenance, notes, badges, links and sorted g
   assert.match(html, /<details><summary>2 款游戏<\/summary>[\s\S]*?Crash[\s\S]*?Dice/)
   matches(html, [/class="badge full">完整</, /class="badge partial">部分</, /class="badge none">未覆盖</])
   matches(html, [/Some gaps/, /href="#skill-math-demo"/])
-  matches(html, [/完整：该家族列出的每个机制都有技能专门讲到/, /部分：核心机制已覆盖/, /未覆盖：没有技能讲它的核心模型/])
+  matches(html, [/完整：按书面定义/, /部分：还有机制没讲到/, /未覆盖：没有技能讲它的核心模型/])
+  assert.doesNotMatch(html, /判定：/)
+})
+scenario('a recorded coverage check is shown with its method, result and details file', (root) => {
+  const check = { date: '2026-10-12', method: 'independent blind check', full: 1, families: 3, details: 'docs/coverage/mss-gaps.json' }
+  json(root, coveragePath, { ...coverage(), check })
+  matches(buildDashboard(root), [/判定：independent blind check · 2026-10-12 · 完整 1\/3/, /docs\/coverage\/mss-gaps\.json/])
+  for (const bad of [{ ...check, full: 4 }, { ...check, families: 2 }, { ...check, date: 'yesterday' }, { ...check, method: '' }, 'check']) {
+    json(root, coveragePath, { ...coverage(), check: bad })
+    assert.throws(() => buildDashboard(root), /mss-games\.json\.check/)
+  }
 })
 scenario('all file-derived text is escaped in both text and attribute contexts', (root) => {
   json(root, '.claude-plugin/plugin.json', { name: payload, version: payload, description: payload })

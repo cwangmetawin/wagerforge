@@ -1,5 +1,49 @@
 # Changelog
 
+## 0.3.1 — unreleased
+
+### Changed (reference scripts)
+- **Exact RTP statistics.** `scripts/dyadic.mjs` does exact arithmetic on finite doubles.
+  `rtpFromOutcomes` computes RTP, house edge, hit frequency, variance and SD exactly and rounds each
+  once to the nearest double, so row order cannot change a digit. The probability tolerance is
+  checked exactly. `requiredN` returns at least 1.
+- **Exact cascade money.** `cascadeTotalAtoms` / `cascadeTotalAbsoluteAtoms` take BigInt atom wins
+  and decimal multipliers, round `floor`, `half-up` (default) or `half-even` per wave (default) or
+  on the total, and refuse unknown options.
+- **Epoch verification** (`verifyEpoch`). Every check runs once its own evidence is there: order,
+  count, nonce and client-seed checks; outcomes once the server seed is revealed; before that,
+  history against receipts and payouts against the recorded outcome. A voided receipt with a payout
+  must refund exactly its stake. A payout must use the stake's amount type. A given stake must be a
+  valid amount. `copyOutcome` copies a shared sub-array once and `sameOutcome` compares each pair of
+  sub-arrays once, so shared structure cannot make them exponential.
+- The validator requires each constraint's key spec phrases (C5 "624", C10 "unified memory",
+  C12 "800-90").
+
+### Changed (skills)
+- `math-cascade-tumble` C6: the simple retrigger shortcut's variance also needs finite offspring and
+  reward second moments, and `p·R<1` alone does not make multiplier-weighted reward moments finite.
+  An exact recursion needs sufficient Markov state, exact joint transitions and rewards, and
+  justified termination and moments; its second moment keeps the cross term. The depth-bounded
+  recursion holds only under one state-independent law below the depth limit.
+- `math-lines-ways-cluster`: a cluster pays from pre-upgrade values with server rounding. Sweety and
+  Wolf start a fresh grid per base spin and per feature (superbonus at x2), and a feature never
+  inherits the base grid. The column surge belongs to the Rise of the Wolf games, only when enabled.
+
+### Added
+- `math-moving-wild-collection` and `math-cascade-modifiers` (67 skills). MSS family mechanisms
+  researched against MSS main were added to 27 existing skills.
+- Two eval cases for the new skills (27 cases). The Codex runner records which skills each arm
+  read: only a command that ran to completion and names the SKILL.md counts. `evals/summarize.mjs`
+  aggregates several runs per agent, and the dashboard shows passes out of N.
+- `docs/coverage/mss-gaps.json`: the untaught mechanisms per MSS family from an independent blind
+  check, with MSS `file:line` evidence.
+- The dashboard is served at https://wagerforge.gladiatorstudios.co.uk.
+
+### Not met
+- Coverage: under the written definition of a full family, an independent blind check finds
+  1 of 34 families full. The owner chose to close this criterion as not met. The proposal for the
+  next phase is `docs/plans/2026-10-12-v0.3.2-coverage-proposal.md`.
+
 ## 0.3.0 — unreleased
 
 ### Removed (breaking)

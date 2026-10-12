@@ -1,33 +1,29 @@
 ---
 name: comp-geo-edge-security
-description: Use when implementing geo-blocking and edge security - route allowlist, geo-block, and rate-limiting that exempts wallet/rgs/graphql/feed paths. Keywords geo-block, route allowlist, rate limit, edge security, Cloud Armor, OWASP.
+description: Use when reviewing geo enforcement, route allowlists, WAF ordering or path-specific throttling around wagering and settlement APIs.
 ---
 
 # comp-geo-edge-security
-
-> **Core insight:** Exempt money paths by negating their regex *inside* the throttle rule's own match — not via a separate allow rule, which would also skip OWASP inspection. Geo-block only the edge's server-computed region, never a client header.
+> **Core insight:** Keep any throttle exemption inside that throttle's own predicate so other protections still run; geo decisions require trusted ingress evidence rather than client-supplied location.
 
 ## When to use / When NOT
-- Use when: configuring the CDN/load-balancer edge — route allowlist, OWASP/Cloud-Armor rules, country/state geo-block, IP rate-limit.
-- NOT for: in-app authz/session limits (→ `comp-responsible-gaming`); provable fairness (→ `fair-verify`).
 
-## Default stack (+ escape hatch)
-Default: Terraform + a managed L7 WAF (Cloud Armor preconfigured rules) in front of the API. Other stacks: same four layers map to AWS WAF + ALB rules, Cloudflare Rulesets, or an nginx/Envoy edge — order and exemptions are identical.
+- Use for ingress policy, route exposure, geo enforcement and throttling.
+- Application limits: `comp-responsible-gaming`; payment recovery: `qa-settlement-integrity`; player proof: `fair-verify`.
 
 ## Process
-1. **Route allowlist (default-deny).** Match only the known path prefixes; any unknown path returns 404 (not 403 — do not advertise that a route exists). New endpoints must be added explicitly.
-2. **OWASP/managed rules.** Enable preconfigured rule sets (SQLi, XSS, LFI/RFI, scanner-detection). Start in preview/log-only, tune false positives against real traffic, then enforce.
-3. **Geo-block by the edge's trusted geo attribute.** Block on the WAF's own server-computed region (e.g. Cloud Armor `origin.region_code`), NEVER a client-supplied header — the trusted attribute is non-spoofable, so there is nothing to "strip". The edge does country-level only and injects a trusted `ip-blocked-country` marker header for downstream; finer state/region geo-blocking is enforced in the application/adapter layer, not the edge.
-4. **IP rate-limit with money-path exemptions.** Throttle by client IP on general/public paths, but EXEMPT money and critical paths — `graphql`, `feed`, `wallet`, `rgs` — so legitimate play and settlement are never throttled mid-session. The exemption is a negated path regex INSIDE the throttle rule's own match (`!request.path.matches('/graphql|/feed|/wallet|/rgs')`), not a separate higher-priority allow rule.
+
+1. Inventory actual ingress routes, methods, identities and upstream reachability. Use an explicit route allowlist and deny unknown traffic; add endpoints deliberately. Choose and test the unknown-route response contract. Universal 404 behavior and its security benefit are (unverified).
+2. Separate route authorization, attack inspection, geo policy and throttling. Preview proposed inspection rules against representative traffic, review false positives, then enforce. Terraform/Cloud Armor, AWS WAF, Cloudflare or nginx/Envoy examples and their exact ordering are (unverified); obtain deployed policy and provider documentation before writing syntax.
+3. Derive location from trusted ingress/provider data with a documented accuracy and proxy/VPN policy. Reject client-header overrides; sanitize externally supplied markers before trusted ingress sets them. Define country/state coverage and fail-closed handling for missing or uncertain geo evidence. Cloud Armor `origin.region_code`, country-only coverage and an injected `ip-blocked-country` header are (unverified); trusted provenance does not establish geographic accuracy.
+4. Exempt only explicitly approved routes from the selected public-traffic throttle. Express that exclusion within its match predicate; do not install a broad allow that bypasses independent inspection or authorization. Wallet/wagering/settlement APIs still need authenticated quotas, concurrency limits and retry/reconciliation contracts. Automatic exemptions for `/graphql`, `/feed`, `/wallet` and `/rgs`, and vendor regex semantics, are (unverified).
+5. Keep exclusions precise across normalized paths, methods and hostnames. Test prefix collisions, encoded separators, case/trailing-slash handling and alternate ingress. Rate-limit failure cannot determine a bet's monetary fate; reconcile authoritative state before retrying an ambiguous request.
+6. State the evidence boundary. MetaWin's production server (MSS) `docs/GDK_CONTRACT.md` “Server runtime” documents game API routes; it does not prove deployed WAF rules, downstream geo enforcement or throttle exceptions. Cross-layer claims need actual edge/platform artifacts.
 
 ## Pitfalls / red flags
-- Rate-limiting wallet/rgs/graphql/feed — a burst of legit bets or a payout retry gets a 429 and money state desyncs.
-- Trusting a client-supplied region/geo header instead of the edge's trusted geo attribute (spoofable).
-- Unknown route returning 403/500 instead of 404 (route enumeration).
-- Shipping managed WAF rules straight to enforce without a log-only tuning pass (blocks real players).
-- Allowlist as default-allow with a denylist — new/forgotten paths leak through.
+
+Separate blanket allow rules; client region overrides; geo markers accepted directly from the internet; generic money-path exemptions copied without route review; claiming a provider's trusted field is non-spoofable geographic truth; inferring deployed protections from server source.
 
 ## Verification
-- Curl an unlisted path → 404; a request from a blocked country → carries the injected block marker / is denied.
-- Hammer a public path → 429; hammer `wallet`/`rgs`/`graphql`/`feed` at the same rate → never 429.
-- WAF logs show OWASP rules matching attack payloads; geo decision uses the edge's trusted region attribute, not a client-sent header.
+
+Retain policy version and request/log traces proving allowed/denied routes, trusted geo provenance and uncertain-location handling. Show excluded traffic still receives inspection and authorization; test approved throttle behavior and recovery for money requests. Repeat through every reachable ingress and path-normalization case. Missing provider/deployment evidence stays (unverified), never a passed edge-security gate.

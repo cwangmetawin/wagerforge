@@ -1,31 +1,32 @@
 ---
 name: comp-responsible-gaming
-description: Use when implementing responsible-gaming controls — deposit, loss, and session limits, reality checks, and self-exclusion — that must be enforced server-side. Keywords responsible gaming, deposit limit, loss limit, session limit, reality check, self-exclusion.
-constraints: C13
+description: Use when implementing server-side responsible-gaming deposit, loss or session limits, reality checks, cooling periods, or protection gates. Keywords responsible gaming, deposit limit, loss limit, session limit, monotonic clock, exact atoms.
+metadata:
+  constraints: C13
 ---
 
 # comp-responsible-gaming
 
-> **Core insight:** Server-authority is necessary but not sufficient: elapsed-time limits need a *monotonic* clock (wall-clock NTP jumps corrupt session timers); only absolute cut-offs care about wall-clock precision.
+> **Core insight:** A protection predicate becomes a money control only when validated server inputs, exact currency atoms and the limit update share the acceptance transaction.
 
 ## When to use / When NOT
-- Use when: enforcing player protection limits.
-- NOT for: jurisdiction certification paperwork (→ `comp-rtp-certification`, out of MVP scope).
-
-## Default stack (+ escape hatch)
-`scripts/responsible-gaming.mjs` + a server clock. Other stacks: enforce at the transaction/DB layer.
+- Use for: deposit/loss/session controls and their acceptance boundaries.
+- NOT for: register integration (`comp-self-exclusion`), vulnerability assessment (`comp-affordability`) or certification (`comp-rtp-certification`).
 
 ## Process
-1. Enforce ALL limits server-side, at the transaction layer, before accepting the bet/deposit.
-2. Time-based limits use an authoritative, monotonic server clock — never device time.
-3. Reality checks and break intervals are configurable; limit increases require a cool-off.
-4. Surface a breach as a named server error at the bet/launch boundary (e.g. `PlayLimitExceededError` / `UserNotPermitted`); the client only renders a neutral restriction overlay with the server's message — it never computes or re-derives the limit (C13).
+1. **Define policy inputs.** Keep gross deposits, settled gaming losses and reserved stakes separate. Specify currency, rolling windows, limit-change cooling rules, reality checks and breaks from versioned requirements. Regulatory intervals are (unverified) here.
+2. **Validate before comparison.** Reject missing/non-finite/off-grid money inputs, negative stakes/limits and invalid timestamps. Parse amounts individually into exact currency atoms before adding. MetaWin's production server (MSS) `common/settlementModule/money.ts` `majorToAtoms` rejects invalid/off-grid input. WF `scripts/money.mjs` `toAtoms` returns BigInt or throws; it never rounds.
+3. **Use appropriate clocks.** Sessions use monotonic elapsed time; absolute deadlines/calendar windows use synchronized authoritative server time. Preserve session accounting across reconnect/restart; never compare timestamps from different monotonic origins. Device values cannot authorize acceptance. Missing or invalid session state refuses the bet (fail closed).
+4. **Know the reference scope.** `scripts/responsible-gaming.mjs` exports `sessionExceeded` (safe-integer monotonic milliseconds, blocks at `>=`), `lossLimitBlocks` and `depositLimitBlocks` (non-negative BigInt atoms, block only at `>`). Invalid input throws. These predicates perform no DB writes, rolling aggregation or exposure reservation. Define how signed gaming net loss maps to the non-negative `lossSoFar` input.
+5. **Enforce atomically.** Check the authoritative limit/account state and reserve/update usage with acceptance and ledger writes in one transaction. Concurrent requests must not each spend the same remaining allowance. Exceptions, UNKNOWN exclusion results and invalid records block acceptance; use `comp-self-exclusion` for register policy.
+6. **Report the decision.** Return a named server refusal and neutral client message. Apply configured cooling/review rules before activating limit increases; preserve evidence of policy/version and effective time.
 
 ## Correctness constraints
-- **C13:** Enforce limits server-side against an authoritative, time-synced server clock; hard-block at the transaction/DB layer; never trust device time. The single root cause of clock-manipulation / losing-bet-edit / interception bypasses is trusting client values — server authority neutralizes it. For elapsed-time limits use a monotonic server clock (NTP precision matters only for absolute cut-offs).
+- **C13:** Hard-block at the server transaction/DB boundary using authoritative inputs. Use monotonic server time for elapsed limits and synchronized server time for absolute cut-offs; never trust client timestamps or client-calculated usage.
 
 ## Pitfalls / red flags
-Client-side limit enforcement (C13); trusting client timestamps; allowing limit increases without cool-off/reauth; limits less prominent than promotions.
+Check-then-write races; catching validation errors as permission; float cap comparisons; mixing clock origins; claiming a boolean helper enforces transactions.
 
 ## Verification
-`scripts/econ-comp.test.mjs`: session/loss/deposit boundaries; clock-manipulation (now<start) rejected.
+- `scripts/responsible-gaming.test.mjs` proves predicate validation and boundaries only, including exact-cap atoms and clock rollback.
+- Integration evidence must cover concurrent deposits/bets, window rollover, queued actions, reconnect/restart, limit changes and mid-session exclusion/provider failure. Assert refusals accept no stake and produce no debit; accepted usage and ledger updates remain consistent.

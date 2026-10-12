@@ -1,33 +1,40 @@
 ---
 name: build-game-server-rgs
-description: Use when building the server side of a game (the RGS) — the game contract, the bet to result to settle lifecycle, deferred settlement, and the multi-step round-lock protocol. Keywords RGS, game server, IGame, deferred settlement, round lock, bet lifecycle.
+description: Use when implementing IGame or IMultiplayerGame contracts, continuation state, action validation, exposure metadata, tick commands, or game/platform settlement boundaries.
+metadata:
+  constraints: C11
 ---
 
 # build-game-server-rgs
 
-> **Core insight:** `wins` is a control signal, not just a payout: emit it eagerly and you settle prematurely, push it mid-multiplayer-tick and GDK silently swallows messages — defer it, cap with `>=` never `==`, and accept-or-cancel every command.
+> **Core insight:** Game code computes authoritative responses; the platform owns wager identity and atomic payment. Continuation, payout and recovery rules must match the specific action and game.
 
 ## When to use / When NOT
-- Use when: implementing the authoritative game server / remote game server.
-- NOT for: the wallet/settlement internals (→ `build-wallet-and-money`/`build-durable-settlement`).
 
-## Default stack (+ escape hatch)
-Node game server with an injected RNG. Other stacks: keep the same contract and authority boundary.
+- Use for authoritative game-module contracts.
+- Money primitives/orchestration: `build-wallet-and-money`/`build-durable-settlement`.
+
+## Default stack + escape hatch
+
+TypeScript + PixiJS/Phaser presentation + Node, injected RNG and exact money boundaries. Other stacks map the same request/state/action, tick and transactional platform contracts.
 
 ## Process
-### Single-player (`IGame` — request-driven)
-1. **Game contract:** `{ name, bets, play({bet,action,config,state,params}, random) -> { win, data, state?, next? }, config(variant), stats }`. The RNG is INJECTED (never imported), so runs are reproducible and certifiable.
-2. **Deferred settlement:** settle only when `win > 0` or `state` is empty (`{}`); keep hidden state under an `_underscore` key; whitelist the client's next actions via `next[]`.
-3. **Round-lock multi-step:** bet only on the first action; a roundId locks subsequent calls; cap wins with `>=`, never `==`. RGS reconnection state is exposed via `replay(...)`, NOT a `recover()` method — the RGS has none. The client/host null/204 "no open round" recovery rule lives in `build-instant-crash-games`/`build-game-flow`.
 
-### Multiplayer (`IMultiplayerGame` — time-driven)
-4. **Tick loop:** `{ name, bets, init, join, command, tick({time,config,state,commands}, random) -> {state,wins,cancels,messages,drawFinished,nextTickTime}, replay(state,playerId), config, stats }`. Phases are time-gated (`time >= phaseStartedAt + duration`); each phase limits accepted commands.
-5. **Idempotency:** validate in BOTH `command()` (fast gate) AND `tick()` (authoritative — phase can change between them). Every command path must accept (push to `state.bets`) or cancel (`cancels.push(id)`); silent drops strand money. Dedup on `acceptedCommandIds`.
-6. **Error recovery:** wrap the `tick()` body in try-catch; on fatal error refund ALL bets via `wins`, cancel pending commands, reset state, set `drawFinished:true`, broadcast an error.
-7. **Deferred multiplayer payout:** during gameplay a non-empty `wins` map blocks message delivery (GDK framework bug), so accumulate sell/cash-out income into `state.pendingPayouts` and flush to `wins` only at round end.
+1. Separate request-driven single-player from time-driven multiplayer. MetaWin's production server (MSS) `docs/GDK_CONTRACT.md` `IGame` defines synchronous `play(request, random, betLimits?)` returning `{win,data?,state?,next?}`. RNG is injected; platform owns single-player wager/round IDs. Game code validates state/action legality; it does not mint round IDs or move wallet funds.
+2. Never infer completion from `win>0`: `next` drives GDK continuation. MSS `games/zeus/gamePlay.ts` `playMain` pays base win while returning feature choices; continuation pays only the increment. Deferred minis using the empty-state convention end with `state:{}`, `next:[]`, payout once; MSS `games/partyPong/index.ts` `cashout` instead retains terminal reveal state with `next:[]`. Preserve complete opaque RGS state; hide fields only in the client-visible envelope, with masking verified before launch. `/play` does not enforce `next`; validate actions against state.
+3. Distinguish exposure multipliers, platform currency limits and certified game-level caps. Apply only the cap required by the action, in matching units; detect overshoots with `>=`. MSS `games/fruitMachine/index.ts` `server.bets` declares exposure while `spin` preserves natural wins. MSS `games/deck52/gameLogic.ts` `playDeck52` applies multiplier/currency caps. MSS `games/zeus100k/gamePlay.ts` `playMain` substitutes `Math.max(100000,cap.maxWin*bet)` currency units on qualifying natural max-win events; buys retain their own cap.
+4. Declare each action's debit mode (free continuation, shadow of the opening bet, or new paid stake such as Blackjack Double/Split) and validate it before mutation or RNG; see `build-live-table-games`. Multi-step minis need an opening config snapshot, validated FSM, abandoned-round `action()`, and paying one-round `autobet` unless single-step or explicitly waived in README. Require interactive/autobet draw and payout parity. New-game deliverables: spec, IGame scaffold, README, SIM_RESULTS, FRONTEND and current GAME_RULES; MSS `docs/DEVELOPMENT_WORKFLOW.md` Track A.
+5. Multiplayer `tick` accepts time/config/state/commands/drawId/systemCommands and returns state, wins, cancels, messages, broadcast, drawFinished and nextTickTime. `replay` and `simulator.stats` belong to multiplayer; MSS `games/snakes-pro/index.ts` `server`. Validate both `command()` and `tick()`; every new queued money command must accept or cancel, once. An already-handled command replays its receipt and is never cancelled again, because a second cancel reverses its debit: MSS `games/snakes-hit/index.ts` `handledSettlementCommandId`. Deterministic game output does not replace platform durable drawId deduplication.
+6. Recover by game: house-banked ticks refund unresolved accepted stakes without duplicate cancellations; pools refund remaining liabilities plus earned pending payouts once, never realized gross stakes. Signed failures keep the round open/unpaid. MSS `games/snakes-pro/index.ts` `server.tick` defers earned income in `pendingPayouts`, flushing at draw finish to avoid its documented message-delivery issue; verify delivery on the actual framework.
+
+## Correctness constraints
+
+- **C11:** Use HMAC for keyed derivation, not secret-prefix SHA-256; plain seed hashes are valid commitments. Modulo bias depends on source/range, is negligible with full 32-bit-plus sources for small ranges, and zero for power-of-two ranges; rejection-sample large ranges.
 
 ## Pitfalls / red flags
-Importing the RNG instead of injecting it; client-authored outcomes; equality (not `>=`) win caps; validate-after-RNG instead of before-RNG/before-debit; treating `recover()` as an RGS method (it doesn't exist — use `replay`); silently dropping a multiplayer command instead of accept-or-cancel; emitting `wins` mid-gameplay (defer via `pendingPayouts`).
+
+Stripped continuation state; win-based completion; universal currency clamps; multiplayer methods in IGame; in-memory dedup presented as durable payment protection.
 
 ## Verification
-Single-player outcomes reproduce under an injected seeded RNG; round-lock rejects duplicate bets; max-win cap fires on `>=`. Multiplayer: duplicate commandIds land in `cancels[]`; a thrown error inside `tick()` refunds all stakes and resets; `pendingPayouts` is empty after round end.
+
+Require deterministic full API rounds, incremental slot payments, malformed/out-of-order rejection, cap-unit boundaries, platform replay atomicity and game-specific recovery. Use `qa-settlement-integrity`.

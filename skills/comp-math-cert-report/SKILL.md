@@ -1,45 +1,36 @@
 ---
 name: comp-math-cert-report
-description: Use when generating the lab-ready math certification report - RTP, max win, volatility, and simulation evidence. Keywords math cert report, certification evidence, max win, RTP report.
-constraints: C4
+description: Use when assembling math certification evidence for resolved game SKUs, including RTP equivalence, independent-round statistics, payout reachability and current player rules.
+metadata:
+  constraints: C4
 ---
 
 # comp-math-cert-report
-
-> **Core insight:** Certification proof is a CI-width property, not a spin count: accept only when the closed-form RTP lies *inside* the simulated CI. A miss means model≠implementation — a bug to fix, never an interval to pad with more N.
+> **Core insight:** A certification report binds each claim to the paid behavior, independent sampling unit and reproducible evidence; statistical agreement alone proves neither max-win reachability nor external approval.
 
 ## When to use / When NOT
-- Use when: assembling the artifact a third-party lab (GLI/iTech/BMM/eCOGRA) signs off — theoretical RTP, max win, volatility, hit frequency, plus simulation evidence with CIs.
-- Do NOT use for: deriving RTP (→ `math-rtp-modeling`); running the sim engine (→ `math-montecarlo-simulation`); empirical implementation checks (→ `qa-math-validation`).
 
-## Default stack (+ escape hatch)
-Theoretical figures from `math-rtp-modeling`; sim figures + CIs from `math-montecarlo-simulation`. It only marshals them. Other stacks: same evidence + CI-acceptance rule, container differs.
+- Use for reviewable math evidence and certification handoffs.
+- Model derivation: `math-rtp-modeling`; harness: `qa-monte-carlo-cert`; approval/change scope: `comp-rtp-certification`.
 
 ## Process
-1. **Theoretical block.** State `RTP = Σ p·payout`, `houseEdge = 1 − RTP`, max win (multiplier from the maximal payout path, incl. capped/free-game caps), volatility (SD of per-spin return, ALL outcomes), hit frequency — each closed-form, not a sample.
-2. **Simulation evidence.** Report N, mean RTP, SD, and two-sided CI half-width `1.96*SD_perSpin/sqrt(N)` (95%) / 2.576 (99%) — a convergence proof at the stated confidence, not a raw spin count. A GDK-style runner (`npx slotify-gdk stats … --variant=…`) emits a `CL: ±X%` line: quote it, confirm it tightens with N (±0.31% at 100M → ±0.063% at 2B), not your own.
-3. **Acceptance gate.** Accept only when the declared theoretical RTP lies inside the simulated CI at the required confidence (C4). If outside, model and implementation disagree — fail; don't pad N.
-4. **Max-win + volatility evidence.** Attach per-path max-win reachability (`Maxwin Cap Hit Rate: 1 in N`; `1 in ∞` = unreachable, max win reached only via the hitting path) plus a payout-distribution table — its loss bucket (`[0–0.5]`, ~90%) proves zero-payouts stayed in the SD.
-5. **Cross-game comparison table** — one row per title:
 
-   | Game | RTP % | House edge % | Max multiplier | Bet limits |
-   |------|-------|--------------|----------------|------------|
-   | …    | …     | …            | …×             | min–max    |
-
-6. Run and report **per certified variant** (e.g. `rtp96`/`rtp97`/`rtp98`); config `rtpValues` are documentary/not-enforced, so each figure comes from a fresh sim, not the config string.
-7. Attach the RNG-cert reference and seed/config hash for reproducibility.
+1. Identify registered game/SKU, action, variant, resolved private math, strategy, stake, wallet grid and fallback behavior. Bind evidence to source/config hashes covering imported behavioral modules. State the certified target's provenance and displayed RTP separately. MetaWin's production server (MSS) `games/tothetopPromo/index.ts` `server.config` ignores variant and `server.play` selects private math via `_math`; a public label cannot choose the certification target.
+2. State gross-return units, actual charged cost and incremental payment semantics in exact integer atoms. Include complete API rounds through termination, paid continuations and feature-buy normalization. MSS `games/tartarus/gamePlay.ts` `playMain` separates continuation payment from display totals. Fixed-cost RTP is E[W]/B; variable-cost RTP is ΣW/ΣB with a paired-round ratio CI. Convert only dimensionless ratios to approximate statistics; preserve exact atom totals. Report bankroll return and internal per-stake RTP separately (bankroll-run games: `build-bankroll-run-games`).
+3. Choose closed form, finite enumeration/dynamic programming or validated full-code Monte Carlo. Label exact values versus estimates and state assumptions, strategy dependence, rounding, caps and termination. Include RTP/edge, hit frequency, volatility and max payout in declared units; do not demand exhaustive closed forms for every path-dependent game.
+4. Report independent completed-round count, seed/replay inputs, losses, exact totals, stable moments, sample SD, confidence method, tolerance and planned N. Within-round steps/hands are dependent; use the entire run or an appropriate dependence-aware estimator. Fixed-cost estimated variance divides by n−1; variable-cost ratios require paired cost/payment uncertainty.
+5. Apply C4. A CI excluding the theoretical target is a statistical discrepancy, not proof of an implementation bug; investigate under the predeclared plan and corroborate defects independently. Never repeat until passing.
+6. Separate body, tail and segment evidence. “Never hit” means zero observations; report N and a probability confidence bound. Prove reachability/impossibility separately via path analysis, enumeration or strict replay. MSS `common/stats/index.ts` `myHitFrequency.message` formats zero hits; `myVariance` and `PayoutDistribution` are separate collectors. Reconcile zero counts and first/second moments with the RTP population; a loss bucket proves no variance inclusion.
+7. Attach current player rules checked against active payout code: highest/sum/product, caps/forfeiture, ties, abandonment and strategy-dependent RTP (player-rules contract: `qa-game-rules-contract`). Update rules with each behavior-changing math edit. Gate release on absent live RNG/debug traces or future-outcome leakage; MSS `docs/BEST_PRACTICES.md` “Player-Facing Game Rules Doc” and “Security” ground these obligations.
 
 ## Correctness constraints
-- **C4:** A fixed "1M spins" is NOT sufficient. Sufficiency is a CI-width property: half-width = `1.96*SD_perSpin/sqrt(N)`. High-volatility games need 5M–1e9 spins to tighten the interval. Accept ONLY when the declared RTP lies within the simulated CI at the required confidence — target half-width plus the in-CI check, not hardcoded N.
+
+- **C4:** Fixed-cost acceptance requires |mean−target| + CI half-width ≤ tolerance and n ≥ `requiredN(modelSd, tolerance, z)` from `scripts/rtp.mjs`; use an appropriate ratio/dependence-aware CI for other estimators.
 
 ## Pitfalls / red flags
-- Citing a raw spin count as "proof", not a CI half-width (C4).
-- Dropping zero-payout outcomes from the volatility/SD calc.
-- Reporting mean RTP without N, SD, confidence level.
-- Quoting `rtpValues` from config not a fresh sim; max win ignoring caps or the maximal multi-feature path.
-- Comparison table missing bet limits or house edge — labs reject incomplete rows.
+
+Stale hashes; advertised labels as targets; sampled maxima as proofs; canned runner CLs without population checks.
 
 ## Verification
-- Half-width recomputed from reported N and SD matches the CI.
-- Declared theoretical RTP is inside that CI at the stated confidence.
-- Run reproducible from the seed/config hash; figures match `math-rtp-modeling` closed-form.
+
+Recompute estimators, intervals, counts and payment reconciliation; reproduce boundary paths. Record approval status and unrun gates explicitly; missing evidence blocks certification readiness.

@@ -1,39 +1,31 @@
 ---
 name: math-volatility-tuning
-description: Use when classifying or tuning a game volatility/variance, hit frequency, or payout distribution shape while holding RTP fixed. Keywords volatility, variance, hit frequency, distribution.
-constraints: C4
+description: Use when tuning payout variance, hit frequency, rare-win concentration, or bankroll drain against named game benchmarks while preserving a declared RTP target, including outcome-retry rules.
+metadata:
+  constraints: C4
 ---
 
 # math-volatility-tuning
 
-> **Core insight:** A distribution reshape is EV-neutral and closed-form provable; a server-side regenerate-on-hit win-discard rule is path-dependent, silently DROPS RTP, and is unprovable except by large-N sim — never conflate the two.
+> **Core insight:** Volatility belongs to the complete return distribution; retries change that distribution according to their scope and budget, so neither RTP nor variance has a universal direction.
 
 ## When to use / When NOT
-- Use when: classifying low/medium/high volatility, reshaping the payout distribution, or moving hit frequency at constant RTP.
-- NOT for: deriving/recalibrating RTP/house edge itself (→ `math-rtp-modeling`); empirically validating an implementation (→ `math-montecarlo-simulation` / `qa-math-validation`).
-
-## Default stack (+ escape hatch)
-TS + Node + decimal.js over an outcome list `{p, payout}`. Other stacks: same per-spin variance formula over the full enumerated (or weight-derived) outcome set.
+- Use for distribution shaping, tail concentration and bankroll-drain targets.
+- NOT for deriving the initial RTP model (`math-rtp-modeling`) or accepting an implementation from shape metrics alone (`math-montecarlo-simulation`).
 
 ## Process
-1. Build the COMPLETE outcome set including every zero/loss outcome — losing spins carry the bulk of the probability mass.
-2. `EV = Σ p·payout` (= RTP·bet). `Variance = Σ p·(payout − EV)²`; `SD = √Variance`. Over N spins, variance scales ×N, SD ×√N.
-3. Classify by SD-per-spin (or tail mass / top-prize weight), not RTP — RTP is orthogonal, so two identical-RTP games can sit at opposite volatility extremes.
-4. `hitFrequency = winning ÷ total outcomes` (or Σp over winning outcomes), independent of RTP: raise or lower it without touching RTP.
-5. Tune volatility at fixed RTP: redistribute payout mass between frequent small wins and rare large wins so `Σ p·payout` is unchanged but `Σ p·(payout − EV)²` moves. Re-verify EV equals the original after every reshape.
-6. Production tail-shaping lever (server-side ONLY): a "win discard" / high-win-rejection rule rolls per payout band (e.g. wins ≥1250×: per-band `{min,max,probability}`) and REGENERATES the whole outcome on a hit. It thins the high tail (lowers max-win frequency/variance) but is path-dependent and DROPS RTP — re-tune the model and re-certify by large-N sim. Never reproduce on the client.
+1. Define a complete-round gross return `X=W/B` at fixed charged cost; include zero-payout losses and all payable continuation increments. Keep money in exact integer atoms before statistical normalization. Enumerate the full distribution when feasible: `μ=ΣpX`, `σ²=Σp(X−μ)²`, `HF=Σp·1[X>0]`. Distinguish positive payout from stake-covering return `X>=1`; uniform outcome counts apply only to equiprobable outcomes.
+2. Specify shape relative to named siblings: SD, hit frequency, tail mass, Gini/concentration and bankroll drain. There are no universal low/medium/high SD thresholds. For iid rounds, aggregate variance scales by N; carried state invalidates that shortcut. An EV-neutral reshape preserves `ΣpX`; confirm the complete paid model after caps, rounding and retries.
+3. Model the rejection trigger, regenerated scope, retry limit, replacement law and feature/cap guards exactly. For one independent replacement from the same distribution, `E_q[g]=E_p[g]−Cov_p(d,g)`, where d is discard probability and g is paid reward; the covariance controls direction. MetaWin's production server (MSS) `games/perseus/gamePlay.ts` `playMain` redraws base once; MSS `games/perseus/gameLogic.ts` `loadFreeGames` disables discard on the replacement. Neither is infinite rejection.
+4. Infinite rejection instead gives `q(z)=p(z)(1−d(z))/(1−E[d])` when acceptance has positive probability. Finite-state models may admit `V=r+QV`; retry or path dependence does not automatically forbid analytic treatment. Otherwise estimate the implemented complete-round distribution with `math-montecarlo-simulation`, report CIs, and retune if RTP moves. Outcomes remain server-authoritative.
+5. Record source/config dependencies, action, variant, strategy, stake, actual round count and confidence method. Preserve unbinned moments alongside histogram bins. MSS `common/stats/fingerprint.ts` `Fingerprint` collects both; "exact" means unbinned empirical moments, not exact theoretical RTP. Use fresh FINAL records after each math change: MSS `tools/profile.js` `cmdFinalize` rejects stale local-source hashes. Check external dependencies separately (fingerprint sign-off: `qa-game-fingerprints`).
+6. Compare specified Φ/RoR/Gini/concentration targets, not RTP alone. MSS `tools/profile.js` `cmdDrain` performs seeded histogram-based analysis and flags censored paths; MSS `common/stats/index.ts` `DrainSurvival` measures session bust probability. Document normalization, bankroll, session length, seed, censoring and tail sample support; marginal iid resampling cannot preserve inter-round dependence.
 
 ## Correctness constraints
-- **[C4]** Any tail reshape — distribution redistribution OR a path-dependent server-side win-discard rule — is unproven until re-validated by a convergent large-N Monte-Carlo run; closed-form math cannot capture the regenerate-on-hit path dependence. Win-discard is server-side only; the client renders server-resolved results and never recomputes outcomes/RTP/volatility.
+- **C4:** Simulation sufficiency depends on confidence precision and tail support, never a fixed spin count. RTP acceptance requires CI containment in the declared tolerance band and adequate planned samples.
 
 ## Pitfalls / red flags
-- Computing variance over wins only, or dropping zero-payout losses — badly understates volatility.
-- Treating RTP as a volatility proxy, or assuming equal-RTP games feel the same.
-- Reshaping the distribution but forgetting to re-confirm `Σ p·payout` is still the target RTP (a reshape must be EV-neutral; a win-discard rule is NOT — it lowers RTP, must be compensated, and is server-only, never client-side).
-- Conflating hit frequency with RTP, or with average win size.
-- Reading volatility off too few spins; high-volatility tails need many more samples to converge.
+Wins-only variance; RTP as a volatility proxy; retries assumed EV-neutral or necessarily RTP-reducing; stale fingerprints; unseen rare wins reported impossible; thin-tail drain rankings.
 
 ## Verification
-- All `p` sum to 1, zero/loss outcomes present; `Σ p·payout` matches the fixed RTP before and after tuning.
-- Closed-form `Variance`/`SD` cross-checked against a Monte-Carlo run (`math-montecarlo-simulation`) within tolerance; enumerated hit frequency matches the simulated win rate.
-- Cross-check shape against the RGS stat collectors (Variance/SD, HitFrequency, PayoutDistribution intervals, HighWinRates tiers, WinPercentiles) from the server's Monte-Carlo stats run — source of truth for tail mass and band frequencies.
+Reconcile total probability, losses, first/second moments and hit counts. Verify one-retry versus unlimited-retry fixtures and unchanged EV for intended neutral reshapes. Deliver per-mode/stake RTP CIs plus fresh distribution artifacts and named-benchmark drain comparisons; use `qa-monte-carlo-cert` for sign-off evidence.

@@ -1,38 +1,28 @@
 ---
 name: econ-tournament
-description: Use when designing tournaments, leaderboards, or parimutuel/prediction-market structures - prize-pool distribution, rake, and EV. Keywords tournament, leaderboard, parimutuel, prediction market, prize pool, rake.
+description: Use when pricing tournament or leaderboard prizes, calculating parimutuel/share-market EV, or reviewing rake, cash-out, empty-market prices, and unbacked winners. Keywords tournament, prize pool, rake, shares, parimutuel EV.
 ---
 
 # econ-tournament
-
-> **Core insight:** A parimutuel pool has no fixed odds — you bet against rivals' final composition, so every stake you add moves your own odds; absent `P(win) > outcomePool/totalPool`, mean EV is exactly `−rake × stake`.
+> **Core insight:** Positive EV must clear the fee-adjusted price, and advertised rake predicts total return only if the actual settlement rules distribute every net fund.
 
 ## When to use / When NOT
-- Use when: a leaderboard/tournament or parimutuel/prediction-market pool's split, rake, per-participant EV.
-- NOT for: one game's aggregate RTP/house edge (→ `math-rtp-modeling`) or bonus pricing (→ `econ-bonus-design`).
 
-## Default stack (+ escape hatch)
-Server-authoritative settlement; decimal.js / integer minor units. Other stacks: same formulas, never float math.
+- Use for funded rank prizes or pooled/share-market fees, participant EV, and liability accounting.
+- Not for fixed-odds event quotes (`math-fixed-odds-event-markets`), individual bonuses (`econ-bonus-design`), or game implementation (`build-prediction-market-games`).
 
 ## Process
-1. **Pool stakes.** `gross = Σ stakeᵢ`; rake off the top: `net = gross × (1 − rake)`. Rake is the operator's only margin; pool otherwise zero-sum. Continuous markets: rake **per-buy** (`netᵢ = stakeᵢ × (1 − rake)`), tracking per-outcome **gross pool** (pre-fee, player-facing) vs **net pool** (post-fee, settlement).
-2. **Distribute net pool**, split summing to `net` exactly:
-   - *Parimutuel/prediction market:* winners share `net` by winning **shares**: `valuePerShare = net / Σ(winning shares)`, `payoutᵢ = sharesᵢ × valuePerShare`. Rake taken at buy → **no further fee**. Round `valuePerShare` *down*; dust → last winner.
-   - *Continuous AMM pricing:* `price = outcomePool / totalPool`, clamped to `[floor, ceiling]` (e.g. 0.02–0.90), renormalized to sum 1.0; empty pool → uniform `1/N`. Optional **order book**: post asks (sorted ascending; buyers fill book *before* minting); `cash_out` sells back proportionally. Phase: buy while *waiting*/*playing*; sell/cash_out only while *playing*.
-   - *Leaderboard/tournament:* fixed rank-weight `w` (Σw = 1) over paid places; `prizeᵣ = net × wᵣ`. Top-heavy `w` raises variance; flatter `w` pays more places.
-3. **Participant EV** = `P(win) × payout_if_win − stake`. Parimutuel payout depends on the final pool → exact only at settlement; pre-resolution, model expected composition. Edge needs `P(win)` > pool-implied `outcomePool / totalPool`.
-4. **Conserve money.** Sum prizes; assign remainder deterministically; `Σ prizes + rake = gross` to minor unit.
+
+1. **Specify funding and execution.** Define paid entries, subsidies, every trade fee, gross/display versus net/settlement pools, share issuance, and withdrawal/void policies. For a closed entry-only book, `net = gross*(1-rake)`; secondary trading needs its actual fee/debit/proceeds ledger. Fill eligible resale orders before minting remaining-budget shares. MetaWin's production server (MSS) `games/football-pro/index.ts` `server.tick` implements that ordering and deducts the matched-trade fee from seller proceeds; entry-fee conventions cannot be extended blindly to every trade.
+2. **Allocate fairly in atoms.** Rank tournaments need funded prize weights, paid places, ties, and deterministic remainders; rank EV is `sum(P(rank)*prize(rank))-entryCost`. Share winners receive their fraction alpha of the payable pot. Use exact integer share units/rational proportions and allocate `potAtoms*shares_i/totalWinningShares`, with documented atom rounding/remainder allocation. Do not floor value-per-share to whole currency units. MSS `games/snakes-pro/index.ts` `computePayouts` scales to 12 decimals with tolerance-based dust correction; that legacy implementation is not proof of exact currency conservation.
+3. **Derive EV with fees.** For fixed final holdings/pot, `EV = p*alpha*net - stake`; if holdings or pot vary, use the conditional expectation on winning paths. In a closed stake-proportional book with `q=outcomeStake/gross`, `EV=stake*(p*(1-rake)/q-1)`, so positive EV requires `p>q/(1-rake)` for rake<1. At p=.505, q=.5, rake=.02, EV is negative. Neither q nor this threshold applies directly to AMM-issued shares or rank prizes.
+4. **Verify market-specific exceptions.** Empty quotes need declared priors: MSS `games/football-pro/types/game.types.ts` `calculatePrices` defaults to .40/.25/.35. Clamp then renormalize can violate the original bounds: MSS `games/horse-pro/types/game.types.ts` `calculatePrices`; use a bounded-simplex method if final bounds are mandatory. MSS `games/snakes-pro/index.ts` `server.tick` caps cash-out at remaining original net investment after earlier realized receipts. For an unbacked winner, MSS `games/horse-pro/index.ts` `settleMarket` can pay zero; MSS `games/football-pro/index.ts` `server.tick` refunds residual net pools. Encode and test the chosen policy explicitly. `RTP=1-rake` requires all net funds to be returned under the modeled outcomes.
+5. **Close liabilities durably.** Use exact atoms, debit before outcome, persist the terminal decision before credit, and bind retry identity to content; conflicting replay is rejected. Every bet has one terminal fate: rejected, settled, or refunded. Record partial exits and remaining liabilities (`qa-settlement-integrity`).
 
 ## Pitfalls / red flags
-- Rake taken AFTER odds, or twice — take once off the top; never re-apply at settlement.
-- Split weights not summing to `net`; float rounding that leaks/mints money — round `valuePerShare` down, route dust to one deterministic winner.
-- Net (post-fee) pool shown to players, or settling off gross — keep gross (display) and net (settlement) separate.
-- Fixed-odds quoted for a parimutuel pool — odds move with the pool, final at close; continuous prices are clamped+renormalized estimates, not guarantees.
-- EV called positive for a large prize; without an edge, mean EV = `−rake × stake`.
-- Thin pools: one large late stake collapses everyone's odds — cap or disclose. Order-book buys must fill the book before minting, else price discovery breaks.
+
+Ignoring rake in EV; applying stake odds to shares; whole-unit share-value flooring; duplicate fees; unbacked winners excluded from tests; pool conservation mistaken for outcome fairness (`fair-verify`).
 
 ## Verification
-- Reconciliation: `Σ payouts + Σ rake == gross` exactly in minor units, across random pools incl. buy/sell/cash_out churn.
-- Zero-rake parimutuel is fair: avg EV = 0; with rake, mean EV = `−rake × stake` (Monte-Carlo RTP → `1 − rake`, e.g. 98% at 2% — matches reusable N-outcome port: snakes-pro 2-way / football-pro 3-way / horse-pro 10-way).
-- Prices sum to 1.0 after clamp+renormalize, within band; empty pool → uniform `1/N`.
-- Leaderboard weights sum to 1, paid places ≤ entrants; remainder deterministic.
+
+Across buys, resales, partial exits, unbacked winners, and voids, reconcile opening liabilities plus funded inflows to credited returns, fees, declared retained funds, and closing liabilities. Test allocation fairness, zero-share policies, final quote bounds, and rank/tie remainders; production float tolerances are insufficient.

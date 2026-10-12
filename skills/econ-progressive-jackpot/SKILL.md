@@ -1,39 +1,34 @@
 ---
 name: econ-progressive-jackpot
-description: Use when designing a progressive, network, or mystery jackpot funding model - contribution rate, seed economics, and network viability. Keywords progressive jackpot, network jackpot, mystery, seed, contribution rate.
-constraints: C14
+description: Use when modeling contribution-funded progressive or network jackpots, meter growth, reset funding, reserve exposure, and advertised versus effective player return. Keywords progressive jackpot, meter RTP, reset seed, reserve, network pool.
+metadata:
+  constraints: C14
 ---
 
 # econ-progressive-jackpot
-
-> **Core insight:** Contribution `c` is not all player return: it splits into a meter slice (the only RTP summand, `jackpotContributionRTP ≈ c_meter`) and a reserve slice that repays the seed — outside-stream capital, never an RTP line.
+> **Core insight:** Advertised RTP adds base and meter return; operator-funded reset seeds are a separate funding exposure, while actual seed-paid returns must still be measured.
 
 ## When to use / When NOT
-- Use when: sizing a progressive/network/mystery jackpot's per-wager contribution, seed, reset, and player-base viability — a pool ACCUMULATING from bets between hits.
-- NOT for: **fixed-tier instant jackpots** (Mini/Minor/Major/Mega/Grand at fixed bet-multiples, e.g. 20×/100×/500×/2000×/20000×, picked by weighted RNG and **summed into the certified RTP** — MetaWin's only real jackpot pattern) → `econ-rtp-cost` / `math-rtp-modeling`; base+bonus accounting → `econ-rtp-cost`; RTP from weights → `math-rtp-modeling`; certification → `comp-rtp-certification`.
 
-## Default stack (+ escape hatch)
-`decimal.js` math, server-authoritative pool ledger. Other stacks: same algebra — `advertisedRTP = baseRTP + jackpotContributionRTP`; seed is a separate capital line, never an RTP summand.
+- Use for a persistent pool funded by wagers between hits, including reserve and reset economics.
+- Not for fixed-tier in-game awards (`math-feature-buy-and-jackpot`, `econ-rtp-cost`) or hold-and-win board mechanics (`math-hold-and-win`). MetaWin's production server (MSS) `games/coinUp/gameLogic.ts` `playBonus` adds configured symbol/Grand values; MSS `games/maneater/gameLogic.ts` `loadBaseGame` pays configured jackpot multiples. These specimens do not establish a progressive-pool implementation.
 
 ## Process
-1. **Contribution:** pick per-wager rate `c`, 1–5%. Each bet routes `c·stake` to the pool; base game runs at lower `baseRTP` (that slice leaves it).
-2. **Advertised RTP = baseRTP + jackpotContributionRTP.** `c` SPLITS into a *meter* slice (displayed jackpot, paid to players) and an *escrow/reserve* slice (recovers seed). Only the meter slice is player return, so `jackpotContributionRTP ≈ c_meter`, NOT full `c`; certify/publish only that.
-3. **Seed (reset value):** operator capital from OUTSIDE the wager stream. Not an advertised-RTP summand; lifts *effective* return above advertised until recovered.
-4. **Seed recovery:** the reserve slice repays the seed. Payback depends on reserve size, hit frequency, and seed magnitude — NOT a fixed fraction of turnover. Size reserve so payback completes before the next likely hit.
-5. **Network viability:** confirm the player base feeds the pool fast enough to keep grow rate attractive, seed exposure bounded. Thin base → starved jackpot or unrecoverable seed.
-6. **Certify/publish the jackpot RTP contribution separately** from base RTP (see C14).
+
+1. **Specify the pool contract.** Define eligible stake/turnover, trigger rules, meter ownership, rollover, reset seed S, eligibility/expiry, winner allocation, and reserve funding. Split total contribution into meter rate c_m and reserve rate c_r. Choose rates from modeled economics, not an unsupported universal percentage. Authoritative stakes, contributions, reserves, and payouts use exact integer atoms and declared remainder rules (`build-wallet-and-money`).
+2. **Keep the advertised decomposition explicit.** `advertisedRTP = baseRTP + jackpotMeterRTP`. `scripts/bonus-buy.mjs` `decomposeJackpotRtp({baseRTP, jackpotMeterRTP})` returns `advertisedRTP`, `baseRTP`, and `jackpotContributionRTP`. It validates finite nonnegative rates and performs addition only; it does not estimate triggers, seed recovery, or certification. The operator-funded reset seed is not a summand in this advertised convention; reserve funding is not meter return. Avoid counting a meter slice twice inside base RTP.
+3. **Account for actual player return separately.** Measure all jackpot payouts divided by eligible turnover across complete cycles, with unfinished-pool liabilities disclosed. Repeated paid reset seeds remain actual player receipts; reserve repayment cannot erase them. A one-time injection and recurring resets have different long-run economics. Call this effective return separately from the advertised decomposition, and disclose the funding convention without claiming a verified regulatory presentation rule.
+4. **Model funding risk.** Reconcile `closingPool = openingPool + meterContributions + seedInjections - jackpotPayouts`; keep reserve transfers in their own ledger. Simulate hit cadence, turnover variability, seed obligations, reserve drawdown, thin networks, and concentration. Expected recovery time is not a guarantee of recovery before the next hit. Report confidence intervals and stressed capital requirements.
+5. **Review the active math.** Changes to eligibility, trigger odds, payout/reset logic, weights, or caps alter player economics. Bind evidence to the active approved configuration and display its active percentage; use `comp-rtp-certification` for change-control scope.
 
 ## Correctness constraints
-- **C14:** Suppliers certify multiple RTP variants/bands; operators may switch among PRE-CERTIFIED variants at deploy without re-cert (display the active percent). Operator-funded promotions outside the game RNG do NOT change the certified RTP. Re-cert is required only when the math model (weights/paytable/feature logic) changes.
+
+- **C14:** Switching among pre-certified variants is distinct from changing the math model; display the active percent and verify the approval scope. An external operator-funded grant does not change certified game RNG math. Progressive trigger/payout changes and EV-preserving math retunes require the math-model change-control decision. Do not infer a certification exemption from constant mean RTP or funding source alone.
 
 ## Pitfalls / red flags
-- **Misapplying pool/seed/contribution math to a fixed-tier instant jackpot.** A bet-multiple shown as a certified RTP line (e.g. real cert "Jackpot Total: 1.498%" inside 96.579%) is an in-game payout summand, NOT a contribution-funded pool — no contribution rate, seed, or reset. Route to `econ-rtp-cost`.
-- Treating the seed as a third RTP summand — it is outside-stream capital, not bet-stream return (genuine progressives only).
-- Forgetting `baseRTP` drops by the contribution slice; double-counting inflates advertised RTP.
-- Sizing for too small a player base → pool grows too slowly, seed never recovers.
-- Switching active certified variant without displaying its new percent (C14).
-- Re-certifying an operator-funded promo that never touches the RNG (C14).
+
+Pool math applied to fixed jackpots; arbitrary contribution benchmarks; full contribution counted as player return despite reserves; recurring seed receipts omitted from effective return; reserve repayment treated as negative payout; impossible guaranteed payback; unverified certification claims.
 
 ## Verification
-- `advertisedRTP − baseRTP == jackpotContributionRTP` (meter slice), ≤ full `c` (remainder funds recovery); seed on no RTP line.
-- Simulated seed payback completes within the modeled horizon for the reserve slice; pool grow rate and hit cadence viable at target player base; published contribution matches the certified variant's active percent.
+
+Check advertised base-plus-meter equality, exact pool/reserve reconciliation, complete-cycle effective payouts, stressed funding adequacy, and version-bound approval evidence. The decomposition helper proves arithmetic only.

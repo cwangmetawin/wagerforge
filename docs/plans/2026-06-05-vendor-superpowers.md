@@ -1,5 +1,7 @@
 # Vendor superpowers into wagerforge — Implementation Plan
 
+> **Superseded (2026-10-12, v0.3.0):** superpowers was removed from wagerforge. Kept as history only; do not implement.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 > **GIT-APPROVAL (user law, overrides "frequent commits"):** Do NOT run any `git` command (branch, add, commit, push) without the user's explicit approval. The commit steps below are the intended checkpoints — pause and confirm with the user before executing each. All file edits are fine to make; only git operations are gated.

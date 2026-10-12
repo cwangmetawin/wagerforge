@@ -15,3 +15,6 @@ node_modules/
 *service_account*.json
 *serviceaccount*.json
 google-credentials*.json
+
+# Eval run outputs (claude plugin eval / evals/run-codex.mjs)
+evals/results/

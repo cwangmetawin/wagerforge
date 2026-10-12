@@ -1,5 +1,7 @@
 # Conditional SessionStart bootstrap (dual-install safe) — Implementation Plan
 
+> **Superseded (2026-10-12, v0.3.0):** superpowers was removed from wagerforge. Kept as history only; do not implement.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 > **GIT-APPROVAL (user law):** Do NOT run any `git` command (branch/add/commit/merge/push) without explicit user approval. Commit steps are checkpoints — confirm first. File edits are fine.

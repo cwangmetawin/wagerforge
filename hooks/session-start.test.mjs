@@ -4,24 +4,16 @@ import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 
 const HOOK = fileURLToPath(new URL('./session-start.mjs', import.meta.url))
-function run(extraEnv) {
-  const out = execFileSync('node', [HOOK], { env: { ...process.env, ...extraEnv }, encoding: 'utf8' })
-  const j = JSON.parse(out) // must always be valid JSON
-  return j.hookSpecificOutput.additionalContext
-}
+const run = () => JSON.parse(execFileSync('node', [HOOK], { encoding: 'utf8' }))
 
-test('WAGERFORGE_BOOTSTRAP=force emits the full bootstrap', () => {
-  const ctx = run({ WAGERFORGE_BOOTSTRAP: 'force' })
-  assert.ok(ctx.includes('<EXTREMELY_IMPORTANT>'))
-  assert.ok(ctx.includes('wagerforge:using-wagerforge'))
+test('emits valid SessionStart JSON with the router nudge', () => {
+  const out = run()
+  assert.equal(out.hookSpecificOutput.hookEventName, 'SessionStart')
+  assert.match(out.hookSpecificOutput.additionalContext, /`wagerforge:using-wagerforge`/)
 })
-test('WAGERFORGE_BOOTSTRAP=off emits defer with NO double-injection content', () => {
-  const ctx = run({ WAGERFORGE_BOOTSTRAP: 'off' })
-  assert.ok(!ctx.includes('<EXTREMELY_IMPORTANT>'))
-  assert.ok(!ctx.includes('using-superpowers'))
-  assert.ok(ctx.includes('wagerforge:using-wagerforge'))
-})
-test('always emits parseable JSON with non-empty context', () => {
-  assert.ok(run({ WAGERFORGE_BOOTSTRAP: 'force' }).length > 0)
-  assert.ok(run({ WAGERFORGE_BOOTSTRAP: 'off' }).length > 0)
+
+test('injects no bundled process-skill bootstrap (superpowers was removed in 0.3.0)', () => {
+  const ctx = run().hookSpecificOutput.additionalContext
+  assert.ok(!/superpowers|EXTREMELY_IMPORTANT/i.test(ctx))
+  assert.ok(ctx.length < 600, `nudge must stay one short paragraph, got ${ctx.length} chars`)
 })

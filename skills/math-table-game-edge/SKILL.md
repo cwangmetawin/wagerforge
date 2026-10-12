@@ -1,37 +1,34 @@
 ---
 name: math-table-game-edge
-description: Use when deriving house edge for discrete fixed-payout / fixed-odds TABLE games — dice over/under, roulette, baccarat, sicbo, darts, bars, flip, wheel — where probabilities are known and edge comes from paying below true odds. Keywords table game, house edge, fixed odds, dice, roulette, baccarat, sicbo, payout multiplier, payout table, per-bet-type RTP.
-constraints: C4, C14
+description: Use when agents derive table-game RTP or house edge from fixed odds, payout tables, profit versus gross returns, pushes, ties, commissions, caps, or strategy-dependent Blackjack stakes.
+metadata:
+  constraints: C4, C14
 ---
 
 # math-table-game-edge
 
-> **Core insight:** Table-game edge is the gap between paid odds and TRUE odds, baked into the payout multiplier/table itself — and it is per-bet-type, not per-game. There is no post-roll RTP gate; the GAME RTP is the bet-weighted blend of every bet type's RTP.
+> **Core insight:** House edge is computed from gross return per actual stake: pushes return principal, commissions alter winning return, and strategy or bankroll accounting can change the relevant denominator.
 
 ## When to use / When NOT
-- Use when: deriving/tuning edge for a discrete fixed-payout game on KNOWN probabilities (dice over/under, roulette, baccarat, sicbo, darts, bars, flip, wheel).
-- NOT for: continuous cash-out / EV-invariant targets (→ `math-crash-family`); reel-weight RTP, C1 (→ `math-rtp-modeling`); survival climb-or-cash-out ladders (→ `math-ladder-and-progression`); slot paytable encoding (→ `math-paytable-config`); the MC harness itself (→ `math-montecarlo-simulation` / `qa-math-validation`).
-
-## Default stack (+ escape hatch)
-Server-side TS; `fixValue` money; pre-certified `rtpNN` variants. Two constructions — same edge, different storage. Other stacks: same two formulas below.
+- Use for discrete payout EV, per-bet-type edge and declared stake-weighted blends.
+- Not for cash-out targets (`math-crash-family`) or slot encoding (`math-paytable-config`). Bankroll-run and live-table action lifecycles use `build-bankroll-run-games` and `build-live-table-games`.
 
 ## Process
-Pick the construction; the RGS resolves the outcome and the client only renders it.
-1. **Parametric** — `payoutMultiplier = targetRTP · (1/winChance)`. RTP = `targetRTP` exactly; edge = `1 − targetRTP`. (Real: primedice `Multiplier = (RTP×100)/Chance`; flip `targetRTP · 2^streak`.) `winChance` is the true probability of the chosen bet.
-2. **Tuned payout table** — config `{outcome: probability, payout}`; per-bet-type `RTP = Σ pᵢ·payoutᵢ`. Choose payouts BELOW true odds to hit target. (Real: sicbo `{sum→payout}`, even-money ~97.22%, number ~98%, triples lower; darts & bars `{probability, payout}` tuned to rtp97/98/100.)
-3. **maxWin cap.** If the multiplier is `min(maxWin, …)` (real: primedice), the cap truncates the realized payout on low-chance bets — realized RTP drops below `targetRTP`. Account for the cap-hit rate, don't assume the clean formula.
-4. **Tie / commission atoms.** Encode them as their own bet types (baccarat 5% banker commission; tie carries a high edge) — never fold them into another bet's odds.
+1. Define gross return `X = returnedAmount / actualStake`, including returned principal; loss is 0 and push is 1. Profit odds `a:1` imply winning gross return `a+1`. MetaWin's production server (MSS) `games/sicbo/gameLogic.ts` `settleBet` returns profit/loss; MSS `games/sicbo/index.ts` `server.tick` converts winning profit into stake-plus-profit credit.
+2. Enumerate outcomes for each bet type: `RTP = Σ pᵢXᵢ`, `edge = 1-RTP`. For a binary loss/win bet, gross multiplier `M=T/p` targets RTP `T`; with push probability `q`, use `M=(T-q)/p`. Additional return atoms require the full sum. MSS `games/sicbo/rtp98.ts` `config` uses profit odds: small/big RTP is `105/216 × 2`, not `105/216 × 1`.
+3. Include ties and commission in each affected bet's outcomes. MSS `games/baccarat-live/engine.ts` `settle` pushes player/banker bets on ties and returns principal plus commission-adjusted winnings on banker wins. Banker RTP is `pBanker×grossBankerReturn + pTie`; the separately wagered tie bet has its own paytable.
+4. Compute caps, commission and rounding using exact integer money atoms and declared rational factors. Measure at minimum and representative stakes; winning return can depend on the wallet grid. Apply gross caps before normalizing returned atoms to `X`. Blend bet types using actual stake shares, not equal weights or a marketing headline; shared outcomes affect variance even when EV sums.
+5. Pin Blackjack rules and player policy: RTP is strategy-dependent. Count Double/Split as additional paid stakes. Variable-cost strategy RTP is `Σ returns / Σ stakes`, with a ratio-estimator CI (`math-montecarlo-simulation`), not mean per-hand ratios. MSS `games/blackjack-multi-hands/index.ts` `server.play` routes these actions to `doubleDown`/`splitHand`; debit encodings and legality belong to the dedicated table-game skill.
+6. Separate per-stake return `Σ internalReturns / Σ internalStakes` from surviving-bankroll/committed-bankroll return. Returning unspent bankroll is not game return. MSS `games/baccarat-1000/index.ts` `PerStakeReturn` tracks the former separately; bankroll-run games use `build-bankroll-run-games`.
 
 ## Correctness constraints
-- **C14:** RTP is a pre-certified, switchable variant (`rtp97/98/100`), server-sourced; the active % is displayed. Never hardcode RTP.
-- **C4:** Validate per-bet-type RTP AND the bet-weighted blended GAME RTP by convergent large-N Monte-Carlo against the closed form.
+- **C4:** Sample size must meet confidence/tolerance requirements. Validate each bet type and declared blend against theory with the appropriate mean or ratio CI; acceptance requires `abs(estimate-target)+CIhalfWidth<=tolerance` and `n>=requiredN`, not merely target inside CI.
+- **C14:** Bind results to the resolved behavioral variant; switch only among pre-certified variants and display active economics. New payout, probability or rule changes require math-model change review.
 
 ## Pitfalls / red flags
-- Adding a post-roll RTP gate (`prob ≤ targetRTP`, crash-family style) ON TOP of an already-edged multiplier/table — double-counts the edge.
-- Reporting one game RTP when per-bet-type RTP varies (pattern B); the headline is the bet-weighted blend.
-- Ignoring the `maxWin` cap-hit rate, overstating low-chance RTP.
-- Folding commission/tie into another bet's odds; hardcoding RTP instead of a certified variant.
+- Mixing profit with gross credit, omitting pushes, or counting commission as a separate wager.
+- Adding an undeclared post-outcome rejection gate to an already edged paytable.
 
 ## Verification
-- Closed form: assert per-bet RTP `= targetRTP` (parametric) or `= Σ pᵢ·payoutᵢ` (table); blend = `Σ wₜ·RTPₜ`.
-- Monte-Carlo each bet type AND the blend to its closed form within CI; cap-hit cases match truncated EV.
+- Retain exact win/loss/push, commission, cap and paid-action fixtures with source/config/strategy provenance.
+- Compare exhaustive EV with actual server settlement and `qa-math-validation`; report per-type, stake-weighted and bankroll metrics separately.

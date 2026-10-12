@@ -1,35 +1,32 @@
 ---
 name: math-ladder-and-progression
-description: Use when designing ladder games (Dragon Tower, Mines, Pump, Pepe, per-difficulty crash cash-out ladders) or a deterministic scatter-machine progression meter. Keywords ladder, Dragon Tower, Mines, Pump, Pepe, cash-out, survival table, scatter machine, progression.
+description: Use when agents derive conditional survival and payouts for Mines, Towers, Pump, Pepe, or RPS ladders, or model weighted scatter-meter progression and deterministic replay.
 ---
 
 # math-ladder-and-progression
-
-> **Core insight:** Per-step survival `(safe/total)^r` and multiplier `(total/safe)^r` are exact reciprocals, so EV is flat at every cash-out row — difficulty is a volatility dial, never an RTP knob.
+> **Core insight:** Ladder survival is a product of conditional probabilities; flat EV requires calibrated payouts and explicit rounding/caps. Scatter-meter progression may be stochastic, while RPS ties preserve the prize tier but consume a hand.
 
 ## When to use / When NOT
-- Use when: per-row multipliers/survival for a climb-or-cash-out game (Dragon Tower, Mines, Towers), or a deterministic level meter replacing probabilistic free-spin triggers.
-- NOT for: base RTP/paytable/weight modeling (→ `math-rtp-modeling`); empirical validation (→ `math-montecarlo-simulation`); provable-fairness draw derivation (→ `fair-*`); deck-conditional escalators where step odds depend on cards already drawn, so no fixed `safe/total` (Hilo → conditional-probability model).
 
-## Default stack (+ escape hatch)
-TS + Node + decimal.js; server-authoritative (client renders server-resolved rows/levels, never computes them). Other stacks, same models: a ladder is `multiplier(row)` or a per-step table; a meter is a per-level weighted transition table.
+- Use for climb-or-cash-out probabilities, explicit multiplier tables, ties, and weighted progression meters.
+- Not for crash distributions (see `math-crash-family`), or Hi-Lo, banker offers, and dig-or-bank state-value games (see `math-conditional-value-games`).
 
 ## Process
-1. **Pick the ladder encoding** (all obey the step-2 survival-cancel EV; differ only in how per-step multipliers are stored):
-   - **Closed form** — `multiplier(row) = RTP · (total/safe)^row`, `safe = total − traps` per step (Dragon Tower `RTP·(columns/eggs)^row`; Mines `(remaining/remaining−mines)` per pick). `total/safe` = inverse per-step survival.
-   - **Explicit table** — server array of per-step multipliers + survival probs for irregular steps (Pepe River Run per-pad table; crash `rtp96.ts` easy/medium/hard/daredevil cash-out arrays). Validate it reproduces `RTP·bet` EV; don't assume a closed form.
-   - **Player-paced step** — same survival/multiplier, player confirms each step (Pump, Flip, RPS). Math identical; only cadence differs (a ladder, not crash).
-2. **Why EV is flat:** EV = `survival · multiplier · bet = RTP · bet` — survival `(safe/total)^r` and multiplier `(total/safe)^r` cancel at EVERY cash-out row, so the cash-out choice never changes EV (table form: `Σ` cancels likewise).
-3. **Difficulty is a volatility dial, not an EV dial.** More traps (lower `safe/total`) steepen multipliers and lower survival together; EV stays `RTP·bet`. Tune for variance/payout-spread, never to "set RTP" — RTP is the leading factor.
-4. **Progression meter:** a deterministic level (e.g. 0..N). Each holds a weighted transition table keyed by trigger count (one-scatter, two-scatter); on a trigger, sample the next level from it; **3+ scatters skip straight to max**. Reward is by reached count via a capped lookup array (e.g. `[0,10,10,12,15,20,30]`, cap 100), never a random multiplier.
-5. Keep all multiplier/survival, transition and reward arrays server-side; the client renders only the resolved row/level/reward (real Dragon Tower/Mines `gameData.ts` hold only the server's `result.multiplier`).
+
+1. Define the actual success event, conditional state, allowed decisions, stopping horizon, cap, and stake basis. Keep outcomes and payouts server-authoritative; settle money in exact integer atoms. A game label does not establish whether success means avoiding or hitting a marked cell.
+2. Derive `S_r=Π p_i`, where `p_i=P(success_i | surviving history)`. The uncapped ideal gross multiplier is `M_r=T/S_r`; only constant conditional survival permits `p^r`. On one fixed N-cell board with K mines and safe picks without replacement, `S_r=C(N−K,r)/C(N,r)`. Include actual RNG boundaries, payout rounding, and caps when calculating realized RTP.
+3. Match the specimen's state model. MetaWin's production server (MSS) `games/polarMines/gameLogic.ts` `drawBoard` draws separate row mine sets; `generateLadder` uses `T×Π W/(W−k_i)`, rounded to two decimals. This is not the fixed-board model. Explicit tables also require their actual transition odds: MSS `games/pepe/index.ts` `next` uses first-step `T/M_1`, then `M_previous/M_next`. Difficulty preserves ideal EV only when probabilities and payouts are jointly recalibrated; verify rounded/capped results rather than assuming invariance.
+4. Model ties separately. With equal win/tie/loss probabilities, an established uncapped claim V has continuation value `(2V+V+0)/3=V`; a tie is not a paid binary success. MSS `games/rockPaperScissors/index.ts` `next` keeps the payout tier but advances the hand counter. `main` gives a first tie no cashout; `cashout` rejects zero wins. The hand-limit tie branch settles existing winnings, or `T×bet` after all ties. Include these terminal rules, not just win-count doubling.
+5. Model a progression meter as a weighted state transition, not fixed increments. MSS `games/sweetyCluster/gameLogic.ts` `processScatterLevelUp` samples by current level and new scatter count; cumulative three-plus scatters force MAX. The meter resets each base spin/free-game round. Deterministic replay needs identical initial state, configuration, triggers, and RNG draws.
 
 ## Pitfalls / red flags
-- Believing a later cash-out is "+EV" or difficulty changes RTP — both wrong; EV is flat, RTP is the single leading factor. Assuming a closed form for an explicit-table ladder.
-- Using `total` not `safe` in the survival denominator, or not subtracting traps per remaining step in Mines-style picks.
-- Treating the progression meter as probabilistic free-spin triggers (it's deterministic, table-advanced); forgetting the 3+ skip-to-max branch or the reward cap.
+
+- Multiplying unconditional marginal probabilities or assuming constant per-step odds.
+- Declaring every cashout depth identical after rounding/caps; treating ties as wins or omitting terminal payouts.
+- Calling weighted progression deterministic or replaying triggers without entropy inputs.
 
 ## Verification
-- Assert `survival(row) · multiplier(row) == RTP` (decimal tolerance) every row — proves flat EV.
-- Vary trap count: multipliers/survival move but per-row EV stays `RTP·bet`.
-- Replay a fixed trigger sequence through the tables: same level path and capped reward every time (determinism); confirm 3+ reaches max.
+
+- Check every depth against conditional survival and actual settled payout; a 25-cell/3-mine fixed board has two-pick survival 0.77, not 0.7744.
+- Enumerate short RPS win/tie/loss paths, first-tie cashout rejection, hand-limit all-ties payout, and capped branches.
+- Replay weighted meter fixtures with fixed draws; vary draws to prove multiple reachable destinations. Check cumulative three-scatter MAX and per-spin reset.

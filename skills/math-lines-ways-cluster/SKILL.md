@@ -1,35 +1,33 @@
 ---
 name: math-lines-ways-cluster
-description: Use when computing wins for paylines, ways-to-win (243/Megaways), or cluster pays with a persistent doubling multiplier grid. Keywords paylines, ways to win, Megaways, cluster pays, flood fill.
+description: Use when agents implement or audit paylines, unrestricted ways, connected betways, adjacency clusters, count-anywhere OAK, wild multiplier policies, or persistent multiplier grids.
 ---
 
 # math-lines-ways-cluster
-
-> **Core insight:** The cluster multiplier is `pay × multiplierSum` — the SUM of the cluster's grid cells, not a per-cell product; and grid `0` means a legitimate dimmed x1, only `-1` means absent. Get these backwards and RTP breaks.
+> **Core insight:** Choose the evaluator and multiplier policy explicitly; Sweety-style clusters sum only current cells at least 2×, fall back to 1×, and pay before activating or doubling cells for later waves.
 
 ## When to use / When NOT
-- Use when: modelling the payline, ways-to-win (243/Megaways), or cluster-pays win model — including the persistent doubling multiplier grid over cluster wins.
-- NOT for: RTP/house-edge/hit-frequency (→ `math-rtp-modeling`); empirical validation (→ `math-montecarlo-simulation` / `qa-math-validation`); reel-strip / symbol-table data (→ `build-slot-reels-symbols`).
 
-## Default stack (+ escape hatch)
-TS + Node, grid as `int[][]` of symbol ids. Other stacks: the three evaluators below are pure functions over a 2D id array — port the algorithm, not the types. **They run server-side (the RGS owns them); the client only renders resolved values (C4/C9).**
+- Use for server win evaluation, substitution, connectivity, paytable lookup, and grid multiplier ordering.
+- Not for generating outcome probabilities or tuning RTP (see `math-rtp-modeling`), or cascade orchestration (see `math-cascade-tumble`).
 
-## Process (SERVER math model — the client renders resolved values, never recomputes)
-1. **Paylines (fixed lines).** Per predefined line (one row-index per reel), read each reel's symbol, count the leftmost contiguous run of one symbol (wilds substitute), pay `paytable[symbol][runLength]`; sum over lines. Client renders the server `winning`/`paylineIndexes` (`piggy-bank` `PaylineWin`).
-2. **Ways-to-win (243…Megaways).** No fixed lines. Per paying symbol, walk reels left→right counting occurrences per reel (`freq[reel]`). Ways = product of `freq[reel]` over the contiguous winning reels from reel 0. Total combos = product of symbols-per-reel (243 = 3^5; up to 117649 = 7^6 Megaways). Pay `paytable[symbol][reelsMatched] × ways`. Client renders the server product (`perseus-vs-cetus` `BetwayWin.betwayMultiplier`).
-3. **Cluster pays.** Server finds clusters by orthogonal flood-fill (4-neighbour, NOT diagonal) over equal-symbol cells, paying by count past a **config/server-defined minimum** (e.g. 8 on a 6×5) — no universal "≥5". Emits per cluster `{symbol, pay, win, multiplierSum, clusterPositions}`; client highlights `clusterPositions`, shows `win`.
-4. **Persistent doubling multiplier grid (server-resolved).** Board-aligned grid, **three-state** sentinel: `-1` = no multiplier, `0` = x1 (dimmed, legitimate), `1+` = value (`2,4,8,…,1024`). Cells joining a winning cluster double, capped at **1024**. Per cluster `win = pay × multiplierSum`, the **sum** of the cluster's multiplier cells (not a per-cell factor). The grid **resets at the start of each base round** but **PERSISTS across all free-spin rounds** within a feature. Client applies server `multiplierView`/`updatedMultiplierView`; it never doubles cells itself.
+## Process
+
+1. Specify the evaluator, eligible symbols, minimum count, wild substitution, overlapping-win policy, count offset, paytable scaler, stake basis, and settlement rounding. Money settles in exact integer atoms; statistical models may use normalized returns.
+2. **Paylines:** evaluate the specified contiguous run on each predefined line, then sum eligible line awards. Multiple wild multipliers require an explicit highest/sum/product policy. MetaWin's production server (MSS) `games/fruitNudge/gameLogic.ts` `detectPaylineWins` uses the highest wild multiplier, index `repeats−1`, and total-bet normalization by `totalPaylines`; these are specimen rules, not universal defaults.
+3. **Unrestricted ways:** multiply eligible occurrence counts over consecutive paying reels from the starting reel; `3×2×1` gives six ways. **Connected ways:** enforce the game's allowed inter-reel connections and backward-prune cells that cannot reach the last paying reel before multiplying surviving counts. MSS `games/piggyBank/gameLogic.ts` `detectConnectedBetwayWins` implements this additional pruning.
+4. **Adjacency clusters:** flood-fill using the declared neighbor rule. MSS `games/sweetyCluster/gameLogic.ts` `floodFill` uses four orthogonal neighbors; `detectClusterWin` requires five symbols on its 7×7 board. **Count-anywhere OAK:** count eligible symbols across the board without requiring adjacency; MSS `games/zeus/gameLogic.ts` `detectWin` uses this distinct evaluator.
+5. **Persistent grid:** define its lifecycle and server values independently of display sentinels. MSS `games/sweetyCluster/gameLogic.ts` `detectClusterWin` sums current winning-cell values `m>=2`, pays `basePay×(sum>0 ? sum : 1)`, then activates `−1→1` or doubles existing cells, capped at 1024, for later waves. Plain or just-activated 1× cells add nothing to the current sum. Its `loadFreeGames` carries the grid through the feature; new base rounds initialize a fresh grid. Snapshot mutable state so later waves cannot rewrite recorded evidence.
 
 ## Pitfalls / red flags
-- Re-deriving clusters/ways/paylines/grid on the client — production renders server-resolved values; no client flood-fill in real code (C4/C9).
-- Treating grid `0` as a bug: `0` is the legitimate "x1 dimmed" state; only `-1` means no multiplier.
-- Hard-coding min-cluster `≥5`: it is config/server-defined (real games use 8 / server-set).
-- Applying multipliers per-cell instead of `pay × multiplierSum` (sum over the cluster).
-- Resetting the grid between free-spins, carrying it across base rounds, or letting a cell exceed 1024.
-- Diagonal adjacency in cluster flood-fill (only orthogonal counts).
-- Ways: summing per-reel counts instead of multiplying; requiring a fixed line.
-- Counting non-leftmost or non-contiguous runs on a payline.
+
+- Treating OAK as adjacency clusters, or connected ways as unrestricted ways.
+- Summing ways counts, including dead-end branches, or multiplying all wild multipliers without a game rule.
+- Paying zero on a first cluster, adding 1× marks, or applying grid upgrades to the current hit.
+- Hard-coding a universal cluster minimum, sentinel convention, scaler, or stake basis; computing authoritative wins on the client.
 
 ## Verification
-- Hand-checked fixtures per model: a payline run, a 243 board (e.g. 3×2×1 ⇒ 6 ways), and a cluster board whose flood-fill size and `pay × multiplierSum` are hand-computed.
-- Persistence test: grid survives free-spins, fresh on a new base round, values clamp at 1024.
+
+- Hand-check line, six-way, disconnected OAK, diagonal-only cluster, and connected dead-end fixtures.
+- Check highest-wild selection and paytable index/scaler/stake normalization against the actual evaluator.
+- Grid fixtures: no eligible multiplier gives base pay; current `[−1,1,2,4]` contributes six; upgrades affect only later waves. Verify feature persistence, base reset, cap, and unchanged historical snapshots.

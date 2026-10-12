@@ -1,12 +1,14 @@
 {
   "name": "wagerforge-dev",
-  "description": "Development marketplace for the wagerforge iGaming skills library",
-  "owner": { "name": "Chao Wang" },
+  "description": "Marketplace for the wagerforge iGaming skills plugin (Claude Code and Codex)",
+  "owner": {
+    "name": "Chao Wang"
+  },
   "plugins": [
     {
       "name": "wagerforge",
-      "description": "iGaming superpowers — self-contained (bundles superpowers process skills, MIT). Slot math, provable fairness, RGS & durable settlement, economy, QA, compliance.",
-      "version": "0.2.1",
+      "description": "iGaming domain skills for Claude Code and Codex — slot math, provable fairness, RGS & durable settlement, game economy, math/RNG QA and gambling compliance.",
+      "version": "0.3.0",
       "source": "./"
     }
   ]

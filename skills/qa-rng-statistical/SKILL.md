@@ -1,38 +1,33 @@
 ---
 name: qa-rng-statistical
-description: Use when statistically testing an RNG - NIST SP 800-22, Diehard, TestU01, chi-square - and confirming it is a CSPRNG. Keywords NIST 800-22, Diehard, TestU01, chi-square, RNG test, CSPRNG.
-constraints: C5,C8
+description: Use when planning RNG statistical batteries, measuring detectable bias, testing integer reducers, or reviewing multiplicity and CSPRNG evidence. Keywords NIST SP 800-22, Diehard, TestU01, chi-square, RNG test, rejection sampling.
+metadata:
+  constraints: C5, C8
 ---
 
 # qa-rng-statistical
 
-> **Core insight:** Passing every battery proves uniformity, never unpredictability: Mersenne-Twister sails through BigCrush yet leaks its full state in ~624 outputs. CSPRNG is a property to prove, not a verdict batteries grant.
+> **Core insight:** A statistical pass means no departure detected at the stated sample size and power; it proves neither exact uniformity nor unpredictability. Reducer proofs and adversarial security evidence answer different questions.
 
 ## When to use / When NOT
-- Use when: running a statistical battery on an RNG stream and confirming the generator is a CSPRNG.
-- NOT for: RTP/payout math (→ `qa-monte-carlo-cert` / `math-rtp-modeling`); deterministic seed/replay regression (→ `qa-fairness-verification`).
-
-## Default stack (+ escape hatch)
-NIST STS, Dieharder, TestU01 (SmallCrush/Crush/BigCrush) over raw uint32 output — no in-house harness exists, so build the battery from scratch. The chi-square uniformity guard on the player-facing mapping DOES have a real reference impl (see Verification). Other stacks: same battery on any binary stream; map "p-value pass" → your suite's verdict.
+- Use when: measuring distribution departures in raw entropy, derived streams and final outcome mappings.
+- NOT for: RTP/payout validation (`qa-monte-carlo-cert`, `math-rtp-modeling`) or epoch/replay/privacy checks (`qa-fairness-verification`).
 
 ## Process
-1. Capture a long contiguous stream (millions of uint32s; BigCrush wants ~10^11 bits) — never re-seed mid-stream.
-2. Run the full multi-suite battery: NIST SP 800-22 AND Diehard AND TestU01. ALL must pass; one suite never substitutes for another.
-3. Set significance α=0.05 (α=0.01 for high-stakes). At 15+ tests, apply Bonferroni correction to control the family-wise false-positive rate.
-4. Chi-square the FINAL integer mapping (player-facing range), not just raw output — the empirical uniformity guard.
-5. Use a GRADED band, not a binary α=0.05 gate: pass above 0.05, MARGINAL 0.05–0.01, hard-fail only below 0.01 (df-dependent crit values). A single Diehard/chi-square miss → INVESTIGATE (re-run on a fresh independent stream, check the mapping); never ignore, never auto-fail.
-6. Confirm CSPRNG by property, not by passing tests alone (passing batteries ≠ cryptographic security).
+1. **Predeclare the experiment:** pin generator/version, production selection, stream format, source domain, intended alternative/effect size, sample size, power and hypothesis family. Choose suitable documented batteries (for example NIST SP 800-22, Diehard or TestU01); name versions and assumptions rather than imposing an unverified universal three-suite requirement.
+2. **Control false alarms:** choose family-wise error rate (FWER) or false-discovery rate (FDR), and its correction before sampling. Bonferroni uses `alpha/m` for `m` tests at any family size. Raw p-value bands are descriptive; acceptance uses the adjusted rule. Predefine reruns/sequential stopping; never sample until green.
+3. **Capture faithfully:** retain contiguous output, framing, byte order, sample provenance and seed/rotation boundaries. Test actual lifecycle behavior separately; document intentional reseeding instead of silently pooling incompatible streams.
+4. **Prove the reducer:** for uniform integer source size `M=qR+t`, modulo residues have `q` or `q+1` preimages; bias is zero iff `t=0`. Total variation is `t(R-t)/(RM)`, potentially large when `R` approaches `M`. Use justified rejection for arbitrary ranges. MetaWin's production server (MSS) `common/rng/FloatSourcedIntegerRng.ts` `randomInteger` reduces to a power-of-two domain then rejects `>=limit`; its source must produce exact uniform uint32-grid values.
+5. **Exhaust source values:** run `scripts/fair-reduction.test.mjs`, covering every one-byte value for all one-byte ranges and every two-byte value for selected ranges; prove wider-domain algebra and test boundaries/redraw consumption. The naive `byte % 6` control gives `[43,43,43,43,42,42]`; finite statistical samples can miss this bias.
+6. **Supplement with statistics:** test raw output, final integer ranges and actual game distributions against their declared expected probabilities. Investigate departures under the predeclared plan. MSS `games/horse-pro/tests/race/test-race-fairness.ts` `simpleRng`/`chiSquaredTest` is a winner-distribution regression with an injected, per-race-reseeded LCG using `%limit`; it does not exercise the production RNG or rejection reducer.
+7. **Assess unpredictability separately:** document entropy, state protection and resistance to an adversary predicting future outputs. Deterministic derivation is compatible with cryptographic security; passing batteries or naming an algorithm supplies no such proof.
 
 ## Correctness constraints
-- **C5:** Mersenne-Twister is cryptographically broken for real money — full internal state is recoverable from ~624 consecutive outputs, making future and past outputs predictable; require a CSPRNG (e.g. ChaCha20, Fortuna, `/dev/urandom`). ISO/IEC 17025 accredits the LAB, not the RNG; RNG requirements come from GLI-19 / WLA-SCS and mandate PROPERTIES (unpredictability / non-determinism), not a named algorithm.
-- **C8:** Modulo bias is negligible (~1e-8) when reducing a full 32-bit-or-larger value, and exactly zero for power-of-two ranges; it is NOT a meaningful real-money flaw on its own. The correct fix when it does matter is rejection sampling, not "avoid modulo." Statistical uniformity (chi-square) is the empirical guard for the integer mapping.
+- **C5:** Require a CSPRNG with an adversarial unpredictability rationale; MT19937's state is recoverable from about 624 outputs. Statistical tests cannot certify security; lab accreditation and algorithm suitability require distinct evidence.
+- **C8:** Bias depends on both source and target domains, not bit width alone. Exact uniformity needs reduction analysis/exhaustive checks; powered statistics are supplementary.
 
 ## Pitfalls / red flags
-- Treating α=0.05 as a hard gate, or skipping Bonferroni at 15+ tests.
-- Passing one suite and declaring victory; CSPRNG claimed from test passes alone (C5).
-- MT19937 / `Math.random` / LCG in a money path (C5).
-- Re-seeding mid-stream, or testing raw output but never the player-facing mapping (C8).
+Uniformity or security inferred from p-values; arbitrary raw bands overriding multiplicity; test RNG mistaken for production RNG; uniform expectations imposed on weighted outcomes.
 
 ## Verification
-- All three suites pass at the chosen α (Bonferroni-adjusted for 15+ tests); chi-square on the integer mapping is non-significant; the generator is a documented CSPRNG with an unpredictability/non-determinism rationale, not just a battery printout.
-- Real reference for the chi-square step: `metawin-slot-server/games/horse-pro/tests/race/test-race-fairness.ts` — a 10k+-run win-distribution chi-square with a graded PASS/MARGINAL/WARN/FAIL band (df=9; PASS <16.919, hard-FAIL only >21.666 / p<0.01). It guards the rejection-sample reducer (power-of-two mask + reject-while ≥limit) in `common/rng/FloatSourcedIntegerRng.ts:11-25` (C8).
+Retain the predeclared plan, source/reducer proofs, exhaustive counts, battery versions, raw and adjusted results, power and investigation record. Report security and production integration evidence separately; an unexplained departure blocks sign-off.

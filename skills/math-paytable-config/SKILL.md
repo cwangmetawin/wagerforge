@@ -1,35 +1,33 @@
 ---
 name: math-paytable-config
-description: Use when defining or parsing slot config-as-math - reel strips as int arrays, RLE-encoded paytables (payout = value/10 x bet), symbol tables - and separating on-screen visibility weight from payline probability. Keywords reel strip, paytable, RLE, symbol weight.
-constraints: C1
+description: Use when agents define or audit slot paytables, symbol weights, reel strips, payout scalers, count offsets, stake normalization, or public/private RTP variant configuration.
+metadata:
+  constraints: C1, C14
 ---
 
 # math-paytable-config
 
-> **Core insight:** Two distinct weights coexist: `dropWeight` is cosmetic cascade visibility, NEVER probability. Real payline odds live only in server reel-strip int arrays — and RTP is multilinear in them, so one weight's bump can move RTP the opposite way.
+> **Core insight:** The resolved outcome generator defines the probability model; a paytable defines money only after its scaler, count indexing, stake basis, rounding and caps are explicit.
 
 ## When to use / When NOT
-- Use when: authoring or parsing reel strips, RLE paytables, or symbol tables, and wiring config into the math model.
-- NOT for: computing RTP/variance from that config (→ `math-rtp-modeling`); validating an implementation (→ `math-montecarlo-simulation`).
-
-## Default stack (+ escape hatch)
-TS config parser emitting `{reels, paytable, symbols}`. Other stacks: same shapes — reels `int[][]` keyed by mode; paytable `int[]` per symbol indexed by win-count; symbol map `id → {flags, dropWeight}`.
+- Use for config-as-math contracts, payout decoding and variant wiring.
+- Not for EV derivation or simulation; use `math-rtp-modeling` and `math-montecarlo-simulation` respectively.
 
 ## Process
-1. **Reel strips:** `reels[mode]` is `int[][]` keyed by mode (base/freegame/bonus), one inner array per reel of symbol ids. This is the source of truth for payline probability. De-stack oversized strips on parse.
-2. **Paytable:** per symbol `paytable[id]` is an `int[]` indexed by win-count (matches or cluster size). RLE-decode runs into display ranges (`'8'`, `'13-14'`, `'19+'`). `payout = value / 10 × bet` — store integers (×10), divide on read.
-3. **Symbol table:** `id → {name, isWild, isScatter, isHigh/Low, dropWeight}`. Treat `dropWeight` as visual-only. Tolerate intentional id collisions (two symbols sharing one id).
-4. Validate at the boundary: ids referenced by reels/paytable exist in the symbol table; reject unknown modes; fail fast with the offending id.
+1. Trace game code, action, variant selector and private config into the outcome generator before interpreting strips or weights. MetaWin's production server (MSS) `games/bloodMoonRising/math/engine/drop-source.ts` `createCellSource` draws weighted cells; its public `wheels` are cosmetic, as documented in `games/bloodMoonRising/README.md`.
+2. Derive the payout contract: `basePayout = paytable[id][index(count)] / scaler × stakeBasis`. Record evaluator and multiplier policy separately. MSS `games/sweetyCluster/gameLogic.ts` `detectClusterWin`/`normalizeWins` use scaler 20 and `min(count,15)-5`; MSS `games/fruitNudge/gameLogic.ts` `detectPaylineWins` uses `repeats-1` and normalizes by `totalPaylines`. Never assume scaler 10, direct count indexing or total-bet units.
+3. Validate symbol IDs, allowed aliases, paying ranges, modes and weight domains against the actual evaluator. Preserve strip order and repetition. Treat a field such as `dropWeight` according to its consumers. Decode RLE only when that game's format requires it; prove encode/decode agreement, including the highest count range.
+4. Represent stakes, caps and payouts as exact integer atoms; use rational paytable factors and an explicit rounding rule. Trace whether rounding occurs per win, per wave or after accumulation, then apply caps and termination in the declared order. Legacy MSS `fixValue` calls are evidence of rounding locations, not an integer-money implementation to copy.
+5. Register and test every action/variant route and affected fork; reject unknown routes before play. Derive ordinary public payout fields from behavioral private math, or verify parity. Record explicit exceptions and mismatches: MSS `games/zeusPromo/gamePlay.ts` `playMain`/`playBuyFreegames` always choose `myRtp1075MathConfig`, despite public labels. A documentary target does not prove runtime RTP or certification.
 
 ## Correctness constraints
-- **C1:** RTP is a MULTILINEAR function of per-reel weights; a single weight does NOT scale RTP proportionally. Recompute the full weighted RTP, weighted by EV/contribution share; the net move can even be opposite-signed. So `dropWeight` (visual cascade weight) is NEVER a probability — real probability lives in the server reel strips, which are the source of truth.
+- **C1:** With fixed payoffs, normalized probabilities of independent single draws enter EV multilinearly. RTP is generally rational in raw weights because probabilities require normalization; reused parameters, retries and state need not preserve multilinearity. A weight change does not scale RTP proportionally and can move it oppositely; recompute full EV and contribution shares.
+- **C14:** Switch only among pre-certified behavioral variants and display the active economics. Changes to weights, paytables or feature logic change the math model, including Promo changes; RNG-external promotions are a separate case.
 
 ## Pitfalls / red flags
-- Reading `dropWeight` as a payline probability (C1).
-- Forgetting the ÷10 on payout, or storing floats instead of ×10 integers.
-- Treating a static JSON paytable as truth — server `initData` wins; static is display-only fallback.
-- Off-by-one on win-count indexing; dropping the `N+` open-ended top run.
+- Certifying display strips, trusting RTP labels, changing strip repetitions, or silently falling back from an unknown variant.
+- Assuming payout scaling remains linear through rounding, rejection or caps.
 
 ## Verification
-- Round-trip: encode designer table → `int[]` (×10) → decode to ranges → matches input.
-- Every reel/paytable id resolves in the symbol table; cross-check decoded payouts feed `math-rtp-modeling` cleanly.
+- Retain source/config provenance and fixtures for every count boundary, scaler, multiplier and action selector; reconcile declared and actual payouts.
+- Run actual settlement at minimum and representative stakes, covering rounding, caps and termination. Absolute currency-floor editions need route-specific checks around `K/C` (`K` = currency floor, `C` = cap multiple; see the dedicated payout-floor skill). Verify RTP with `qa-math-validation`.

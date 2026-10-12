@@ -1,38 +1,34 @@
 ---
 name: econ-rtp-cost
-description: Use when accounting for a game aggregate RTP cost across base, bonus, free spins, multipliers, and jackpots, or judging whether a change needs re-certification. Keywords RTP cost, aggregate RTP, bonus cost accounting, margin.
-constraints: C14
+description: Use when reconciling game RTP components, pricing mode-specific margin, tracing public versus private math, or deciding whether a variant, Promo, or volatility change needs certification review. Keywords RTP cost, charged stake, private math, Promo, C14.
+metadata:
+  constraints: C14
 ---
 
 # econ-rtp-cost
-> **Core insight:** Certified RTP tracks only the math model (weights/paytable/feature logic) — not money flow. Off-RNG bonuses and pre-certified variant switches move margin, never RTP; only re-simulating real game code proves the published number.
+> **Core insight:** RTP belongs to an executed money path and its actual charged cost; labels, cumulative display wins, and an unchanged mean cannot substitute for active-math evidence.
 
 ## When to use / When NOT
-- Use when: rolling base + bonus + free spins + multipliers + jackpot into one published aggregate RTP, attributing bonus cost to margin, or deciding if a change triggers re-cert.
-- NOT for: deriving RTP from reel weights/paytables (→ `math-rtp-modeling`); empirical drift vs band at CI (→ `comp-rtp-certification`); pool funding (→ `econ-progressive-jackpot`).
 
-## Default stack (+ escape hatch)
-Server config RTP is truth; client fallbacks are illustrative (medusa ships client `rtp:"XX.XX"` placeholders). Host contract: `GET /game/info` → `config.targetRTP` (number, e.g. `0.97`), plus `config.maxMultiplier` for crash-family — the client only DISPLAYS these. Per-mode `rtpValues` is documentary/NOT-enforced; real RTP emerges from the math config, confirmed only by simulation. Other stacks: read the active variant's certified percent from the build/RTP config (`rtp.config.json`), never from UI strings.
+- Use for per-mode RTP decomposition, aggregate book margin, promotional attribution, and math change control.
+- Not for deriving probabilities (`math-rtp-modeling`) or progressive funding (`econ-progressive-jackpot`).
 
 ## Process
-1. Aggregate, don't average ad hoc: `RTP_total = Σ_component EV_component / wager`, summing base, bonus, free spins, multipliers, and jackpot contribution. Publish one number.
-2. Validate the aggregate pre-launch by 1M+ Monte-Carlo through real game code (`slotify-gdk stats … -i 10000000 --variant=rtpXX`); the point estimate must land inside the certified band. Server `rtpValues` are NOT enforced — re-sim after any config change to confirm they still match.
-3. Keep volatility and hit frequency separate — both orthogonal to RTP. An EV-preserving volatility/hit-freq retune does not move published RTP.
-4. Bonus cost is a margin/LTV line, NOT an RTP line: operator-funded promotions outside the game RNG cut net margin but leave certified RTP unchanged. Model real cost = bonus − houseEdge×wagering, adjusted for completion rate and sticky-vs-cashable.
-5. Before deploying any RTP change, run the re-cert decision (see C14).
+
+1. **Resolve behavior and units.** Pin game registration, action, variant, strategy, stake, runtime private math, and target provenance. Cross-check declarations after normalizing contract-specific units. MetaWin's production server (MSS) `games/chase/rtp97.ts` `targetRTP` is .97; MSS `games/highLowHit/rtp97.ts` `rtp97.targetRTP` is 97. Neither field enforces payouts. Trace selector/fallback branches before choosing a target; report declaration/runtime discrepancies.
+2. **Count complete-round cashflows.** Let W sum newly payable `response.win`, and B sum actual charged stake. Reconcile authoritative money in exact integer atoms. MSS `games/tartarus/gamePlay.ts` `playMain` subtracts paid base wins from continuation credits while retaining cumulative `totalWin/clientWin`; summing those display totals double-pays. MSS `common/stats/fingerprint.ts` `Fingerprint` defaults cost to first bet plus sideBets; later `bet` fields are ignored, so verify that collector cost matches the debit contract.
+3. **Decompose within one mode.** Fixed-cost RTP is `E[W]/B`; variable-cost RTP is `sum(W)/sum(B)` with a ratio-estimator CI. Allocate disjoint credited components after modifiers, rejection, rounding, and caps; do not add a multiplier again to its resolved win. Across modes, weight by actual charged turnover: `bookRTP = sum(B_mode*RTP_mode)/sum(B_mode)`, not an unweighted mean or sum of alternative routes.
+4. **Validate every money path.** Exercise base, boost, buys, continuation strategies, minimum/representative stakes, rounding, and caps. Absolute currency floors need tests below/at/above their stake threshold; bankroll return needs a separate internal-turnover denominator (absolute payout floors: `math-guaranteed-payout-floor`; bankroll-run games: `build-bankroll-run-games`). Use `qa-math-validation` and `qa-monte-carlo-cert` for fresh real-code evidence, declared precision, and tolerance equivalence; raw iteration counts are insufficient.
+5. **Separate external promotions from Promo math.** External grants affect margin/LTV; price actual stopped turnover and withdrawal terms via `econ-bonus-design`. Private selector/weight changes alter game math. MSS `games/cowAbductionPromo/gamePlay.ts` `playMain` always selects `myRtp1075MathConfig`, while MSS `games/cowAbductionPromo/rtp1075MathConfig.ts` `rtpValues` retain parent declarations. Document this specimen mismatch; never recommend hiding active economics. Ordinary private/public behavioral copies and affected forks need consistency checks; explicit Promo exceptions require separate evidence.
 
 ## Correctness constraints
-- **C14:** Suppliers certify multiple RTP variants/bands; operators may switch among PRE-CERTIFIED variants at deploy without re-cert — display the active percent. Operator-funded promotions outside the game RNG do NOT change certified RTP. Re-cert is required ONLY when the math model changes: symbol weights, paytable, or feature logic. Locking a variant at cert is normal; "RTP can never change post-deploy" is the folk error.
+
+- **C14:** A switch among pre-certified variants within verified approval scope can use that approval while displaying the active percent. Off-RNG promotions do not change certified game RTP. Weights, paytables, feature/selector logic, or payout-rule changes require math-model review, even when EV is preserved. Claim a re-certification exemption only from verified applicable approval evidence (`comp-rtp-certification`).
 
 ## Pitfalls / red flags
-- Treating bonus spend as an RTP increase (it's a margin reduction — step 4, C14).
-- Publishing a per-mode RTP instead of the aggregate, or summing modes by frequency they aren't actually played at.
-- Trusting an inconsistent client RTP string over server config (illustrative ≠ truth).
-- Assuming a volatility tweak, or a switch to a pre-certified variant, needs re-cert.
-- Variant switch that never takes effect: gameplay must thread the variant (`config = configs[config.variant]`); a hardcoded `config = myRtpXXMathConfig` makes `config(variant)` move only the stats sim, not real play — a silent C14 trap.
-- Dropping the jackpot contribution from the aggregate.
+
+Fraction/percent confusion; public labels treated as truth; cumulative win duplication; wrong buy denominator; missing caps/floors; nominal-WR bonus costs; constant-RTP volatility retunes assumed exempt.
 
 ## Verification
-- Monte-Carlo aggregate estimate sits inside the certified band at stated CI.
-- Sum of component EV contributions equals the single published RTP.
-- Re-cert decision cites whether weights/paytable/feature logic changed (math model) vs. a variant switch or off-RNG promo (no re-cert).
+
+Retain the mode/selector/cost matrix, reconciled component totals, stake-boundary results, CI methodology, declaration discrepancy log, and applicable certification decision. Repository sim records are not new runs or lab approvals.

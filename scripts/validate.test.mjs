@@ -1,242 +1,160 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, symlinkSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { validate, parseFrontmatter, wordCount } from './validate.mjs'
+import { validate, parseFrontmatter, wordCount, stripFences } from './validate.mjs'
 
-function makeSkills(spec) {
-  const root = mkdtempSync(join(tmpdir(), 'wf-'))
-  for (const [name, content] of Object.entries(spec)) {
-    mkdirSync(join(root, name), { recursive: true })
-    if (content !== null) writeFileSync(join(root, name, 'SKILL.md'), content)
-  }
-  return root
+// A well-formed domain skill; override any part to break exactly one rule.
+function skill(name, { description = 'Use when testing the validator.', fm = '', title = `# ${name}`, insight = '> **Core insight:** One sharp line.', body = 'Body.' } = {}) {
+  return `---\nname: ${name}\ndescription: ${description}\n${fm}---\n\n${title}\n\n${insight}\n\n${body}\n`
 }
 
-test('valid skill passes with no errors', () => {
-  const root = makeSkills({
-    'math-rtp-modeling': `---\nname: math-rtp-modeling\ndescription: Use when modeling or verifying a target RTP.\n---\n\nBody.`,
-  })
-  const { errors } = validate(root)
-  assert.equal(errors.length, 0)
-  rmSync(root, { recursive: true, force: true })
-})
-
-test('name not matching folder is an error', () => {
-  const root = makeSkills({
-    'math-rtp-modeling': `---\nname: wrong-name\ndescription: Use when X.\n---\nBody.`,
-  })
-  const { errors } = validate(root)
-  assert.ok(errors.some((e) => e.includes('!= folder')))
-  rmSync(root, { recursive: true, force: true })
-})
-
-test('missing SKILL.md is an error', () => {
-  const root = makeSkills({ 'fair-verify': null })
-  const { errors } = validate(root)
-  assert.ok(errors.some((e) => e.includes('missing SKILL.md')))
-  rmSync(root, { recursive: true, force: true })
-})
-
-test('broken [[link]] is a warning', () => {
-  const root = makeSkills({
-    'fair-verify': `---\nname: fair-verify\ndescription: Use when verifying provable fairness.\n---\nSee [[does-not-exist]].`,
-  })
-  const { warnings } = validate(root)
-  assert.ok(warnings.some((w) => w.includes('broken [[link]]')))
-  rmSync(root, { recursive: true, force: true })
-})
-
-test('parseFrontmatter + wordCount helpers', () => {
-  const p = parseFrontmatter(`---\nname: x\ndescription: Use when y.\n---\nbody here`)
-  assert.equal(p.fm.name, 'x')
-  assert.equal(p.fm.description, 'Use when y.')
-  assert.equal(wordCount('one two three'), 3)
-})
-
-test('missing name is an error', () => {
-  const root = makeSkills({ 'fair-verify': `---\ndescription: Use when verifying.\n---\nbody` })
-  const { errors } = validate(root)
-  assert.ok(errors.some((e) => e.includes('frontmatter missing name')))
-  rmSync(root, { recursive: true, force: true })
-})
-
-test('non-hyphen-case name is an error', () => {
-  const root = makeSkills({ 'Bad_Name': `---\nname: Bad_Name\ndescription: Use when X.\n---\nbody` })
-  const { errors } = validate(root)
-  assert.ok(errors.some((e) => e.includes('not hyphen-case')))
-  rmSync(root, { recursive: true, force: true })
-})
-
-test('missing description is an error', () => {
-  const root = makeSkills({ 'fair-verify': `---\nname: fair-verify\n---\nbody` })
-  const { errors } = validate(root)
-  assert.ok(errors.some((e) => e.includes('frontmatter missing description')))
-  rmSync(root, { recursive: true, force: true })
-})
-
-test('description over 1024 chars is an error', () => {
-  const long = 'Use when ' + 'x'.repeat(1100)
-  const root = makeSkills({ 'fair-verify': `---\nname: fair-verify\ndescription: ${long}\n---\nbody` })
-  const { errors } = validate(root)
-  assert.ok(errors.some((e) => e.includes('description > 1024 chars')))
-  rmSync(root, { recursive: true, force: true })
-})
-
-test('description without a "use when" trigger is a warning', () => {
-  const root = makeSkills({ 'fair-verify': `---\nname: fair-verify\ndescription: Models the RTP precisely.\n---\nbody` })
-  const { warnings } = validate(root)
-  assert.ok(warnings.some((w) => w.includes('not trigger-shaped')))
-  rmSync(root, { recursive: true, force: true })
-})
-
-test('body over the word budget (>540) is a warning, not an error', () => {
-  const body = Array.from({ length: 541 }, () => 'w').join(' ')
-  const root = makeSkills({ 'fair-verify': `---\nname: fair-verify\ndescription: Use when X.\n---\n${body}` })
-  const { warnings, errors } = validate(root)
-  assert.equal(errors.length, 0)
-  assert.ok(warnings.some((w) => w.includes('> budget')))
-  rmSync(root, { recursive: true, force: true })
-})
-
-test('body over the hard cap (>800) is an error', () => {
-  const body = Array.from({ length: 801 }, () => 'w').join(' ')
-  const root = makeSkills({ 'fair-verify': `---\nname: fair-verify\ndescription: Use when X.\n---\n${body}` })
-  const { errors } = validate(root)
-  assert.ok(errors.some((e) => e.includes('> hard cap')))
-  rmSync(root, { recursive: true, force: true })
-})
-
-test('unterminated frontmatter is an error', () => {
-  const root = makeSkills({ 'fair-verify': `---\nname: fair-verify\ndescription: Use when X.` })
-  const { errors } = validate(root)
-  assert.ok(errors.some((e) => e.includes('missing/invalid frontmatter')))
-  rmSync(root, { recursive: true, force: true })
-})
-
-test('missing skills dir is an error', () => {
-  const { errors } = validate('/nonexistent/path/does/not/exist')
-  assert.ok(errors.some((e) => e.includes('skills dir not found')))
-})
-
-test('parseFrontmatter handles CRLF and strips surrounding quotes', () => {
-  const p = parseFrontmatter(`---\r\nname: x\r\ndescription: "Use when y."\r\n---\r\nbody`)
-  assert.equal(p.fm.name, 'x')
-  assert.equal(p.fm.description, 'Use when y.')
-})
-
-test('constraint-tagged skill without a Correctness constraints section is an error', () => {
-  const root = makeSkills({
-    'fair-rng-core': `---\nname: fair-rng-core\ndescription: Use when deriving RNG.\n---\nUses HMAC [C7] and [C12].`,
-  })
-  const { errors } = validate(root)
-  assert.ok(errors.some((e) => e.includes('no "Correctness constraints" section')))
-  rmSync(root, { recursive: true, force: true })
-})
-
-test('constraint skill with a real Correctness constraints section passes', () => {
-  const md = `---\nname: fair-rng-core\ndescription: Use when deriving RNG.\nconstraints: C7, C12\n---\nBody uses [C7] and [C12].\n\n## Correctness constraints\n- C7: SHA-256 length-extension only bites when used as a secret-prefix MAC; use HMAC-SHA256.\n- C12: stateless HMAC(serverSeed, clientSeed||nonce) is fine; the real fault is a recoverable seed.`
-  const root = makeSkills({ 'fair-rng-core': md })
-  const { errors } = validate(root)
-  assert.equal(errors.length, 0)
-  rmSync(root, { recursive: true, force: true })
-})
-
-test('constraint skill with an empty/placeholder Correctness section is an error', () => {
-  const md = `---\nname: math-rtp-modeling\ndescription: Use when modeling RTP.\n---\nUses [C1].\n\n## Correctness constraints\n<!-- TODO fill in -->`
-  const root = makeSkills({ 'math-rtp-modeling': md })
-  const { errors } = validate(root)
-  assert.ok(errors.some((e) => e.includes('empty/placeholder')))
-  rmSync(root, { recursive: true, force: true })
-})
-
-test('declared constraint not referenced in its section is a warning', () => {
-  const md = `---\nname: fair-rng-core\ndescription: Use when deriving RNG.\nconstraints: C7, C12\n---\nBody.\n\n## Correctness constraints\n- C7: use HMAC-SHA256, not a secret-prefix MAC over attacker data.`
-  const root = makeSkills({ 'fair-rng-core': md })
-  const { warnings } = validate(root)
-  assert.ok(warnings.some((w) => w.includes('C12 not referenced')))
-  rmSync(root, { recursive: true, force: true })
-})
-
-// --- vendored-skill gates (superpowers integration) ---
-const PROV = '<!-- Vendored from superpowers v5.1.0 — MIT, Copyright (c) 2025 Jesse Vincent. See /THIRD-PARTY-NOTICES.md. -->'
-
-// Mirrors the real repo layout: a root holding skills/ and (optionally) THIRD-PARTY-NOTICES.md.
-function makeVendored({ withNotices = true, noticesContent = 'MIT\nCopyright (c) 2025 Jesse Vincent\n', skills }) {
-  const root = mkdtempSync(join(tmpdir(), 'wf-vendor-'))
+// Builds <root>/skills/<name>/SKILL.md plus optional top-level files; returns { root, skillsDir }.
+function fixture(skills, files = {}) {
+  const root = mkdtempSync(join(tmpdir(), 'wf-'))
   const skillsDir = join(root, 'skills')
-  mkdirSync(skillsDir, { recursive: true })
-  if (withNotices) writeFileSync(join(root, 'THIRD-PARTY-NOTICES.md'), noticesContent)
+  mkdirSync(skillsDir)
   for (const [name, content] of Object.entries(skills)) {
     mkdirSync(join(skillsDir, name), { recursive: true })
     if (content !== null) writeFileSync(join(skillsDir, name, 'SKILL.md'), content)
   }
+  for (const [rel, content] of Object.entries(files)) {
+    mkdirSync(join(root, rel, '..'), { recursive: true })
+    writeFileSync(join(root, rel), content)
+  }
   return { root, skillsDir }
 }
 
-test('vendored skill is exempt from the 800-word hard cap', () => {
-  const big = Array.from({ length: 1200 }, () => 'w').join(' ')
-  const { root, skillsDir } = makeVendored({ skills: {
-    'writing-plans': `---\nname: writing-plans\ndescription: Use when planning.\n---\n${PROV}\n\n${big}`,
-  } })
-  const { errors } = validate(skillsDir)
-  assert.deepEqual(errors.filter((e) => /words >/.test(e)), [])
-  rmSync(root, { recursive: true, force: true })
+function check(skills, files) {
+  const { root, skillsDir } = fixture(skills, files)
+  try { return validate(skillsDir) } finally { rmSync(root, { recursive: true, force: true }) }
+}
+const has = (list, re) => list.some((m) => re.test(m))
+
+test('a well-formed skill passes with no errors and no warnings', () => {
+  assert.deepEqual(check({ 'math-rtp-modeling': skill('math-rtp-modeling') }), { errors: [], warnings: [] })
 })
 
-test('vendored skill missing provenance header is an error', () => {
-  const { root, skillsDir } = makeVendored({ skills: {
-    'writing-plans': `---\nname: writing-plans\ndescription: Use when planning.\n---\n\n# x`,
-  } })
-  const { errors } = validate(skillsDir)
-  assert.ok(errors.some((e) => /provenance/i.test(e)))
-  rmSync(root, { recursive: true, force: true })
+test('name/folder, hyphen-case and presence rules', () => {
+  assert.ok(has(check({ 'math-rtp-modeling': skill('wrong-name') }).errors, /!= folder/))
+  assert.ok(has(check({ 'fair-verify': null }).errors, /missing SKILL\.md/))
+  for (const bad of ['Bad_Name', '-lead', 'double--hyphen', 'trail-']) {
+    assert.ok(has(check({ [bad]: skill(bad) }).errors, /not hyphen-case/), bad)
+  }
+  assert.ok(has(check({ 'fair-verify': '---\ndescription: Use when x.\n---\n# T\n\n> **Core insight:** y.\n' }).errors, /missing name/))
+  assert.ok(has(check({ 'fair-verify': '---\nname: fair-verify\n---\n# T\n\n> **Core insight:** y.\n' }).errors, /missing description/))
+  assert.ok(has(check({ x: '---\nname: x\ndescription: Use when X.' }).errors, /missing\/invalid frontmatter/))
+  assert.ok(has(validate('/nonexistent/path/does/not/exist').errors, /skills dir not found/))
 })
 
-test('residual superpowers: namespace in a skill is an error', () => {
-  const { root, skillsDir } = makeVendored({ skills: {
-    'using-wagerforge': `---\nname: using-wagerforge\ndescription: Use when routing.\n---\nsee superpowers:writing-plans`,
-  } })
-  const { errors } = validate(skillsDir)
-  assert.ok(errors.some((e) => /superpowers:/.test(e)))
-  rmSync(root, { recursive: true, force: true })
+test('description: >1024 chars is an error, a missing "Use when" trigger is a warning', () => {
+  assert.ok(has(check({ 'fair-verify': skill('fair-verify', { description: 'Use when ' + 'x'.repeat(1100) }) }).errors, /> 1024/))
+  assert.ok(has(check({ 'fair-verify': skill('fair-verify', { description: 'Models the RTP precisely.' }) }).warnings, /not trigger-shaped/))
 })
 
-test('missing THIRD-PARTY-NOTICES.md with vendored skills present is an error', () => {
-  const { root, skillsDir } = makeVendored({ withNotices: false, skills: {
-    'writing-plans': `---\nname: writing-plans\ndescription: Use when planning.\n---\n${PROV}\n\n# x`,
-  } })
-  const { errors } = validate(skillsDir)
-  assert.ok(errors.some((e) => /THIRD-PARTY-NOTICES/.test(e)))
-  rmSync(root, { recursive: true, force: true })
+test('word budget (>540) warns and the hard cap (>800) errors', () => {
+  const words = (n) => Array.from({ length: n }, () => 'w').join(' ')
+  const soft = check({ 'fair-verify': skill('fair-verify', { body: words(560) }) })
+  assert.equal(soft.errors.length, 0)
+  assert.ok(has(soft.warnings, /> budget/))
+  assert.ok(has(check({ 'fair-verify': skill('fair-verify', { body: words(820) }) }).errors, /> hard cap/))
 })
 
-test('a NON-vendored domain skill cannot dodge the word cap by containing the provenance phrase', () => {
-  const big = Array.from({ length: 900 }, () => 'w').join(' ')
-  // not in VENDORED_SKILLS, but body coincidentally contains the marker text:
-  const { root, skillsDir } = makeVendored({ skills: {
-    'math-bloat': `---\nname: math-bloat\ndescription: Use when bloating.\n---\nMentions "Vendored from superpowers" in prose.\n\n${big}`,
-  } })
-  const { errors } = validate(skillsDir)
-  assert.ok(errors.some((e) => /hard cap/.test(e)), 'word cap must still fire for a non-vendored skill')
-  rmSync(root, { recursive: true, force: true })
+test('parseFrontmatter: CRLF, quotes, one nested metadata map, whole-line delimiters only', () => {
+  const p = parseFrontmatter('---\r\nname: x\r\ndescription: "Use when y."\r\nmetadata:\r\n  constraints: C1, C4\r\n---\r\nbody')
+  assert.equal(p.fm.name, 'x')
+  assert.equal(p.fm.description, 'Use when y.')
+  assert.deepEqual(p.fm.metadata, { constraints: 'C1, C4' })
+  assert.equal(parseFrontmatter('---oops\nname: x\ndescription: Use when y.\n---oops\nbody'), null)
+  assert.equal(wordCount('one two three'), 3)
 })
 
-test('gutted THIRD-PARTY-NOTICES (no copyright/MIT) with vendored skills present is an error', () => {
-  const { root, skillsDir } = makeVendored({ noticesContent: 'see upstream\n', skills: {
-    'writing-plans': `---\nname: writing-plans\ndescription: Use when planning.\n---\n${PROV}\n\n# x`,
-  } })
-  const { errors } = validate(skillsDir)
-  assert.ok(errors.some((e) => /verbatim MIT|preserve the/.test(e)))
-  rmSync(root, { recursive: true, force: true })
+test('frontmatter must stay portable to Codex: unknown top-level keys are errors, metadata is fine', () => {
+  assert.ok(has(check({ 'math-x': skill('math-x', { fm: 'constraints: C1\n' }) }).errors, /key "constraints" is not portable/))
+  const ok = check({ 'math-x': skill('math-x', { fm: 'metadata:\n  constraints: C1\n', body: '## Correctness constraints\n- C1: RTP is multilinear in the reel weights; recompute it fully.' }) })
+  assert.deepEqual(ok, { errors: [], warnings: [] })
+  assert.ok(has(check({ 'math-x': skill('math-x', { description: '>' }) }).errors, /one line/))
 })
 
-test('happy path: a legit vendored skill + proper NOTICES validates with zero errors', () => {
-  const { root, skillsDir } = makeVendored({ skills: {
-    'writing-plans': `---\nname: writing-plans\ndescription: Use when planning a multi-step task.\n---\n${PROV}\n\n# Writing Plans\n\nBody that is intentionally long but exempt.`,
-  } })
-  const { errors } = validate(skillsDir)
-  assert.deepEqual(errors, [])
-  rmSync(root, { recursive: true, force: true })
+test('the title is the skill name, so every skill reads the same way in the catalogue', () => {
+  assert.deepEqual(check({ 'math-x': skill('math-x') }).errors, [])
+  assert.ok(has(check({ 'math-x': skill('math-x', { title: '# Math X Mathematics' }) }).errors, /title "Math X Mathematics" must be the skill name "math-x"/))
+})
+
+test('every skill needs a title and a Core insight as the first line after it (not inside a code fence)', () => {
+  assert.ok(has(check({ 'math-x': skill('math-x', { title: 'No heading here' }) }).errors, /no "# Title"/))
+  assert.ok(has(check({ 'math-x': skill('math-x', { insight: 'Plain intro first.' }) }).errors, /Core insight/))
+  const fenced = skill('math-x', { insight: '```md\n> **Core insight:** inside a fence\n```' })
+  assert.ok(has(check({ 'math-x': fenced }).errors, /Core insight/))
+})
+
+test('correctness constraints: section required, non-empty, whole-token references, known ids only', () => {
+  const tagged = (body, fm = '') => check({ 'fair-rng-core': skill('fair-rng-core', { fm, body }) })
+  assert.ok(has(tagged('Uses HMAC [C7] and [C12].').errors, /no "Correctness constraints" section/))
+  assert.ok(has(tagged('Uses [C1].\n\n## Correctness constraints\n<!-- TODO fill in -->').errors, /empty\/placeholder/))
+  const real = tagged('Body [C7] [C12].\n\n## Correctness constraints\n- C7: use HMAC-SHA256, never a secret-prefix MAC.\n- C12: a stateless HMAC derivation is fine.')
+  assert.deepEqual(real, { errors: [], warnings: [] })
+  assert.ok(has(tagged('Body.\n\n## Correctness constraints\n- C7: use HMAC-SHA256 for keyed derivation.', 'metadata:\n  constraints: C7, C12\n').warnings, /C12 not referenced/))
+  // "C10" in the section must not satisfy a declared C1.
+  assert.ok(has(tagged('Body.\n\n## Correctness constraints\n- C10: thresholds are soft and per tier.', 'metadata:\n  constraints: C1\n').warnings, /C1 not referenced/))
+  assert.ok(has(tagged('Uses [C15].\n\n## Correctness constraints\n- C15: a constraint that does not exist.').errors, /unknown correctness constraint C15/))
+})
+
+test('a heading inside a fenced code block does not count as the Correctness constraints section', () => {
+  const body = 'Uses [C7].\n\n```md\n## Correctness constraints\nC7: only an example, not a real section.\n```'
+  assert.ok(has(check({ 'fair-rng-core': skill('fair-rng-core', { body }) }).errors, /no "Correctness constraints" section/))
+  assert.equal(stripFences('a\n```\n# x\n```\nb'), 'a\n\n\n\nb')
+})
+
+test('references must resolve: wagerforge:<name>, backticked skill names, [[links]]; commands and agents count', () => {
+  const r = check({ 'fair-verify': skill('fair-verify', { body: 'See wagerforge:fair-nope, `math-nope` and [[qa-nope]].' }) })
+  assert.ok(has(r.errors, /dangling reference wagerforge:fair-nope/))
+  assert.ok(has(r.errors, /dangling skill reference `math-nope`/))
+  assert.ok(has(r.errors, /broken \[\[link\]\]: qa-nope/))
+  const ok = check(
+    { 'fair-verify': skill('fair-verify', { body: 'Run /wagerforge:fairness-audit or ask wagerforge:fairness-auditor; `fair-verify` itself.' }) },
+    { 'commands/fairness-audit.md': '---\ndescription: Audit fairness.\n---\nUse `fair-verify`.\n', 'agents/fairness-auditor.md': '---\nname: fairness-auditor\ndescription: Audits.\n---\nUse `fair-verify`.\n' },
+  )
+  assert.deepEqual(ok, { errors: [], warnings: [] })
+})
+
+test('commands, agents, hooks and top-level docs are checked too', () => {
+  const r = check({ 'fair-verify': skill('fair-verify') }, {
+    'commands/x.md': '---\ndescription: X.\n---\nFirst run `wagerforge:brainstorming`.\n',
+    'agents/y.md': '---\nname: not-y\ndescription: Y.\n---\nbody\n',
+    'hooks/h.mjs': "const s = 'see wagerforge:writing-plans'\n",
+    'README.md': 'Requires superpowers:using-superpowers.\n',
+  })
+  assert.ok(has(r.errors, /\[commands\/x\.md\] dangling reference wagerforge:brainstorming/))
+  assert.ok(has(r.errors, /agent name "not-y" != file "y"/))
+  assert.ok(has(r.errors, /\[hooks\/h\.mjs\] dangling reference wagerforge:writing-plans/))
+  assert.ok(has(r.errors, /\[README\.md\] references "superpowers:"/))
+})
+
+test('every domain skill must be reachable from the using-wagerforge router', () => {
+  const router = (body) => skill('using-wagerforge', { body })
+  const r = check({ 'using-wagerforge': router('| Math | `math-a` |'), 'math-a': skill('math-a'), 'math-b': skill('math-b'), 'econ-c': skill('econ-c') })
+  assert.ok(has(r.errors, /\[math-b\] not reachable/))
+  assert.ok(has(r.errors, /\[econ-c\] not reachable/))
+  const ok = check({ 'using-wagerforge': router('| Math | `math-a`, `math-b` |\n| Economy | `econ-*` |'), 'math-a': skill('math-a'), 'math-b': skill('math-b'), 'econ-c': skill('econ-c') })
+  assert.deepEqual(ok, { errors: [], warnings: [] })
+})
+
+test('symlinked skill folders and stray files in skills/ are refused, not silently skipped', () => {
+  const { root, skillsDir } = fixture({ 'fair-verify': skill('fair-verify') })
+  try {
+    symlinkSync(join(skillsDir, 'fair-verify'), join(skillsDir, 'fair-link'))
+    writeFileSync(join(skillsDir, 'stray.md'), 'x')
+    const { errors } = validate(skillsDir)
+    assert.ok(has(errors, /\[fair-link\] symlinked skill folders are not supported/))
+    assert.ok(has(errors, /\[stray\.md\] unexpected file/))
+  } finally { rmSync(root, { recursive: true, force: true }) }
+})
+
+test('credentials listed in docs/SECURITY-NOTE.md may not appear anywhere else (Law #6)', () => {
+  const note = '| Key file | Env |\n|---|---|\n| `fake-games-prod-0123456789ab.json` | prod |\n\nKey IDs: `0123456789ab`.\n'
+  const r = check({ 'fair-verify': skill('fair-verify', { body: 'Load 0123456789ab from disk.' }) }, { 'docs/SECURITY-NOTE.md': note, 'README.md': 'see fake-games-prod-0123456789ab.json\n' })
+  assert.ok(has(r.errors, /\[fair-verify\] references an excluded credential/))
+  assert.ok(has(r.errors, /\[README\.md\] references an excluded credential/))
 })

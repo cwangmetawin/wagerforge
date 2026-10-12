@@ -1,38 +1,34 @@
 ---
 name: build-game-flow
-description: Use when structuring the game runtime control flow - a Sequence/Step coroutine engine (default) vs a Gamestate FSM plus Timeline. Keywords game flow, sequence, coroutine, state machine, timeline.
+description: Use when orchestrating server-result playback, continuation choices, wagering state, skip/turbo, or cancellation in a game runtime. Keywords game flow, sequence, state machine, timeline, next, continuation, skip, turbo.
 ---
 
 # build-game-flow
 
-> **Core insight:** The flow engine animates an outcome that already exists — turbo/skip collapses presentation time to the server-settled frame, never re-deriving a result; pre- and post-skip board states must be bit-identical.
+> **Core insight:** Presentation completion is not round completion: non-empty `next` preserves continuation, while skip/turbo finishes only visuals and never selects an action or sends a wager.
 
 ## When to use / When NOT
-- Use when: orchestrating a round's runtime control flow — spin → resolve → cascade → win-present → idle — and choosing how steps sequence, run concurrently, and skip.
-- NOT for: deciding the outcome (server-authoritative — outcome arrives before flow runs); win-tier visuals (→ `build-win-presentation`); reel motion physics (→ `build-slot-reels-symbols`); scene layout (→ `build-win-presentation`).
+
+- Use when sequencing result playback and coordinating continuation, input and cancellation.
+- NOT for deriving outcomes (`build-game-server-rgs`), reel effects (`build-slot-reels-symbols`) or celebrations (`build-win-presentation`).
 
 ## Default stack (+ escape hatch)
-Default: TS + PixiJS + a pool-backed, skippable **Sequence/Step coroutine engine**. Each `Step` is an awaitable unit; a `Sequence` runs steps in order. Composite steps: `AwaitConcurrent` (all settle), `RaceConcurrent` (first settles), `SkipGroup` (skip/turbo collapses a span). Steps are pooled and reset, never re-allocated per round. If your project is older JS or signal/Redux-driven, map: Step→state-enter handler, Sequence→transition table, SkipGroup→fast-forward flag, AwaitConcurrent→`Promise.all`, RaceConcurrent→`Promise.race`.
 
-Escape hatch — **Gamestate FSM + Timeline**: discrete states (`idle`, `start-spinning`, `loop`, `stop-spinning`, `process-cascade`, `evaluate-result`) with a Timeline scheduling cosmetic events by parameterized delay. Prefer this only when an existing codebase already runs an FSM, or designers need an explicit visual state diagram.
+Default: TypeScript + PixiJS/Phaser, Node server, exact integer/decimal money; a wagering FSM plus a cancellable presentation sequence/timeline. Other stacks map steps to state-enter handlers and timelines to cosmetic scheduling. Sequence/Step classes and pooling are implementation options, not verified MSS frontend APIs. Concurrent work needs explicit cancellation; `Promise.race` alone does not cancel losers.
 
 ## Process
-1. Receive the resolved outcome from the server; the flow only animates it. Never branch flow logic on a client-computed result.
-2. Pick the engine. Default Sequence/Step for modern TS; FSM+Timeline for legacy/diagram-driven titles.
-3. Model the round as composed steps: spin-start → await reels stop (`AwaitConcurrent`) → loop cascades (`process-cascade` per tumble) → evaluate → win-present → idle.
-4. Make every duration a server/config parameter passed into the step, not a literal.
-5. Wrap user-skippable spans in a `SkipGroup` (or FSM fast-forward flag) so turbo/slam jumps to the settled frame without altering the outcome.
-6. Pool step and sequence instances; reset state on acquire, return on completion.
+
+1. Separate request/round state from presentation state: wagering-idle, request-pending, presenting, continuation/choice and recovery. Receive authoritative responses; animate public data only. Keep opaque round state in the adapter for resumption, never expose hidden precomputed branches to the renderer.
+2. Treat non-empty `next` as continuation after playback. Preserve the open round and show its documented choices; do not enable a fresh wager. MSS `games/zeus/gamePlay.ts` `playMain` returns credited base winnings with Rush/Chase `next`; `games/zeus/FRONTEND.md` documents the funded choice handshake.
+3. Return to wagering-idle only on the documented terminal response and platform acknowledgement. Neither positive `win` nor animation completion is terminal proof. MSS `games/fruitMachine/index.ts` `spin` offers `gamble`/`bank`; `server.play` rejects another spin while the round is open. Different games have different terminal state shapes.
+4. Sequence reels, snapshot/cascade events and win presentation from response order. Get timing from presentation config unless the actual server contract supplies it. Use `build-slot-reels-symbols` and `build-win-presentation` for their adapters.
+5. Make skip/turbo a visual-only fast-forward to this response's final board. It must not choose a continuation, send a wager, change payment amounts or bypass choices. A distinct player decision or documented autoplay policy owns subsequent requests; keep it separate from skip handlers.
+6. Settle or cancel every awaited task on skip, error, resize/restart and disposal. Reset/release pooled instances if used. On uncertain request status, enter recovery and reconcile the authoritative round; never infer loss, retry a wager blindly or discard pending state because animation failed.
 
 ## Pitfalls / red flags
-- Treating animation as logic — flow must never decide or mutate the outcome.
-- Hardcoded durations; turbo/skip that re-derives a result instead of fast-forwarding to the server frame.
-- Allocating steps per round (GC churn) instead of pooling.
-- A skip that leaves a sequence mid-await, orphaning timers or leaking pooled instances.
-- Global mutable flow state shared across concurrent rounds.
+
+Always transitioning win-present to idle; losing opaque continuation state; implicit `next[0]` selection during skip; comparing a mid-animation board with its final board; orphaned promises/timers; stale callbacks unlocking wagering.
 
 ## Verification
-- Skip/turbo lands on the exact server-settled frame — assert pre- and post-skip board states are identical.
-- Pool size stays flat across many rounds (no per-round growth).
-- Concurrent steps all settle (or the race winner cancels losers) with no orphaned timers.
-- Replaying the same outcome twice yields an identical end state.
+
+Normal playback and skipped playback of the same response must yield identical final boards, amounts and continuation state. Skip at each await boundary and assert zero action/wager requests from skip handlers. Test non-terminal positive wins, pending-total loss/bank, duplicate input, reconnection, cancellation and terminal acknowledgement. Record client request traces and lifecycle checks separately from MSS source evidence.

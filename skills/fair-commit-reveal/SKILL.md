@@ -1,30 +1,36 @@
 ---
 name: fair-commit-reveal
-description: Use when designing the seed lifecycle of a provably-fair game — publishing the server-seed commitment before play, rotating seeds, revealing the plaintext, and resetting the nonce. Keywords commit reveal, serverSeedHash, seed rotation, nonce.
-constraints: C7
+description: Use when designing server-seed commitments, fresh client entropy, nonce allocation, accepted wager binding, reveal boundaries, or seed rotation.
+metadata:
+  constraints: C7, C11
 ---
 
 # fair-commit-reveal
 
-> **Core insight:** The commit hash is plain `SHA256(serverSeed)`, not HMAC — length-extension cannot invert it or two-open it. Don't "harden" the commit; HMAC belongs only to keyed outcome derivation in `fair-rng-core`.
+> **Core insight:** Fix the operator's commitment before fresh player entropy; retire every dependent future outcome before reveal, and preserve immutable wager bindings and nonce history across rotation.
 
 ## When to use / When NOT
-- Use when: deciding when to publish `SHA256(serverSeed)`, when to reveal it, and how to rotate.
-- NOT for: deriving outcomes (→ `fair-rng-core`) or re-deriving to verify (→ `fair-verify`).
 
-## Default stack (+ escape hatch)
-`hashServerSeed`/`generateServerSeed`/`generateClientSeed` from `scripts/fair-rng.mjs` + a seed-state store. Other stacks: same ordering rules.
+- Use for seed epochs, acceptance ordering and reveal schedules.
+- Derivation: `fair-rng-core`; independent epoch verification: `fair-verify`; hash-chain entropy: `fair-hash-chain`. Shoe/draw ledgers: `fair-shoe-draw-ledger`.
 
 ## Process
-1. Publish `serverSeedHash = SHA256(serverSeed)` BEFORE the player submits/locks their client seed; optionally double-commit `nextServerSeedHash`.
-2. Increment `nonce` per bet; **reset nonce to 0 on rotation**.
-3. Reveal the plaintext server seed only AFTER rotation; block rotation while unfinished rounds > 0.
+
+1. Generate a secret unpredictable server seed of at most 64 UTF-8 bytes (a longer HMAC key is hashed into the public commitment). Publish `SHA256(serverSeed)` before locking client entropy. Use UTF-8 bytes of the seed text for commitment and HMAC, never hex-decoded bytes. WF `scripts/fair-rng.mjs` exports `hashServerSeed`, `generateServerSeed` and `generateClientSeed`; they are primitives, not a lifecycle store.
+2. For every epoch, the client saves the fixed commitment first, then generates and saves fresh unpredictable client entropy and sends it to the server. “Client-held” means player-controlled source and retained record, not secrecy from the deriving server. Re-locking an old known seed lets the operator grind the next server seed; a prepublished next commitment does not remove the freshness requirement.
+3. Define immutable epoch identity and nonce namespace. A dedicated per-player epoch allocates `0..k-1` exactly once in accepted order, only to a bet whose stake was accepted and debited; a rejected request consumes no nonce. Global shared nonces may leave gaps in personal history; retain the global allocation record. The operator must not choose which nonce a wager gets. Reject malformed/unsafe counters; never repeat `(serverSeed,clientSeed,nonce)`.
+4. Accept/debit stake in exact integer atoms before deriving any outcome. Atomically bind the accepted wager to epoch, nonce, commitment, client seed, stake and all outcome-affecting parameters. Persist one decision before its money leg: rejected, settled or refunded; retries preserve content, conflicting reuse rejects. No selective cancellation/settlement after acceptance. Retain ordered failure/cancellation receipts, consumed nonces and rotation records.
+5. Reveal only when every dependent future outcome is retired. Block unsafe rotation while dependent rounds remain open; reset nonce only with a new server seed. Changing client seed rotates server seed through this safe boundary. A multi-round shoe cannot retain future card order generated under a revealed key. MetaWin's production server (MSS) `games/baccarat-live/engine.ts` `Shoe.draw` draws from composition; MSS `games/baccarat-live/index.ts` `tick` requests rotation after deal. MSS `games/blackjack-table-live/index.ts` `tick` requests it on result after the last draw. Audit actual dependencies, not generic phase names.
 
 ## Correctness constraints
-- **C7:** The commitment `SHA256(serverSeed)` is safe — length-extension does not let an attacker invert the hash, recover the seed, or two-open the commitment. Keep keyed derivation on HMAC-SHA256 (see `fair-rng-core`); the commit hash being plain SHA-256 is correct and fine.
+
+- **C7:** Plain `SHA256(serverSeed)` commitment is valid; length extension does not invert it or produce two openings. Use HMAC for keyed outcome derivation, never a secret-prefix hash MAC.
+- **C11:** Apply that commitment/MAC distinction; mapping bias depends on source and target domains, with rejection where needed.
 
 ## Pitfalls / red flags
-Revealing before rotation; not resetting nonce; allowing rotation mid-round; committing after the client seed is known.
+
+Known entropy reused across epochs; nonce reset under the same seed; mutable wager parameters; early reveal; live RNG/debug traces, future outcomes or cheat/replay paths reaching production responses.
 
 ## Verification
-`hashServerSeed` is frozen in tests; reveal matches its earlier commitment; nonce resets on rotation.
+
+Check player-kept commitment timing, fresh entropy, immutable receipts and all rotation paths. Exercise shoe-leak negatives in MSS `games/blackjack-table-live/test-blackjack-table-shoe-leak.test.ts`; test skipped/reused/reordered nonces, rewritten commitments, swapped client seeds and selective abort via `qa-fairness-verification`.

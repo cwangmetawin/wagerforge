@@ -1,41 +1,43 @@
 ---
 name: build-asset-pipeline
-description: Use when building the art asset pipeline - Spine triad (json plus atlas plus webp), texture atlas packing, incremental mtime builds, and swappable AI-asset providers. Keywords asset pipeline, Spine, atlas, texture packer, asset budget.
-constraints: C10
+description: Use when packaging game sprites, texture atlases, skeletal animations or bitmap fonts, diagnosing stale incremental asset builds, or integrating generated art into an asset pipeline.
+metadata:
+  constraints: C10
 ---
 
 # build-asset-pipeline
-
-> **Core insight:** On Android's unified memory there is no VRAM pool to "save" — atlasing/batching cuts CPU submit count, not memory. Draw-call/MB caps are soft and workload-dependent; profile a real mid-range device, never gate on a number.
+> **Core insight:** Atlas layout, download size and runtime resource costs need separate evidence; a packer choice or smaller file does not establish mobile performance.
 
 ## When to use / When NOT
-- Use when: packing sprites/atlases, the Spine triad, incremental builds, or a swappable AI-asset provider.
-- NOT for: rendering/playback (→ symbol/scene/win-presentation skills); renderer choice/bootstrap (→ `setup-engine`).
+
+- Use for asset packaging, incremental rebuilds and generated-art integration.
+- NOT for runtime profiling (use `build-mobile-performance`) or outcome generation (use `build-game-server-rgs`).
 
 ## Default stack (+ escape hatch)
-Default: Node scripts + `free-tex-packer-core` + `cwebp` → PixiJS JSON-Hash atlas. Same triad elsewhere: atlas JSON → sprite frame map, `.atlas` → Spine runtime, `.webp` → compressed texture (KTX2/Basis if supported). TS/Webpack: pack at build via a `sharp` generator (`SpriteSheetGenerator` + per-type loaders) — different tooling. Reference: medusa `scripts/build-sprites.js`.
+
+TypeScript + PixiJS/Phaser client, Node build tools/server, exact integer money atoms. Select formats from the actual client loader. Other stacks map atlas metadata to their frame maps and animation data to their runtimes; preserve identifiers and ordering.
 
 ## Process
-1. **Format per asset class.** Animated symbols → Spine skeletal (`json` + `.atlas` + `.webp`), 30–50% smaller than spritesheets. Static UI → spritesheet + atlas + bitmap fonts.
-2. **Pack, device-aware page cap.** `free-tex-packer-core` emits a JSON-Hash atlas; `<anim>/000` zero-padded frames sort deterministically. Cap mobile pages UNDER GPU `MAX_TEXTURE_SIZE` (e.g. 2016 under 2048); legacy drivers fail at the limit. Overflow → multi-page; link via `meta.related_multi_packs` on page 0 so PIXI v7 auto-fetches+merges into one TextureCache.
-3. **Compress.** Pipe each packed PNG through `cwebp` (spritesheets ~`-q 90 -m 4`); rewrite `.atlas`/`.fnt` PNG refs to `.webp` (`-q 80` fine). Keep source PNGs, ship only `.webp`.
-4. **Build incrementally.** Skip outputs at least as new as all inputs. For RESIZED mobile assets, key the cache on BOTH mtime AND output PNG dimensions (`source*factor` ±1px) — a factor change leaves stale-but-newer PNGs that pure-mtime skips and the packer silently drops. Convert under **bounded concurrency** (worker pool), not unbounded `Promise.all`.
-5. **Provider abstraction.** Put AI gen behind a `SpriteAnimationProvider` interface (`generate(spec) → frames`). Ship a mock first; resolve real providers from a registry. Keep the API secret in memory only (env/secret manager); never to disk or atlas.
-6. **Enforce the budget.** Sum packed atlas + texture bytes vs a per-build budget; fail on overflow.
+
+1. **Establish the evidence boundary.** Inspect the target packer and loader before prescribing outputs. MetaWin's production server (MSS) `games/coinUp/gamePlay.ts` `buildResponse` supplies outcome data. The client asset pipeline is outside MSS; its tools, codecs and loading behavior are (unverified). WF contains skill guidance, not that client implementation.
+2. **Define a runtime manifest.** Preserve symbol/frame identifiers, animation order, dimensions and page references. Validate skeletal data, atlas pages and font references together against the actual loader; do not assume one universal file triad or multipack convention.
+3. **Choose formats by measurement.** Compare packaged bytes and visual fidelity on representative assets. Check transparency, fonts, animation playback and target-runtime support. Record codec settings; promise no fixed compression gain.
+4. **Invalidate all dependencies.** A rebuild key must cover source inputs, resize factors, packing/compression settings and tool versions. Validate cached dimensions and manifest completeness. A pure mtime check cannot detect a changed transform setting.
+5. **Bound build work.** Limit conversion/packing concurrency, preserve sources and publish complete outputs only after resolving references. Require generated art to satisfy the same manifest contract; provider APIs remain (unverified) until their implementation is inspected.
+6. **Separate budgets.** Enforce an explicitly agreed package-size limit as build policy. Assess rendering and runtime memory separately with `build-mobile-performance`.
 
 ## Correctness constraints
-- **C10:** Mobile draw-call/VRAM thresholds are SOFT and workload-dependent — 800 batched calls can be fine while 150 heavy-overdraw calls stutter. Android uses unified memory (no separate VRAM pool), so batching/atlasing is a CPU optimization (fewer submits), not a VRAM trick. Don't gate on a hardcoded draw-call/MB number; profile on a real low/mid-range Android against a 30fps floor and tune from measured frames.
+
+- **C10:** Draw-call/VRAM thresholds are soft and workload-dependent; set budgets per device tier and profile real low/mid-range Android. Include GPU allocations in overall device memory pressure. Atlasing alone proves no memory saving. See WF `docs/specs/2026-06-04-wagerforge-design.md` §7.
 
 ## Pitfalls / red flags
-- Hardcoded draw-call/VRAM caps as hard laws (C10); judging perf on a flagship/emulator.
-- Unbounded concurrency exhausting file handles on large packs.
-- mtime check using wrong/missing inputs, or ignoring resized-output dimensions → silent stale/dropped frames.
-- A `cwebp` JS wrapper using `shell:true` — newer Node (DEP0190) can leave the callback unfired → Promise hangs, build silently exits; invoke `cwebp` via `execFile`.
-- API key written into the atlas, logs, or repo.
-- Non-deterministic frame naming breaking animation order.
+
+- Guessing loader metadata, codec support or GPU page limits.
+- Treating smaller downloads as measured runtime-memory savings.
+- Stale transforms, missing frames or unstable naming/order.
 
 ## Verification
-- Re-run unchanged: every asset reports "skipped" (cache hit).
-- Atlas JSON validates as PixiJS JSON-Hash; frames load and animate in order.
-- Budget check passes; build fails on an oversized asset.
-- Profile a scene on low/mid Android: sustained ≥30fps.
+
+- Record packer/loader revisions, settings, byte counts, dimensions and complete frame/page mappings.
+- Exercise unchanged rebuilds, changed inputs/settings, missing dependencies and declared package-budget overflow.
+- Load the shipped package in the target client; verify every frame, animation and font reference, then capture device profiles. Missing client/device evidence stays (unverified).

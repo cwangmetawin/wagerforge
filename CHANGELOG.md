@@ -23,6 +23,11 @@ Coverage of MetaWin's production server (MSS) against a fixed denominator. Each 
 - `build-wager-limit-admission`: currency and precision locks, worst-case liability against maximum exposure,
   per-chip versus per-spot limits, minimum and maximum bets, wallet-grid admission before the RNG, auto cash-out.
 - Eval cases `live-table-undo-side-empty-round` and `shared-room-stake-admission`.
+- `build-round-recovery-contracts`: void and refund on a fatal or stalled tick, restarts and legacy-state upgrades,
+  abandoned-round resolution, command-ID memory, catch-up ordering and late manual exits.
+- `build-pooled-market-operations`: resale orders and the order book, cancelling an invalid pool, winner allocation
+  and rake, largest-remainder atoms, capped pool payouts.
+- Eval cases `stalled-room-void-refunds` and `tote-capped-pool-remainders`.
 
 ### Changed (validator)
 - A `build-*` skill without a `## Default stack` section outside code fences is an error (law 3).

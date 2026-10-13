@@ -34,6 +34,11 @@ Coverage of MetaWin's production server (MSS) against a fixed denominator. Each 
 - `math-slot-board-state-rules`: strip stops and declared refill sources, the reference board for conditional odds,
   latent round state, persistent versus per-spin escalation, special-symbol injection.
 - Eval cases `wild-run-scatter-entry-credit` and `escalation-floor-wild-injection`.
+- `math-payout-precision-rules`: where money and probabilities are rounded, multiplier and win-cap scope, scatter
+  cash outside a cap, quantized odds lattices, quote repair, minimum stakes, ineligible table entries.
+- `math-forced-outcome-shaping`: regenerate-until-accepted features, bounded retry budgets and fallbacks, dead-board
+  refills, state aliasing in retries, per-wave forcing schedules, and what each does to RTP.
+- Eval cases `fixed-odds-ceil-quote-admission` and `guaranteed-symbol-replay-budget`.
 
 ### Added (dashboard)
 - The dashboard has an English page (`docs/dashboard/en/index.html`) with a language switch, and
@@ -43,6 +48,9 @@ Coverage of MetaWin's production server (MSS) against a fixed denominator. Each 
 ### Changed (skills)
 - `math-lines-ways-cluster`: connected ways declare their dead-end policy (MSS barValhalla retains forward dead
   ends; piggyBank reads wild maxima, then prunes) instead of always pruning.
+- `math-crash-family`: the live-clock policy (display floor, bust at the next bin of the floored, capped crash point,
+  the 1.00 manual exit) and deterministic fixtures; `fair-outcome-mappers`: exact cumulative thresholds for
+  categorical outcomes, interval endpoints, touching intervals and tail mass.
 
 ### Changed (validator)
 - A `build-*` skill without a `## Default stack` section outside code fences is an error (law 3).

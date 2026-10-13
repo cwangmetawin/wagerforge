@@ -7,26 +7,31 @@ metadata:
 
 # fair-outcome-mappers
 
-> **Core insight:** Uniform mapping depends on both source and target domain sizes; exact reduction and independent axis draws must match the versioned runtime draw contract.
+> **Core insight:** Uniform mapping needs exact source/target counts, independent axis draws and a versioned runtime draw contract.
 
 ## When to use / When NOT
-- Use for integers, permutations, grid coordinates and distribution samples.
-- NOT for keyed derivation (see `fair-rng-core`) or proving input provenance/history (see `fair-verify`).
+
+- Use for integers, permutations, coordinates and distribution samples.
+- Keyed derivation: `fair-rng-core`; input provenance/history: `fair-verify`.
 
 ## Process
-1. Specify a uniform integer source of size `N` and target range `R`. For `N=qR+t`, modulo residues have `q` or `q+1` preimages. Reject `x >= N-(N%R)` before `x%R`; acceptance then gives equal counts. MetaWin's production server (MSS) `common/rng/FloatSourcedIntegerRng.ts` `randomInteger` uses power-of-two reduction and rejection, assuming a uint32-grid float source.
-2. Keep arithmetic exact. `scripts/fair-rng.mjs` `nextInt(stream, range)` supports `1..2^32` with at most four bytes per candidate; use BigInt for larger domains. Pin the actual protocol's byte width, rejection consumption and cursor; the WF helper is not automatically MSS-compatible.
-3. Shuffle with descending Fisher–Yates, drawing `j` uniformly in `[0,i]`: `shuffle(stream,n)` uses `nextInt(i+1)`. Record all consumed draws, including cosmetic draws.
-4. For a row/column mapper, draw each axis independently and uniformly. MSS `games/snakes-pro/snake-game.ts` `generateFoodSequence` draws x then y with `draw(gridSize)`, repeats for occupancy (at most 100 attempts), then draws the golden flag. Preserve this order and audit occupancy/cap behavior. The former range-1000→26×26 mapper is retired.
-5. For inverse-CDF outcomes, pin endpoints, atoms, rounding, caps and variant parameters. MSS `games/chase/index.ts` `rollCrashPoint` has an instabust branch plus a floored/capped `(1-h)/(1-u)` path; a generic `/u` sketch cannot replace that decoder.
-   For preselected multi-outcome rounds, consume/replay every draw in index order but settle only the chosen result. Quantize before target comparison; test every selection and rounding boundary. MSS `games/drill/index.ts` `main` quantizes to eight decimals; `proveFairness` returns raw multipliers, a parity gap.
+
+1. Specify uniform integer source size N and target R. For N=qR+t, modulo residues have q or q+1 preimages. Reject x≥N−(N%R) before x%R for equal counts. MetaWin's production server (MSS) `common/rng/FloatSourcedIntegerRng.ts` `randomInteger` uses power-of-two reduction/rejection, assuming uint32-grid floats.
+2. Keep arithmetic exact. `scripts/fair-rng.mjs` `nextInt(stream,range)` supports 1..2³², at most four bytes per candidate; larger domains need BigInt. Pin protocol byte width, rejection consumption and cursor; WF is not automatically MSS-compatible.
+3. Descending Fisher–Yates draws j uniformly in [0,i]: `shuffle(stream,n)` uses `nextInt(i+1)`. Record every draw, including cosmetics.
+4. Draw row/column axes independently and uniformly. MSS `games/snakes-pro/snake-game.ts` `generateFoodSequence` draws x then y via `draw(gridSize)`, repeats for occupancy (100-attempt limit), then draws the golden flag. Preserve order; audit occupancy/cap behavior. The range-1000→26×26 mapper is retired.
+5. For inverse CDFs, pin endpoints, atoms, rounding, caps and variants. MSS `games/chase/index.ts` `rollCrashPoint` combines instabust and floored/capped (1−h)/(1−u); a generic /u cannot replace it. Preselected rounds consume/replay every draw in index order, settle only the chosen result. Apply settlement-defined quantization before target comparison; display rounding never decides results. Test every selection/rounding boundary. MSS `games/drill/index.ts` `main` quantizes eight decimals; `proveFairness` returns raw multipliers, a parity gap.
+6. For categorical outcomes, compare raw integers or unrounded u=x/N with exact cumulative thresholds; for interval events, use exact bounds and declare inclusive/exclusive endpoints. Merge same-event touching intervals only when the join is included, preserving inclusivity; count shared endpoints once. MSS `games/primedice/index.ts` `main` prices summed nonoverlapping widths (shared endpoints allowed), tests raw rolls against their closed union. Keep unmatched tail mass on a declared default; never sample rounded published probabilities. MSS `games/tartarus/gameLogic.ts` `pickModel` uses ≤ on uint32/2³², no renormalization, tail to model zero. MSS `games/sniperRange/gameLogic.ts` `resolveShot` samples distance-scaled Rayleigh radius σ(distance)√(−2ln(max(u,Number.MIN_VALUE))); `ringForRadius` uses strict < thresholds. Verify finite-source endpoints, gaps, touching intervals and the zero-input guard.
 
 ## Correctness constraints
-- **C8:** Modulo is unbiased exactly when `R` divides `N`. Bias can be negligible for small ranges relative to uint32, but large for comparable domains; there is no universal `1e-8` bound. Power-of-two targets divide power-of-two sources. Use rejection for arbitrary ranges.
-- **C11:** Correct the source/target counts; keyed derivation still needs HMAC (`fair-rng-core`). A secure primitive does not repair biased reduction.
+
+- **C8:** Modulo is unbiased exactly when R divides N. Bias may be negligible for small ranges versus uint32, large for comparable domains; no universal `1e-8` bound. Power-of-two targets divide power-of-two sources. Reject for arbitrary ranges.
+- **C11:** Correct source/target counts; keyed derivation still needs HMAC (`fair-rng-core`). Secure primitives do not repair bias.
 
 ## Pitfalls / red flags
-Statistical uniformity is not exact uniformity. Shared mapper code is not stream parity: MSS `games/snakes-pro/tests/rtp/foodSequence-golden.test.ts` records a known failing runtime/proof test; initialization offset, RNG source and occupancy still differ.
+
+Statistical uniformity is not exact uniformity. Shared mappers do not prove stream parity: MSS `games/snakes-pro/tests/rtp/foodSequence-golden.test.ts` records a known runtime/proof failure; initialization offset, RNG source and occupancy differ.
 
 ## Verification
-Exhaustively count every source value: naive byte `%6` gives `[43,43,43,43,42,42]`. `scripts/fair-reduction.test.mjs` exhausts one-/two-byte domains and checks three-/four-byte rejection boundaries. Retain an analytical proof for wider domains, exact draw transcripts and engine/proof vectors. Statistics supplement these checks with stated power; they never prove absence of modulo bias.
+
+Enumerate source values: naive byte `%6` gives `[43,43,43,43,42,42]`. `scripts/fair-reduction.test.mjs` exhausts one-/two-byte domains and tests three-/four-byte rejection boundaries. Retain wider-domain proofs, exact draw transcripts and engine/proof vectors; count endpoint/tail masses against actual table sums. Statistics need stated power and cannot prove absence of modulo bias.

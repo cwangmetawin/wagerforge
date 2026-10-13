@@ -14,6 +14,9 @@ Coverage of MetaWin's production server (MSS) against a fixed denominator. Each 
 - `math-blackjack-actions`: insurance, Double, Split, split aces and re-splits, strategy charts with fallbacks, 21+3.
 - Eval cases `blackjack-split-21-grid-peek` and `blackjack-insurance-double-funding`.
 
+### Changed (validator)
+- A `build-*` skill without a `## Default stack` section outside code fences is an error (law 3).
+
 ## 0.3.1 — 2026-10-13
 
 ### Changed (reference scripts)

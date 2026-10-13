@@ -43,6 +43,15 @@ export function validateCoverage(value, skillNames) {
   for (const key of ['repo', 'commit']) string(value.source[key], `${COVERAGE}.source.${key}`)
   date(value.source.date, `${COVERAGE}.source.date`)
   array(value.families, `${COVERAGE}.families`)
+  // Optional record of the check behind the verdicts: who judged, when, how many families came out full.
+  if (value.check !== undefined) {
+    const label = `${COVERAGE}.check`
+    object(value.check, label)
+    date(value.check.date, `${label}.date`)
+    for (const key of ['method', 'details']) requireValue(typeof value.check[key] === 'string' && value.check[key].trim() !== '', `${label}.${key} must be a non-empty string`)
+    requireValue(value.check.families === value.families.length, `${label}.families must equal the number of families`)
+    requireValue(Number.isSafeInteger(value.check.full) && value.check.full >= 0 && value.check.full <= value.check.families, `${label}.full must be a count of families`)
+  }
   const seen = new Set()
   value.families.forEach((family, index) => {
     const label = `${COVERAGE}.families[${index}]`
@@ -117,6 +126,44 @@ function readConstraints(root) {
   return IDS.map((id) => rows.find((row) => row.id === id))
 }
 
+function validateRunSummary(value, label, agent) {
+  requireValue(Number.isSafeInteger(value.runs) && value.runs > 0, `${label}.runs must be a positive integer`)
+  requireValue(value.cases.length > 0, `${label}.cases must not be empty`)
+  array(value.runMeans, `${label}.runMeans`)
+  requireValue(value.runMeans.length === value.runs, `${label}.runMeans must contain one mean per run`)
+  const seen = new Set()
+  value.cases.forEach((item, i) => {
+    const path = `${label}.cases[${i}]`
+    requireValue(!seen.has(item.name), `${path}: duplicate case ${item.name}`)
+    seen.add(item.name)
+    for (const arm of ['with', 'without']) {
+      requireValue(Number.isSafeInteger(item[arm]) && item[arm] >= 0 && item[arm] <= value.runs, `${path}.${arm} must be passes out of ${value.runs}`)
+      const scores = item[arm + 'Scores']
+      array(scores, `${path}.${arm}Scores`)
+      requireValue(scores.length === value.runs && scores.every(score => typeof score === 'number' && Number.isFinite(score) && score >= 0 && score <= 1), `${path}.${arm}Scores must contain one score in [0, 1] per run`)
+      requireValue(item[arm] === scores.filter(score => score === 1).length, `${path}.${arm} must count only score 1`)
+    }
+  })
+  value.runMeans.forEach((item, i) => {
+    const path = `${label}.runMeans[${i}]`
+    object(item, path)
+    for (const arm of ['with', 'without']) {
+      requireValue(typeof item[arm] === 'number' && Number.isFinite(item[arm]) && item[arm] >= 0 && item[arm] <= 1, `${path}.${arm} must be a score in [0, 1]`)
+      const expected = mean(value.cases.map(row => row[arm + 'Scores'][i]))
+      requireValue(Math.abs(item[arm] - expected) <= 1e-12, `${path}.${arm} must match the case scores`)
+    }
+  })
+  if (agent === 'codex') {
+    object(value.skillReadRates, `${label}.skillReadRates`)
+    for (const key of ['any', 'expected']) {
+      const rate = value.skillReadRates[key]
+      requireValue(rate === null || (typeof rate === 'number' && Number.isFinite(rate) && rate >= 0 && rate <= 1), `${label}.skillReadRates.${key} must be a share in [0, 1] or null`)
+    }
+    const { any, expected } = value.skillReadRates
+    requireValue(any === null || expected === null || expected <= any, `${label}.skillReadRates.expected cannot exceed any`)
+  }
+}
+
 function readEvals(root) {
   if (!existsSync(join(root, EVALS))) return null
   const value = readJson(root, EVALS)
@@ -134,6 +181,9 @@ function readEvals(root) {
       for (const key of ['with', 'without']) requireValue(typeof item[key] === 'number' && Number.isFinite(item[key]), `${path}.${key} must be a finite number`)
       requireValue(Number.isFinite(item.with - item.without), `${path}.delta must be finite`)
     })
+    const multi = ['runs', 'runMeans', 'skillReadRates'].some(key => Object.hasOwn(value[agent], key)) ||
+      value[agent].cases.some(item => ['withScores', 'withoutScores'].some(key => Object.hasOwn(item, key)))
+    if (multi) validateRunSummary(value[agent], label, agent)
   }
   return value
 }
@@ -170,13 +220,26 @@ function constraintsSection(constraints, skills) {
 function coverageSection(coverage) {
   const { source, families } = coverage
   const rows = sorted(families, 'id').map((family) => `<tr><th scope="row"><span lang="en">${escape(family.name)}</span><small>${escape(family.id)}</small></th><td>${badge(family.coverage)}</td><td>${skillLinks(family.skills)}</td><td><details><summary>${family.games.length} 款游戏</summary>${list([...family.games].sort())}</details></td><td>${escape(family.notes)}</td></tr>`).join('\n')
-  const legend = '<p class="meta">完整：该家族列出的每个机制都有技能专门讲到。部分：核心机制已覆盖，个别游戏的特定玩法尚未专门讲。未覆盖：没有技能讲它的核心模型。</p>'
-  return `<section id="coverage"><h2>MSS 游戏覆盖</h2><p class="meta">来源：${escape(source.repo)} · 提交 <code>${escape(source.commit)}</code> · ${escape(source.date)}</p>${legend}${table('游戏家族', ['家族', '覆盖', '技能', '游戏', '说明'], rows)}</section>`
+  const legend = '<p class="meta">完整：按书面定义（docs/plans/2026-10-12-v0.3.1-backlog.md），家族里每个游戏用到的每个机制（改变钱、RTP、结果分布、状态或结算的规则；配置数值和表现不算）都有技能专门讲到。部分：还有机制没讲到。未覆盖：没有技能讲它的核心模型。</p>'
+  const check = coverage.check ? `<p class="meta">判定：${escape(coverage.check.method)} · ${escape(coverage.check.date)} · 完整 ${coverage.check.full}/${coverage.check.families} · 逐条缺口 <code>${escape(coverage.check.details)}</code></p>` : ''
+  return `<section id="coverage"><h2>MSS 游戏覆盖</h2><p class="meta">来源：${escape(source.repo)} · 提交 <code>${escape(source.commit)}</code> · ${escape(source.date)}</p>${check}${legend}${table('游戏家族', ['家族', '覆盖', '技能', '游戏', '说明'], rows)}</section>`
+}
+
+function runEvals(agent, value) {
+  const { model, cases, runs, runMeans } = value
+  const withMean = mean(runMeans.map(item => item.with)), withoutMean = mean(runMeans.map(item => item.without))
+  const line = `共 <strong>${runs}</strong> 轮 · 跨轮装技能均分 <strong>${withMean.toFixed(2)}</strong> · 不装 <strong>${withoutMean.toFixed(2)}</strong> · 差值 <strong>${escape(signed(withMean - withoutMean, 2))}</strong>`
+  const means = runMeans.map((item, i) => `<tr><th scope="row">${i + 1}</th><td>${item.with.toFixed(2)}</td><td>${item.without.toFixed(2)}</td><td>${escape(signed(item.with - item.without, 2))}</td></tr>`).join('\n')
+  const rows = sorted(cases, 'name').map(item => `<tr><th scope="row">${escape(item.name)}</th><td>${item.with} / ${runs}</td><td>${item.without} / ${runs}</td><td>${escape(signed(item.with - item.without))}</td></tr>`).join('\n')
+  const share = rate => rate === null ? '未记录' : (rate * 100).toFixed(1) + '%'
+  const reads = agent === 'codex' ? `<p class="meta">装技能用例轮次：读取任意 wagerforge 技能 <strong>${share(value.skillReadRates.any)}</strong> · 读取预期技能 <strong>${share(value.skillReadRates.expected)}</strong></p>` : ''
+  return `<div class="agent"><p class="eval-mean"><code>${agent}</code> ${escape(model)}：${line}</p>${reads}${table(`${agent} 每轮均分`, ['轮次', '装技能均分', '不装技能均分', '差值'], means)}${table(`${agent} — ${model}`, ['用例', '装技能通过次数', '不装技能通过次数', '通过次数差值'], rows)}</div>`
 }
 
 function evalsSection(evals) {
   if (!evals) return '<section id="behaviour"><h2>行为测试（装 / 不装技能）</h2><p>尚未运行</p></section>'
   return `<section id="behaviour"><h2>行为测试（装 / 不装技能）</h2><p class="meta">${escape(evals.date)}</p>${['claude', 'codex'].map((agent) => {
+    if (Object.hasOwn(evals[agent], 'runs')) return runEvals(agent, evals[agent])
     const { model, cases } = evals[agent]
     const rows = sorted(cases, 'name').map((item) => `<tr><th scope="row">${escape(item.name)}</th><td>${escape(item.with)}</td><td>${escape(item.without)}</td><td>${escape(signed(item.with - item.without))}</td></tr>`).join('\n')
     const withMean = cases.length ? mean(cases.map((item) => item.with)) : 0

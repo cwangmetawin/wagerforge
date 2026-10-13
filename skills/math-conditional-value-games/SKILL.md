@@ -11,17 +11,17 @@ metadata:
 
 ## When to use / When NOT
 
-- Use for decisions priced from the current rank, covered set, board or accumulated pot.
-- Use `math-ladder-and-progression` for survival ladders; bankroll-run games: `build-bankroll-run-games`.
+- Use for current-rank, covered-set, board or pot decisions.
+- Survival ladders: `math-ladder-and-progression`; bankroll runs: `build-bankroll-run-games`.
 
 ## Process
 
-1. Define V(s), legal actions and the player's available information. Pin opening debit, free/paid continuations, config, currency grid and horizon. Compute each action's conditional expected continuation value, including immediate rewards and terminal settlement. Optimize over legal actions to detect profitable strategies, rather than testing only fixed stopping depths.
-2. Derive probabilities from the actual conditional draw space. Uniform rank-excluding Hi-Lo has N other ranks and k winners: p=k/N. Apply RTP/p only on the first risk-bearing win, then 1/p; guaranteed transitions use factor 1 and preserve the pending edge. Cashout before risk returns stake. MetaWin's production server (MSS) `games/highLowHit/gameLogic.ts` `drawNextCard` and `decisionRatio` implement this distinction.
-3. Price offers against all covered values, including the kept item. Sub-fair offers reduce expected return; a fair final offer can equal continuation value. Always-no-deal gives the unrounded, uncapped RTP ceiling, not every strategy's RTP. MSS `games/mealOrNoMeal/gameLogic.ts` `computeOffer` and `offerFactor` reach factor 1 on the final offer. Recheck the ceiling after settlement transforms.
-4. For dig/bank, derive expected value growth D(s) and price survival as `p=V/(V+D)`, only where its assumptions hold. MSS `games/deepDelve/gameLogic.ts` `expectedDeltaV` requires independent columns, sufficient frontier/durability state and additive chests; `stability` implements the price. MSS `games/cheeseHeist/index.ts` `server` and `games/thinIce/index.ts` `server` reuse that engine, so imported math changes affect both.
-5. Prove a martingale for equality or a supermartingale for an upper bound. Optional stopping needs a bounded horizon or justified integrability conditions. Caps, discrete draw grids and rounding can break equality. MSS `games/kiln/gameLogic.ts` `holds`, `games/sniperRange/gameLogic.ts` `stepMultipliers`, and `games/twist/gameLogic.ts` `applyGem` are continuation specimens; evaluate their complete state transitions instead of copying headline neutrality claims.
-6. Compute EV on supported wallet units using integer atoms and exact ratios. Deterministic floor/ceil shifts EV. Stochastic rounding selects adjacent units with the fractional remainder probability; include its extra draws and limits in replay. MSS `games/highLowHit/gameLogic.ts` `applyStochasticRatio` supplies that branch. Classify measured economics as flat RTP, an RTP ceiling, or strategy-dependent RTP, with any rounding error bound stated.
+1. Define V(s), legal actions, player information, opening debit, paid/free continuations, config, currency grid and horizon. Include immediate rewards/terminal settlement. Optimize actions rather than only fixed depths: `V_t(s)=max(bank(s),sum(P(s'|s)*V_(t+1)(s')))` for bank/continue games. State includes secured value, at-risk levels and horizon; model bonus resets, partial losses, idle outcomes, rounding and terminal banking. Use actual integer-source probabilities (`fair-outcome-mappers`), not nominal weight/total; verify banking comparisons/caps, not headline neutrality. MetaWin's production server (MSS) `games/twist/gameLogic.ts` `applyGem` supplies these transitions.
+2. Derive conditional draw-space probabilities. Uniform rank-excluding Hi-Lo has N alternatives, k winners: `p=k/N`; weighted draws use their weights. Apply `RTP/p` on the first risk-bearing win, then `1/p`; guaranteed moves use 1, preserving pending edge. Pre-risk cashout returns stake. MSS `games/highLowHit/gameLogic.ts` `drawNextCard`/`decisionRatio` distinguish these.
+3. Include the kept item among covered offer values. Sub-fair offers reduce EV; fair final offers match continuation. Always-no-deal gives the unrounded/uncapped ceiling, not every strategy's RTP; recheck settlement transforms. MSS `games/mealOrNoMeal/gameLogic.ts` `computeOffer`/`offerFactor` reach final factor 1.
+4. Dig/bank growth D(s) prices survival `p=V/(V+D)` only under its assumptions. MSS `games/deepDelve/gameLogic.ts` `expectedDeltaV` needs independent columns, sufficient frontier/durability state and additive chests. Cache by local state `d=E[reward]`, `s=P(clear)`, `g=E[reward*1(clear)]`: own-column g versus other-column d*s preserves correlation. Verify direct enumeration; rebuild tables after behavior changes. `stability` applies the price. MSS `games/cheeseHeist/index.ts` `server` and `games/thinIce/index.ts` `server` reuse this engine. Guaranteed openings track probability/reward/reward-on-completion mass across frozen layouts before decisions; calibrate weights to `targetRTP*charged-mode-cost`, checking achievable bounds/monotonicity and rounded/settled results. MSS `games/deepDelve/test-deepDelve.test.ts` `solveBlank` is test-only calibration.
+5. Equality needs a martingale; bounds need a supermartingale. Optional stopping requires bounded horizon or justified integrability; caps, finite grids and rounding can break equality. Aggregate opening EV is draw-count*mean-reward, with edge once. Binary multiplier-or-zero continuations use `p=1/T` (MSS `games/kiln/gameLogic.ts` `holds`). Multi-outcome shapes use `m_i=a_i/sum(p_j*a_j)`, nonnegative a and loss a=0; verify finite-grid runtime probabilities, never rounded display odds (MSS `games/sniperRange/gameLogic.ts` `stepMultipliers`). Reject cap-breaching targets/actions before RNG; verify action means, intermediate rounding and bounded adaptive stopping.
+6. Compute wallet-grid EV with atoms/exact ratios. Floor/ceil shifts EV; stochastic rounding chooses adjacent units with remainder probability. Replay extra draws/limits (MSS `games/highLowHit/gameLogic.ts` `applyStochasticRatio`). Classify flat RTP, ceiling or strategy-dependent RTP, stating rounding-error bounds.
 
 ## Correctness constraints
 
@@ -29,12 +29,10 @@ metadata:
 
 ## Pitfalls / red flags
 
-- Charging edge on every decision compounds the house advantage.
-- Removing equal-rank exclusion or using unconditional probabilities misprices Hi-Lo.
-- Applying optional stopping to unbounded play, or ignoring tiny-stake rounding, creates false neutrality claims.
+- Charging edge on every decision compounds advantage; removing equal-rank exclusion/unconditional Hi-Lo odds; unbounded optional stopping/tiny-stake neutrality claims.
 
 ## Verification
 
-- Enumerate ranks/directions, guaranteed moves, fair/sub-fair offers, zero-value boards, cap boundaries and adaptive stopping policies.
-- Verify rounding EV at minimum stakes, including missing/extra rounding draws and manual/autobet parity where offered.
-- Use `fair-verify` with player-saved pre-bet commitment, player-generated client seed and contiguous nonces; missing player evidence means UNVERIFIABLE.
+- Enumerate ranks/directions, guaranteed moves, fair/sub-fair offers, zero boards, caps/adaptive stopping.
+- Check minimum-stake rounding EV, missing/extra draws, manual/autobet parity.
+- `fair-verify`: player-saved pre-bet commitment, player-generated client seed, contiguous nonces; missing player evidence means UNVERIFIABLE.

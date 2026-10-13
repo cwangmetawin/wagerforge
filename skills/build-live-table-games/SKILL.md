@@ -11,21 +11,22 @@ metadata:
 
 ## When to use / When NOT
 
-- Use for timed multiplayer tables where the house settles each player's wager.
-- Do NOT use for pooled positions (`build-prediction-market-games`) or automated bankroll runs (`build-bankroll-run-games`).
+- Use for timed house-banked multiplayer tables.
+- Do NOT use for pooled positions (`build-prediction-market-games`) or bankroll runs (`build-bankroll-run-games`).
 
 ## Default stack (+ escape hatch)
 
-Default: TypeScript + PixiJS/Phaser + Node + exact integer atoms for money. Other stacks map scheduling, durable wallet transactions and private projections to equivalent components; clients render server decisions.
+Default: TypeScript + PixiJS/Phaser + Node + exact integer money atoms. Else map scheduling, durable wallet transactions and private projections; clients render server decisions.
 
 ## Process
 
-1. Specify betting → dealing → optional acting → settled transitions, server deadlines, permitted commands and timeout defaults. Persist deadlines for replay. MetaWin's production server (MSS) `games/blackjack-live/index.ts` `server.tick` auto-stands unfinished hands at the acting deadline.
-2. Bind command identity to player, table, game round, wallet round, action, hand and exact amount. Persist content and receipt; identical retries replay that receipt without debit, credit or cancellation; changed content conflicts. New queued commands require explicit acceptance or rejection; cancel rejected debits once. MSS `games/snakes-hit/index.ts` `server.tick` preserves handled commands.
-3. Validate identity, phase, deadline, hand ownership, action legality, stake and applicable limits at admission and again in the tick. Debit opening stakes before dealing. Hit/Stand are free; Double/Split require new debits before additional cards exist. Never manufacture tick funding. MSS `games/blackjack-live/commands.ts` `validateCommand` and `games/blackjack-live/index.ts` `server.tick` distinguish these paths.
-4. Persist immutable settlement/refund decisions before money legs; guard terminal transitions and resume unfinished legs. Return gross amounts including stake; explicitly close losing wallet rounds with zero return. MSS `games/blackjack-live/index.ts` `server.tick` emits losing `wins` entries. `build-durable-settlement` covers persistence boundaries.
-5. Project broadcasts, private messages, reconnect snapshots and replay separately. Hide hole cards and derived totals until reveal; expose authorized hands only. Reconnect restores bets, actions and the original deadline without redrawing. MSS `games/blackjack-live/dealing.ts` `publicDealer` masks dealer cards; `games/blackjack-live/index.ts` `server.connected` restores the owner's view. Use `fair-shoe-draw-ledger` for shoe proofs.
-6. If computation fails before a terminal decision, void unresolved accepted debits and refund each once; cancel only new rejected queued debits. Never combine payout and refund or erase unfinished obligations. MSS `games/blackjack-live/index.ts` `voidRound` excludes refunded commands from cancellation.
+1. Model betting → dealing → optional acting → settled, server deadlines, commands and timeout defaults; persist deadlines for replay. Model player concurrency separately from each player's hand sequence; do not infer table serialization from per-player hand order. Shared acting validates each caller's active hand. Close shared acting when all hands resolve or the deadline auto-stands. MetaWin's production server (MSS) `games/blackjack-live/index.ts` `server.tick`, `games/blackjack-live/state.ts` `resolveActiveHand`.
+2. Separate betting cutoff, lock expiry, sampling and publication. Delayed sampling draws once after lock, retains the pocket privately through spinning, and completes fairness at result. Verify zero lock draws, one round draw, no leak/redraw. MSS `games/roulette-live/index.ts` `server.tick`.
+3. Bind immutable command identity/content to player, table, game/wallet rounds, action, hand and exact amount. Persist receipts; identical retries replay without debit/credit/cancellation; changed content conflicts. Explicitly accept/reject new queued commands; cancel rejected debits once. MSS `games/snakes-hit/index.ts` `server.tick` preserves handled commands.
+4. Revalidate identity, phase, deadline, hand ownership, legality, stake and limits at admission and tick. Debit opening stakes before dealing; Double/Split before additional cards. Hit/Stand are free; never manufacture tick funding. MSS `games/blackjack-live/commands.ts` `validateCommand` and `games/blackjack-live/index.ts` `server.tick` distinguish paths.
+5. Persist immutable settlement/refund decisions before money legs; guard terminal transitions and resume unfinished legs. Return gross including stake; close losses with zero. MSS `games/blackjack-live/index.ts` `server.tick` emits losing `wins`. `build-durable-settlement` covers persistence boundaries.
+6. Project broadcasts, private messages, reconnect and replay separately. Mask hole cards/derived totals until reveal; authorize hands. Reconnect restores bets/actions/original deadline without draws. MSS `games/blackjack-live/dealing.ts` `publicDealer` masks cards; `games/blackjack-live/index.ts` `server.connected` restores owner views. `fair-shoe-draw-ledger` covers shoe proofs.
+7. Before a terminal decision, computation failure voids unresolved accepted debits: refund each once; cancel only new rejected queued debits. Never combine payout/refund or erase unfinished obligations. MSS `games/blackjack-live/index.ts` `voidRound` excludes refunded commands from cancellation.
 
 ## Correctness constraints
 
@@ -33,12 +34,12 @@ Default: TypeScript + PixiJS/Phaser + Node + exact integer atoms for money. Othe
 
 ## Pitfalls / red flags
 
-- Free Double/Split creates unfunded exposure; recancelling a handled command reverses its debit.
+- Free Double/Split creates unfunded exposure; recancelling handled commands reverses debits.
 - Omitting zero returns strands losing rounds; payout plus refund pays twice.
-- Serializing raw state exposes private or future cards. Client timestamps admit late actions.
+- Raw state exposes private/future cards; client timestamps admit late actions.
 
 ## Verification
 
-- Test late queued Double/Split, wrong hand/player, concurrent identical retries, content conflicts, stale rounds and timeout-boundary ordering; assert debit precedes draws.
-- Inject settlement failures; assert exact conservation, one fate per debit, zero-loss closure, recovery and clean next-round state.
-- Inspect broadcast/private/reconnect/replay payloads before reveal; assert no hole cards, derived totals or other players' private hands escape, and reconnect consumes no draws. Exercise the real wallet adapter; game-only tests cannot prove platform atomicity.
+- Test interleaved players, split-hand advancement, late queued Double/Split, wrong hand/player, concurrent identical retries, content conflicts, stale rounds and timeout-boundary ordering; debit precedes draws.
+- Inject settlement failures; assert conservation, one fate/debit, zero-loss closure, recovery and clean next-round state.
+- Inspect broadcast/private/reconnect/replay before reveal: no hole cards, derived totals or unauthorized hands; reconnect draws nothing. Exercise the wallet adapter; game-only tests cannot prove platform atomicity.

@@ -28,7 +28,7 @@ TypeScript + PixiJS/Phaser client, Node build tools/server, exact integer money 
 
 ## Correctness constraints
 
-- **C10:** Draw-call/VRAM thresholds are soft and workload-dependent; set budgets per device tier and profile real low/mid-range Android. Include GPU allocations in overall device memory pressure. Atlasing alone proves no memory saving. See WF `docs/specs/2026-06-04-wagerforge-design.md` §7.
+- **C10:** Draw-call/VRAM thresholds are soft and workload-dependent; set budgets per device tier and profile real low/mid-range Android. Android GPUs use unified memory, so GPU allocations count toward overall device memory pressure. Atlasing alone proves no memory saving. See WF `docs/specs/2026-06-04-wagerforge-design.md` §7.
 
 ## Pitfalls / red flags
 

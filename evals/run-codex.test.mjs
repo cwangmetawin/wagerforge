@@ -1,7 +1,13 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync, readdirSync } from 'node:fs'
+import { readFileSync, readdirSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
+import { join } from 'node:path'
+import { tmpdir } from 'node:os'
+import { EventEmitter } from 'node:events'
+import { PassThrough } from 'node:stream'
+import childProcess from 'node:child_process'
+import { syncBuiltinESMExports } from 'node:module'
 
 // Report each missing contract during the initial RED, before the runner exists.
 const moduleUrl = new URL('./run-codex.mjs', import.meta.url)
@@ -37,7 +43,9 @@ const expected = [
   ['verify-single-float', 'fair-verify', ['13', '52', ':0', 'deriveFn(stream, ctx)']],
   ['j01-blitz-unique-win', 'math-plinko-lottery', ['all N draws unique', '0.3971', '2.468']],
   ['j02-cluster-multiplier-grid', 'math-lines-ways-cluster', ['x2 or more', '0.5 x (2 + 4) = 3', 'never zero']],
-  ['j03-paid-double-split', 'build-instant-crash-games', ['NEW paid stakes', 'binding shadow', 'declared debit mode']]
+  ['j03-paid-double-split', 'build-instant-crash-games', ['NEW paid stakes', 'binding shadow', 'declared debit mode']],
+  ['moving-wild-collector-order', 'math-moving-wild-collection', ['before refill', 'covered coins', 'retained multiplier', '18']],
+  ['cascade-orb-final-sum', 'math-cascade-modifiers', ['terminal sum', '63', 'defaulting to one', 'cap']]
 ]
 
 test('frontmatter preserves quoted regex backslashes and splits inline lists', () => {
@@ -113,17 +121,76 @@ test('missing scored graders and malformed scores fail closed', () => {
   assert.throws(() => api.scoreArm([{ type: 'llm', pass: true, weight: NaN }], 'with'))
   assert.throws(() => api.scoreArm([{ type: 'llm', pass: 'true' }], 'with'))
 })
-test('skill-read detects a path inside parsed JSONL, including escaped slashes', () => {
-  const stream = '{"type":"item.completed","item":{"command":"cat /tmp/game/.codex/skills/fair-verify/SKILL.md"}}\n' +
-    '{"item":{"text":".codex\\/skills\\/fair-rng-core\\/SKILL.md"}}\n'
-  assert.equal(api.skillRead(stream, 'fair-verify'), true)
-  assert.equal(api.skillRead(stream, 'fair-rng-core'), true)
-  assert.equal(api.skillRead(stream, 'math-rtp-modeling'), false)
+// Codex 0.159 `exec --json` events, as a live run printed them on 2026-10-12.
+const ran = (command, exitCode = 0, output = '') => JSON.stringify({ type: 'item.completed', item: { type: 'command_execution', command, exit_code: exitCode, aggregated_output: output } })
+test('a skill counts as read only when a command that ran to completion names its SKILL.md', () => {
+  const stream = [
+    JSON.stringify({ type: 'item.started', item: { type: 'command_execution', command: "/bin/zsh -lc 'cat .codex/skills/qa-rtp-validation/SKILL.md'" } }),
+    ran("/bin/zsh -lc 'find .codex -name SKILL.md'", 0, '.codex/skills/fair-rng-core/SKILL.md\n'),
+    JSON.stringify({ type: 'item.completed', item: { type: 'agent_message', text: 'Next I read .codex/skills/math-rtp-modeling/SKILL.md' } }),
+    JSON.stringify({ type: 'item.completed', item: { type: 'reasoning', text: '.codex/skills/math-rtp-modeling/SKILL.md' } }),
+    ran("/bin/zsh -lc 'cat .codex/skills/using-wagerforge/SKILL.md'", 1),
+    ran("/bin/zsh -lc 'cat /tmp/wf-eval-with-x/.codex/skills/fair-verify/SKILL.md'", 0, '# fair-verify\n'),
+    'not JSON .codex/skills/qa-rtp-validation/SKILL.md'
+  ].join('\r\n')
+  const skills = ['using-wagerforge', 'math-rtp-modeling', 'fair-rng-core', 'fair-verify', 'qa-rtp-validation']
+  assert.deepEqual(api.skillsRead(stream, skills), ['fair-verify'])
+  for (const skill of skills) assert.equal(api.skillRead(stream, skill), skill === 'fair-verify')
+  assert.deepEqual(api.skillsRead('', skills), [])
 })
-test('skill-read rejects malformed JSONL, other skills, and filename suffixes', () => {
+test('skills-read lists wagerforge skills in first-read order, several per command', () => {
+  const stream = [
+    ran("/bin/zsh -lc \"sed -n '1,200p' .codex/skills/fair-verify/SKILL.md && sed -n '1,200p' .codex/skills/using-wagerforge/SKILL.md\""),
+    ran("/bin/zsh -lc 'cat .codex/skills/unrelated/SKILL.md\t.codex/skills/fair-rng-core/SKILL.md'"),
+    ran("/bin/zsh -lc 'rg -n nonce .codex/skills/fair-verify/SKILL.md'")
+  ].join('\n')
+  assert.deepEqual(api.skillsRead(stream, ['using-wagerforge', 'fair-rng-core', 'fair-verify']), ['fair-verify', 'using-wagerforge', 'fair-rng-core'])
+})
+test('skills-read preserves exact path boundaries and ignores malformed events', () => {
+  const paths = ['x.codex/skills/fair-verify/SKILL.md', '.codex/skills/fair-verify/SKILL.md.bak',
+    '.codex/skills/fair-verify/SKILL.md/child', '.codex/skills/fair-verify-extra/SKILL.md', 'skills/fair-verify/SKILL.md']
+  assert.deepEqual(api.skillsRead(paths.map(path => ran('cat ' + path)).join('\n') + '\n{\nnull', ['fair-verify']), [])
   assert.equal(api.skillRead('.codex/skills/fair-verify/SKILL.md', 'fair-verify'), false)
-  assert.equal(api.skillRead('{"path":".codex/skills/fair-verify/SKILL.md.bak"}', 'fair-verify'), false)
-  assert.equal(api.skillRead('{"path":".codex/skills/fair-verify-extra/SKILL.md"}', 'fair-verify'), false)
+  assert.throws(() => api.skillRead('{}', '../fair-verify'), /Invalid skill name/)
+})
+test('runner records skills for both arms and prints expected reads alongside skill counts', async (t) => {
+  const dir = mkdtempSync(join(tmpdir(), 'wf-runner-test-')), lines = []
+  t.after(() => rmSync(dir, { recursive: true, force: true }))
+  const spawn = t.mock.method(childProcess, 'spawn', (_, argv, options) => {
+    const child = new EventEmitter()
+    child.stdout = new PassThrough()
+    child.stderr = new PassThrough()
+    child.stdin = new PassThrough()
+    child.stdin.on('finish', () => queueMicrotask(() => {
+      const judge = options.cwd.includes('wf-eval-judge-')
+      const withArm = options.cwd.includes('wf-eval-with-')
+      const answer = judge ? '{"pass":true,"reason":"fixture verdict"}' : 'Fixture answer'
+      writeFileSync(argv[argv.indexOf('-o') + 1], answer)
+      const paths = withArm ? ['using-wagerforge', 'fair-verify', 'using-wagerforge'] : ['math-rtp-modeling']
+      child.stdout.end(ran('cat ' + paths.map(skill => `.codex/skills/${skill}/SKILL.md`).join(' ')) + '\n')
+      child.emit('close', 0, null)
+    }))
+    return child
+  })
+  syncBuiltinESMExports()
+  t.after(() => {
+    spawn.mock.restore()
+    syncBuiltinESMExports()
+  })
+  t.mock.method(console, 'log', line => lines.push(line))
+  const path = join(dir, 'results.json')
+  assert.equal(await api.main(['--case', 'verify-single-float', '--concurrency', '1', '--json', path]), 0)
+  const result = JSON.parse(readFileSync(path, 'utf8')).results[0]
+  assert.deepEqual(result.arms.with.skillsRead, ['using-wagerforge', 'fair-verify'])
+  assert.deepEqual(result.arms.without.skillsRead, ['math-rtp-modeling'])
+  assert.equal(result.arms.with.graders.find(g => g.type === 'tool_used').pass, true)
+  assert.equal(result.arms.without.graders.find(g => g.type === 'tool_used').pass, false)
+  assert.match(lines[0], /skill-read \| skills-read$/)
+  assert.match(lines[1], /yes\/no \| 2\/1$/)
+  assert.equal(result.with, 1)
+  assert.equal(result.without, 1)
+  assert.equal(typeof result.arms.with.elapsedMs, 'number')
+  assert.equal(result.arms.with.answer, 'Fixture answer')
 })
 
 test('judge parser accepts a strict boolean and textual reason', () => {
@@ -184,9 +251,19 @@ test('timeout addresses the whole process group, never pid -1 or zero', () => {
   for (const pid of [0, 1, -2, NaN, undefined]) assert.throws(() => api.processGroup(pid))
 })
 
-test('suite contains exactly the 25 requested cases', () => {
+test('suite contains exactly the 27 requested cases', () => {
   const folders = readdirSync(root, { withFileTypes: true }).filter(entry => entry.isDirectory() && entry.name !== 'results').map(entry => entry.name).sort()
+  assert.equal(expected.length, 27)
   assert.deepEqual(folders, expected.map(([name]) => name).sort())
+})
+test('README counts and coverage table match the complete case suite', () => {
+  const readme = readFileSync(`${root}README.md`, 'utf8')
+  assert.ok(readme.includes(`These ${expected.length} English engineering prompts`))
+  assert.ok(readme.includes(`${expected.length * 2} answer calls plus ${expected.length * 6} judge calls`))
+  assert.ok(readme.includes(`validate all ${expected.length} directories`))
+  const rows = [...readme.matchAll(/^\| ([a-z0-9][a-z0-9-]*) \| ([a-z0-9][a-z0-9-]*) \| /gm)]
+    .map(([, name, skill]) => [name, skill])
+  assert.deepEqual(rows.sort(), expected.map(([name, skill]) => [name, skill]).sort())
 })
 for (const [name, skill, rules] of expected) test(`case contract: ${name}`, () => {
   const promptPath = `${root}${name}/prompt.md`
@@ -277,9 +354,9 @@ test('exit policy rejects incomplete scores and either arm execution errors', ()
   assert.equal(api.exitCode([{ with: 1, arms: { with: {}, without: { error: 'timeout' } } }]), 1)
   assert.equal(api.exitCode([]), 1)
 })
-test('skill-read checks decoded JSON strings after escaped whitespace', () => {
-  for (const prefix of ['files:\n', 'files:\t', 'files:\r\n']) {
-    const stream = JSON.stringify({ item: { text: prefix + '.codex/skills/fair-verify/SKILL.md' } })
+test('skill-read finds a commanded path after escaped whitespace', () => {
+  for (const prefix of ['cat\n', 'cat\t', 'cat\r\n']) {
+    const stream = ran(prefix + '.codex/skills/fair-verify/SKILL.md')
     assert.equal(api.skillRead(stream, 'fair-verify'), true)
   }
 })

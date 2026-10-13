@@ -19,6 +19,7 @@ metadata:
 3. Shuffle with descending Fisher–Yates, drawing `j` uniformly in `[0,i]`: `shuffle(stream,n)` uses `nextInt(i+1)`. Record all consumed draws, including cosmetic draws.
 4. For a row/column mapper, draw each axis independently and uniformly. MSS `games/snakes-pro/snake-game.ts` `generateFoodSequence` draws x then y with `draw(gridSize)`, repeats for occupancy (at most 100 attempts), then draws the golden flag. Preserve this order and audit occupancy/cap behavior. The former range-1000→26×26 mapper is retired.
 5. For inverse-CDF outcomes, pin endpoints, atoms, rounding, caps and variant parameters. MSS `games/chase/index.ts` `rollCrashPoint` has an instabust branch plus a floored/capped `(1-h)/(1-u)` path; a generic `/u` sketch cannot replace that decoder.
+   For preselected multi-outcome rounds, consume/replay every draw in index order but settle only the chosen result. Quantize before target comparison; test every selection and rounding boundary. MSS `games/drill/index.ts` `main` quantizes to eight decimals; `proveFairness` returns raw multipliers, a parity gap.
 
 ## Correctness constraints
 - **C8:** Modulo is unbiased exactly when `R` divides `N`. Bias can be negligible for small ranges relative to uint32, but large for comparable domains; there is no universal `1e-8` bound. Power-of-two targets divide power-of-two sources. Use rejection for arbitrary ranges.

@@ -8,11 +8,17 @@
 // Receipts may also carry the stake, the payout and whether the round was voided: with the game's
 // payoutFn the verifier then catches an underpaid win and a winning round voided after the fact.
 // A settled receipt without a payout leaves that payment unchecked: PASS then covers its outcome only.
-// For a voided round the verifier checks only that the void did not cancel a win (voided_win); the
-// refund amount is not compared.
+// Voided means the bet was reversed: a voided receipt with a payout must refund exactly its stake
+// (refund), even without payoutFn, and with payoutFn the void must not have cancelled a win
+// (voided_win). A void that also pays accrued winnings is not a reversal (MetaWin's production
+// server (MSS) games/hitShooter/recovery.ts voidRoom pays the stake plus the banked reward): map it
+// to settled, so the game's rule checks its payout.
 // Missing evidence (or a payout it cannot check) is UNVERIFIABLE, never PASS; invalid evidence or
-// history (a value the protocol cannot produce) throws. A proven mismatch is FAIL even when payouts
-// could not be checked: UNVERIFIABLE means every check that could run passed.
+// history (a value the protocol cannot produce) throws. A proven mismatch is FAIL even when evidence
+// is missing: UNVERIFIABLE means every check that could run passed. Each check runs once its own
+// evidence is there: order, count, nonce and client-seed checks need only the log and the rounds;
+// outcomes are derived once the server seed is revealed; until then the history and the receipt are
+// compared with each other, and payouts with the recorded outcome.
 //
 // Trust boundary: deriveFn and payoutFn are the verifier's own code (the published game rules);
 // serverSeed, playerLog and rounds are untrusted data, normally parsed from JSON. They must be plain
@@ -102,7 +108,8 @@ function logOf(playerLog) {
       if (nonce !== undefined && !isNonce(nonce)) throw new TypeError(`${name} nonce must be a non-negative safe integer`)
       const state = stateOf(item, name)
       if (payout !== undefined) amountOf(payout, `${name} payout`)
-      if (payout !== undefined || state === 'voided') amountOf(stake, `${name} stake`)
+      if (stake !== undefined || payout !== undefined || state === 'voided') amountOf(stake, `${name} stake`)
+      if (payout !== undefined && typeof payout !== typeof stake) throw new TypeError(`${name} payout must use the same amount type as the stake`)
       return { type, nonce, state, stake, payout, ...maybeOutcome(item, state, name) }
     }
     throw new TypeError(`playerLog[${i}] has an unknown type`)
@@ -121,6 +128,13 @@ function evidenceOf(log) {
   return { ci, si, firstBet: log.findIndex((entry) => entry.type === 'bet') }
 }
 
+// The history alone must be one epoch: every round under the epoch's one client seed, and the
+// nonces 0, 1, 2, ... in order.
+function roundFailure(round, index, epochSeed) {
+  if (round.clientSeed !== epochSeed) return { status: 'FAIL', reason: 'client_seed', index }
+  if (round.nonce !== index) return { status: 'FAIL', reason: 'nonce_sequence', index }
+}
+
 const OPTIONS = ['serverSeed', 'playerLog', 'rounds', 'deriveFn', 'payoutFn']
 
 export function verifyEpoch(options) {
@@ -133,40 +147,58 @@ export function verifyEpoch(options) {
   // missing evidence can end the run. Absent or null (as JSON writes it) means not yet revealed.
   const seedHash = serverSeed === undefined || serverSeed === null ? undefined : hashServerSeed(serverSeed)
   if (seedHash === undefined) missing.push('serverSeed')
-  if (playerLog === undefined || playerLog === null) return { status: 'UNVERIFIABLE', missing: [...missing, 'playerLog'] }
-  const log = logOf(playerLog)
+  const hasLog = playerLog !== undefined && playerLog !== null
+  if (!hasLog) missing.push('playerLog')
+  const log = hasLog ? logOf(playerLog) : []
   const { ci, si, firstBet } = evidenceOf(log)
-  if (ci === undefined) missing.push('commitment')
-  if (si === undefined) missing.push('clientSeed')
-  if (missing.length > 0) return { status: 'UNVERIFIABLE', missing }
-  // A seed (or a bet) logged before the commitment means the operator could know the player's
-  // entropy before fixing its own seed, and so could choose it.
-  if (si < ci || (firstBet !== -1 && firstBet < si)) return { status: 'FAIL', reason: 'seed_order' }
-  const commitment = log[ci].value
-  const clientSeed = log[si].value
-  if (seedHash !== commitment) return { status: 'FAIL', reason: 'commitment' }
+  if (hasLog && ci === undefined) missing.push('commitment')
+  if (hasLog && si === undefined) missing.push('clientSeed')
+  // A seed (or a bet) logged before the commitment, or a bet before the seed, means the operator
+  // could know the player's entropy before fixing its own seed, and so could choose it. Each pair
+  // is checked whenever both of its entries are in the log.
+  const bet = firstBet === -1 ? undefined : firstBet
+  const precedes = (a, b) => a !== undefined && b !== undefined && a < b
+  if (precedes(si, ci) || precedes(bet, si) || precedes(bet, ci)) return { status: 'FAIL', reason: 'seed_order' }
+  const commitment = ci === undefined ? undefined : log[ci].value
+  if (seedHash !== undefined && commitment !== undefined && seedHash !== commitment) return { status: 'FAIL', reason: 'commitment' }
   const receipts = log.filter((entry) => entry.type === 'bet')
-  if (receipts.length !== history.length) return { status: 'FAIL', reason: 'history_incomplete' }
+  if (hasLog && receipts.length !== history.length) return { status: 'FAIL', reason: 'history_incomplete' }
+  // The epoch's client seed is the player's logged one; without it, the first round's. Once the
+  // server seed is revealed the outcomes are derived, even before the commitment or the player's
+  // seed is there: a history that contradicts its own seed fails either way.
+  const epochSeed = si === undefined ? history[0]?.clientSeed : log[si].value
+  const canDerive = seedHash !== undefined && epochSeed !== undefined
   let payoutsUnchecked = false
   for (let index = 0; index < history.length; index++) {
     const round = history[index]
-    const receipt = receipts[index]
-    if (round.clientSeed !== clientSeed) return { status: 'FAIL', reason: 'client_seed', index }
-    if (round.nonce !== index) return { status: 'FAIL', reason: 'nonce_sequence', index }
+    const failure = roundFailure(round, index, epochSeed)
+    if (failure) return failure
     // Derive each round ONCE and compare the history and the receipt with that same value: two
-    // derivations could disagree, and each record would then match its own.
-    const { recomputed, match } = verify(serverSeed, commitment, clientSeed, index, deriveFn, round.outcome)
-    if (round.hasOutcome && !match) return { status: 'FAIL', reason: 'outcome', index }
+    // derivations could disagree, and each record would then match its own. Before the seed is
+    // revealed, the two records are compared with each other.
+    let known = round.hasOutcome ? round.outcome : undefined
+    if (canDerive) {
+      const result = verify(serverSeed, seedHash, epochSeed, index, deriveFn, round.outcome)
+      if (round.hasOutcome && !result.match) return { status: 'FAIL', reason: 'outcome', index }
+      known = result.recomputed
+    }
+    if (!hasLog) continue
+    const receipt = receipts[index]
     const receiptOk = receipt.state === round.state &&
       (receipt.nonce === undefined || receipt.nonce === round.nonce) &&
-      (!receipt.hasOutcome || sameOutcome(recomputed, receipt.outcome))
+      (!receipt.hasOutcome || known === undefined || sameOutcome(known, receipt.outcome))
     if (!receiptOk) return { status: 'FAIL', reason: 'receipt', index }
+    known ??= receipt.hasOutcome ? receipt.outcome : undefined
+    if (receipt.state === 'voided' && receipt.payout !== undefined && receipt.payout !== receipt.stake) return { status: 'FAIL', reason: 'refund', index }
     if (receipt.payout === undefined && receipt.state !== 'voided') continue
+    // A void with no recorded outcome before the seed is revealed leaves the rule nothing to check;
+    // the missing seed already makes the epoch UNVERIFIABLE.
+    if (known === undefined) continue
     if (payoutFn === undefined) {
       payoutsUnchecked = true
       continue
     }
-    const due = payoutFn(recomputed, receipt.stake)
+    const due = payoutFn(known, receipt.stake)
     if (typeof due !== typeof receipt.stake) throw new TypeError('payoutFn must return the same amount type as the stake')
     amountOf(due, 'payoutFn result')
     // Voiding a round the player would have won is the selective abort an operator can afford,
@@ -174,6 +206,7 @@ export function verifyEpoch(options) {
     if (receipt.state === 'voided' && due > receipt.stake) return { status: 'FAIL', reason: 'voided_win', index }
     if (receipt.state === 'settled' && due !== receipt.payout) return { status: 'FAIL', reason: 'payout', index }
   }
+  if (missing.length > 0) return { status: 'UNVERIFIABLE', missing }
   if (payoutsUnchecked) return { status: 'UNVERIFIABLE', missing: ['payoutFn'] }
   return { status: 'PASS', rounds: history.length }
 }

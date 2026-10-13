@@ -306,3 +306,60 @@ test('copyOutcome copies plain data and runs no code from the value', () => {
   assert.equal(copyOutcome([proxy]), undefined)
   assert.deepEqual([reads, traps], [0, 0])
 })
+
+test('copyOutcome reads each source array once in a shared acyclic graph', () => {
+  let value = [1]
+  const sources = new Set([value])
+  for (let i = 0; i < 12; i++) {
+    value = [value, value]
+    sources.add(value)
+  }
+  const descriptor = Object.getOwnPropertyDescriptor
+  const reads = new Map()
+  let copy
+  try {
+    Object.getOwnPropertyDescriptor = (source, key) => {
+      if (sources.has(source)) reads.set(source, (reads.get(source) ?? 0) + 1)
+      return descriptor(source, key)
+    }
+    copy = copyOutcome(value)
+  } finally {
+    Object.getOwnPropertyDescriptor = descriptor
+  }
+  assert.equal([...reads.values()].reduce((sum, count) => sum + count, 0), 25)
+  for (const source of sources) assert.equal(reads.get(source), source.length)
+  for (let i = 0; i < 12; i++) {
+    assert.ok(copy !== value, 'the copy must be detached from its source')
+    assert.ok(copy[0] === copy[1], 'shared sources must reuse their completed copy')
+    copy = copy[0]
+    value = value[0]
+  }
+  copy[0] = 2
+  assert.equal(value[0], 1)
+})
+
+test('copyOutcome walks 100000 nesting levels without recursion', () => {
+  let value = 1
+  for (let i = 0; i < 100000; i++) value = [value]
+  let copy = copyOutcome(value)
+  for (let i = 0; i < 100000; i++) {
+    assert.ok(copy !== value)
+    copy = copy[0]
+    value = value[0]
+  }
+  assert.equal(copy, 1)
+})
+
+test('completed shared copies never hide cycles or invalid array indices', () => {
+  const shared = [1]
+  const cycle = []
+  const child = [cycle]
+  cycle.push(child)
+  const accessor = [1]
+  let calls = 0
+  Object.defineProperty(accessor, 0, { set: () => calls++ })
+  for (const invalid of [cycle, new Array(1), accessor, [Infinity], [NaN]]) {
+    assert.equal(copyOutcome([shared, shared, invalid]), undefined)
+  }
+  assert.equal(calls, 0)
+})

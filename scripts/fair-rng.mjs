@@ -130,17 +130,20 @@ export function generateClientSeed(bytes = 16) {
 // An outcome is a finite number or a dense nested array of them, as plain data. copyOutcome returns
 // a plain copy, or undefined when the value is not an outcome. A Proxy, a hole, an accessor (getter
 // or setter) index and a cycle are refused, so no code from the value runs and an inherited index
-// never fills a hole (see plain-data.mjs). It walks iteratively: deep nesting cannot overflow the stack.
+// never fills a hole (see plain-data.mjs). Finished copies are reused for shared sources; each source
+// array is read once. It walks iteratively: deep nesting cannot overflow the stack.
 export function copyOutcome(value) {
   const isArray = (item) => !types.isProxy(item) && Array.isArray(item)
   if (!isArray(value)) return Number.isFinite(value) ? value : undefined
   const ancestors = new Set([value])
+  const finished = new Map()
   const stack = [{ source: value, index: 0, copy: [] }]
   for (;;) {
     const frame = stack.at(-1)
     if (frame.index === frame.source.length) {
       stack.pop()
       ancestors.delete(frame.source)
+      finished.set(frame.source, frame.copy)
       if (!stack.length) return frame.copy
       stack.at(-1).copy.push(frame.copy)
       continue
@@ -150,6 +153,10 @@ export function copyOutcome(value) {
     const item = slot.value
     if (isArray(item)) {
       if (ancestors.has(item)) return undefined
+      if (finished.has(item)) {
+        frame.copy.push(finished.get(item))
+        continue
+      }
       ancestors.add(item)
       stack.push({ source: item, index: 0, copy: [] })
     } else if (Number.isFinite(item)) frame.copy.push(item)
@@ -163,6 +170,9 @@ export function isOutcome(value) {
 
 // Strict structural equality of two plain outcome copies (copyOutcome).
 export function sameOutcome(left, right) {
+  // Array pairs already found equal: a shared sub-array is compared once per partner, not once
+  // per path to it, so shared structure cannot make the walk exponential.
+  const equal = new Map()
   const stack = [{ left, right, index: 0 }]
   while (stack.length) {
     const frame = stack.at(-1)
@@ -172,10 +182,13 @@ export function sameOutcome(left, right) {
       stack.pop()
     } else {
       if (!Array.isArray(b) || a.length !== b.length) return false
-      if (frame.index === a.length) stack.pop()
-      else {
+      if (frame.index === a.length) {
+        stack.pop()
+        if (!equal.has(a)) equal.set(a, new Set())
+        equal.get(a).add(b)
+      } else {
         const i = frame.index++
-        stack.push({ left: a[i], right: b[i], index: 0 })
+        if (!equal.get(a[i])?.has(b[i])) stack.push({ left: a[i], right: b[i], index: 0 })
       }
     }
   }

@@ -31,6 +31,8 @@ A game's name, theme or renderer never decides its money or fairness model; find
 |---|---|
 | Paylines, ways, connected ways, clusters, count-anywhere | `math-lines-ways-cluster` (tumbles: `math-cascade-tumble`) |
 | Retained cells and respins | `math-hold-and-win` |
+| Moving wild, sticky wild, nudge, jumping wild, collector | `math-moving-wild-collection` |
+| Orb multiplier, tumble multiplier, wild tiers, bomb, blast, chest | `math-cascade-modifiers` |
 | "100k" currency floor vs headline max multiplier | `math-guaranteed-payout-floor` vs `math-plinko-lottery` |
 | Hi-Lo, offers, dig-or-bank, fair continuations | `math-conditional-value-games` |
 | Fixed-odds quotes vs pooled markets | `math-fixed-odds-event-markets` vs `build-prediction-market-games` |

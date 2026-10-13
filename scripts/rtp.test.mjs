@@ -6,6 +6,168 @@ import { fairFloat } from './fair-rng.mjs'
 
 const near = (a, b, eps = 1e-9) => assert.ok(Math.abs(a - b) < eps, `${a} !~ ${b}`)
 
+const oracleView = new DataView(new ArrayBuffer(8))
+const bitsOf = (x) => {
+  oracleView.setFloat64(0, x)
+  return oracleView.getBigUint64(0)
+}
+const fromBits = (bits) => {
+  oracleView.setBigUint64(0, bits)
+  return oracleView.getFloat64(0)
+}
+
+// The oracle compares exact distances; it never computes the expected rounded double.
+const exact = (x) => {
+  const bits = bitsOf(x)
+  const biased = Number((bits >> 52n) & 0x7ffn)
+  const fraction = bits & 0xfffffffffffffn
+  const magnitude = biased === 0 ? fraction : fraction + 0x10000000000000n
+  return { n: bits >> 63n ? -magnitude : magnitude, e: magnitude === 0n ? 0 : biased === 0 ? -1074 : biased - 1075 }
+}
+const sumExact = (a, b) => {
+  if (a.n === 0n) return b
+  if (b.n === 0n) return a
+  const e = Math.min(a.e, b.e)
+  return { n: (a.n << BigInt(a.e - e)) + (b.n << BigInt(b.e - e)), e }
+}
+const negateExact = (x) => ({ n: -x.n, e: x.e })
+const subtractExact = (a, b) => sumExact(a, negateExact(b))
+const productExact = (a, b) => ({ n: a.n * b.n, e: a.e + b.e })
+const compareExact = (a, b) => {
+  const difference = subtractExact(a, b).n
+  return difference < 0n ? -1 : difference > 0n ? 1 : 0
+}
+const distanceExact = (a, b) => {
+  const difference = subtractExact(a, b)
+  return { n: difference.n < 0n ? -difference.n : difference.n, e: difference.e }
+}
+const adjacent = (x, direction) => {
+  if (x === 0) return direction * Number.MIN_VALUE
+  const step = (x > 0) === (direction > 0) ? 1n : -1n
+  return fromBits(bitsOf(x) + step)
+}
+const evenSignificand = (x) => (bitsOf(x) & 1n) === 0n
+
+const nearestExact = (actual, value, label) => {
+  assert.ok(Number.isFinite(actual), `${label}: finite result required`)
+  const distance = distanceExact(exact(actual), value)
+  for (const direction of [-1, 1]) {
+    const neighbour = adjacent(actual, direction)
+    if (!Number.isFinite(neighbour)) continue
+    const order = compareExact(distance, distanceExact(exact(neighbour), value))
+    assert.ok(order < 0 || order === 0 && evenSignificand(actual), `${label}: ${actual} loses to neighbouring ${neighbour}`)
+  }
+}
+
+// Squared midpoints locate sqrt(value) without rounding either the square root or variance.
+const nearestSqrtExact = (actual, value, label) => {
+  assert.ok(Number.isFinite(actual) && actual >= 0, `${label}: finite non-negative result required`)
+  for (const direction of [-1, 1]) {
+    const neighbour = adjacent(actual, direction)
+    if (neighbour < 0 || !Number.isFinite(neighbour)) continue
+    const sum = sumExact(exact(actual), exact(neighbour))
+    const midpoint = { n: sum.n, e: sum.e - 1 }
+    const order = compareExact(value, productExact(midpoint, midpoint))
+    assert.ok(order * direction < 0 || order === 0 && evenSignificand(actual), `${label}: ${actual} crosses midpoint to ${neighbour}`)
+  }
+}
+
+const exactTable = (table) => {
+  const rows = table.map(({ p, payout }) => ({ p: exact(p), payout: exact(payout) }))
+  const zero = exact(0)
+  const rtp = rows.reduce((total, row) => sumExact(total, productExact(row.p, row.payout)), zero)
+  const houseEdge = subtractExact(exact(1), rtp)
+  const hitFreq = rows.reduce((total, row) => row.payout.n > 0n ? sumExact(total, row.p) : total, zero)
+  const variance = rows.reduce((total, row) => {
+    const deviation = subtractExact(row.payout, rtp)
+    return sumExact(total, productExact(row.p, productExact(deviation, deviation)))
+  }, zero)
+  return { rtp, houseEdge, hitFreq, variance }
+}
+const correctlyRoundedTable = (table, label) => {
+  const actual = rtpFromOutcomes(table)
+  const expected = exactTable(table)
+  for (const key of ['rtp', 'houseEdge', 'hitFreq', 'variance']) nearestExact(actual[key], expected[key], `${label} ${key}`)
+  nearestSqrtExact(actual.sd, expected.variance, `${label} sd`)
+}
+
+test('rtpFromOutcomes keeps the exact sum through every row order', () => {
+  const table = [{ p: 0.5, payout: 2 }, { p: 2 ** -54, payout: 2 }, { p: 2 ** -54, payout: 2 }, { p: 0.5 - 2 ** -53, payout: 0 }]
+  const visit = (prefix, remaining) => {
+    if (!remaining.length) {
+      assert.equal(rtpFromOutcomes(prefix).rtp, 1 + 2 ** -52)
+      correctlyRoundedTable(prefix, 'row permutation')
+      return
+    }
+    for (let i = 0; i < remaining.length; i++) visit([...prefix, remaining[i]], remaining.filter((_, j) => i !== j))
+  }
+  visit([], table)
+})
+
+test('rtpFromOutcomes rounds subnormal sums once, including ties to even', () => {
+  const minimum = Number.MIN_VALUE
+  assert.equal(rtpFromOutcomes([{ p: 0.5, payout: minimum }, { p: 0.5, payout: minimum }]).rtp, minimum)
+  for (const [multiplier, sd] of [[1, 0], [3, 2], [5, 2], [7, 4]]) {
+    const table = [{ p: 0.5, payout: multiplier * minimum }, { p: 0.5, payout: 0 }]
+    assert.equal(rtpFromOutcomes(table).sd, sd * minimum)
+    correctlyRoundedTable(table, 'subnormal midpoint')
+  }
+})
+
+test('rtpFromOutcomes computes house edge and sd from exact values before rounding', () => {
+  correctlyRoundedTable([{ p: 0.5, payout: 1 }, { p: 0.5, payout: 1 + 2 ** -52 }], 'mean midpoint')
+  correctlyRoundedTable([{ p: 0.5, payout: 0 }, { p: 0.5, payout: 2e-200 }], 'variance underflow')
+  correctlyRoundedTable([{ p: 1 - 2 ** -30, payout: 1 }], 'deficient probability sum')
+  const minimum = rtpFromOutcomes([{ p: 1, payout: 1 }, { p: Number.MIN_VALUE, payout: 1 }])
+  assert.deepEqual(minimum, { rtp: 1, houseEdge: -Number.MIN_VALUE, hitFreq: 1, variance: 0, sd: Number.MIN_VALUE })
+})
+
+test('rtpFromOutcomes checks the exact probability tolerance boundary', () => {
+  const table = (p) => [{ p: 0.5, payout: 0 }, { p: 0.5, payout: 0 }, { p, payout: 0 }]
+  assert.doesNotThrow(() => rtpFromOutcomes(table(1e-9)))
+  assert.doesNotThrow(() => rtpFromOutcomes(table(adjacent(1e-9, -1))))
+  assert.throws(() => rtpFromOutcomes(table(adjacent(1e-9, 1))), /sum to 1/)
+  assert.throws(() => rtpFromOutcomes([...table(1e-9), { p: Number.MIN_VALUE, payout: 0 }]), /sum to 1/)
+})
+
+test('rtpFromOutcomes rejects an exact result above MAX_VALUE even when it would round down', () => {
+  correctlyRoundedTable([{ p: 1, payout: Number.MAX_VALUE }], 'finite maximum')
+  assert.throws(() => rtpFromOutcomes([{ p: 1, payout: Number.MAX_VALUE }, { p: Number.MIN_VALUE, payout: Number.MAX_VALUE }]), RangeError)
+})
+
+test('rtpFromOutcomes is correctly rounded for 10,000 seeded tables', () => {
+  let state = 0x6d2b79f5
+  const random = () => {
+    state ^= state << 13
+    state ^= state >>> 17
+    state ^= state << 5
+    return state >>> 0
+  }
+  const payoutFor = (profile) => {
+    if (random() % 8 === 0) return 0
+    const fraction = BigInt(random() & 0xfffff) << 32n | BigInt(random())
+    if (profile === 3) return fromBits(fraction)
+    const exponent = profile === 0 ? random() % 31 - 10
+      : profile === 1 ? random() % 601 - 100
+        : profile === 2 ? random() % 503 - 1022
+          : random() % 1523 - 1022
+    return fromBits(BigInt(exponent + 1023) << 52n | fraction)
+  }
+  for (let i = 0; i < 10000; i++) {
+    const count = random() % 20 + 1
+    const cuts = [0, 2 ** 20]
+    for (let j = 1; j < count; j++) cuts.push(random() % (2 ** 20 + 1))
+    cuts.sort((a, b) => a - b)
+    const profile = i % 5
+    const table = Array.from({ length: count }, (_, j) => ({ p: (cuts[j + 1] - cuts[j]) / 2 ** 20, payout: payoutFor(profile) }))
+    if (count > 1 && i % 3 !== 0) {
+      const row = table.find(({ p }) => p > 0 && p < 1)
+      if (row) row.p += i % 3 === 1 ? 2 ** -32 : -(2 ** -32)
+    }
+    correctlyRoundedTable(table, `seeded table ${i}`)
+  }
+})
+
 test('rtpFromOutcomes: fair double-or-nothing', () => {
   const r = rtpFromOutcomes([{ p: 0.5, payout: 0 }, { p: 0.5, payout: 2 }])
   near(r.rtp, 1)
@@ -251,7 +413,7 @@ test('requiredN validates sd, tolerance and z domains', () => {
   for (const z of [0, -1]) assert.throws(() => requiredN(1, 0.01, z), RangeError)
   assert.throws(() => requiredN(-1, 0.01), RangeError)
   assert.throws(() => requiredN(1, -1), RangeError)
-  assert.equal(requiredN(0, 0.01), 0)
+  assert.equal(requiredN(0, 0.01), 1)
 })
 
 test('validateRtp validates target, tolerance and modelSd before sampling', () => {

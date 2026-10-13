@@ -2,262 +2,856 @@
   "date": "2026-10-12",
   "claude": {
     "model": "sonnet (judge sonnet)",
+    "runs": 3,
+    "runMeans": [
+      {
+        "with": 0.8148148148148148,
+        "without": 0.35185185185185186
+      },
+      {
+        "with": 0.6851851851851852,
+        "without": 0.5
+      },
+      {
+        "with": 0.7037037037037037,
+        "without": 0.42592592592592593
+      }
+    ],
     "cases": [
       {
         "name": "c01-reel-weight-rtp",
-        "with": 1,
-        "without": 1
+        "with": 3,
+        "without": 3,
+        "withScores": [
+          1,
+          1,
+          1
+        ],
+        "withoutScores": [
+          1,
+          1,
+          1
+        ]
       },
       {
         "name": "c02-cached-balance",
-        "with": 1,
-        "without": 1
+        "with": 3,
+        "without": 2,
+        "withScores": [
+          1,
+          1,
+          1
+        ],
+        "withoutScores": [
+          1,
+          1,
+          0
+        ]
       },
       {
         "name": "c03-no-deposit-bonus",
-        "with": 1,
-        "without": 1
+        "with": 2,
+        "without": 0,
+        "withScores": [
+          0,
+          1,
+          1
+        ],
+        "withoutScores": [
+          0,
+          0,
+          0
+        ]
       },
       {
         "name": "c04-high-volatility-sample",
-        "with": 1,
-        "without": 0
+        "with": 3,
+        "without": 3,
+        "withScores": [
+          1,
+          1,
+          1
+        ],
+        "withoutScores": [
+          1,
+          1,
+          1
+        ]
       },
       {
         "name": "c05-mersenne-twister",
-        "with": 1,
-        "without": 1
+        "with": 3,
+        "without": 3,
+        "withScores": [
+          1,
+          1,
+          1
+        ],
+        "withoutScores": [
+          1,
+          1,
+          1
+        ]
       },
       {
         "name": "c06-path-dependent-retriggers",
-        "with": 1,
-        "without": 1
+        "with": 0,
+        "without": 2,
+        "withScores": [
+          0,
+          0,
+          0
+        ],
+        "withoutScores": [
+          0,
+          1,
+          1
+        ]
       },
       {
         "name": "c07-sha256-length-extension",
-        "with": 0.5,
-        "without": 1
+        "with": 2,
+        "without": 0,
+        "withScores": [
+          1,
+          0.5,
+          1
+        ],
+        "withoutScores": [
+          0.5,
+          0.5,
+          0.5
+        ]
       },
       {
         "name": "c08-modulo-bias-scale",
-        "with": 1,
-        "without": 0
+        "with": 2,
+        "without": 1,
+        "withScores": [
+          1,
+          0,
+          1
+        ],
+        "withoutScores": [
+          0,
+          1,
+          0
+        ]
       },
       {
         "name": "c09-certified-slot-animation",
-        "with": 1,
-        "without": 1
+        "with": 3,
+        "without": 3,
+        "withScores": [
+          1,
+          1,
+          1
+        ],
+        "withoutScores": [
+          1,
+          1,
+          1
+        ]
       },
       {
         "name": "c10-draw-call-budget",
-        "with": 1,
-        "without": 1
+        "with": 3,
+        "without": 1,
+        "withScores": [
+          1,
+          1,
+          1
+        ],
+        "withoutScores": [
+          0,
+          0,
+          1
+        ]
       },
       {
         "name": "c12-reseed-between-bets",
-        "with": 0,
-        "without": 0
+        "with": 2,
+        "without": 0,
+        "withScores": [
+          1,
+          1,
+          0
+        ],
+        "withoutScores": [
+          0,
+          0,
+          0
+        ]
       },
       {
         "name": "c13-client-session-clock",
-        "with": 1,
-        "without": 0
+        "with": 2,
+        "without": 1,
+        "withScores": [
+          1,
+          1,
+          0
+        ],
+        "withoutScores": [
+          0,
+          0,
+          1
+        ]
       },
       {
         "name": "c14-production-rtp-change",
+        "with": 3,
+        "without": 3,
+        "withScores": [
+          1,
+          1,
+          1
+        ],
+        "withoutScores": [
+          1,
+          1,
+          1
+        ]
+      },
+      {
+        "name": "cascade-orb-final-sum",
         "with": 1,
-        "without": 1
+        "without": 0,
+        "withScores": [
+          1,
+          0,
+          0
+        ],
+        "withoutScores": [
+          0,
+          0,
+          0
+        ]
       },
       {
         "name": "f05-crash-one-target",
-        "with": 1,
-        "without": 1
+        "with": 3,
+        "without": 1,
+        "withScores": [
+          1,
+          1,
+          1
+        ],
+        "withoutScores": [
+          0,
+          1,
+          0
+        ]
       },
       {
         "name": "f06-sic-bo-profit-odds",
-        "with": 1,
-        "without": 1
+        "with": 2,
+        "without": 3,
+        "withScores": [
+          1,
+          1,
+          0
+        ],
+        "withoutScores": [
+          1,
+          1,
+          1
+        ]
       },
       {
         "name": "f13-rtp-ci-acceptance",
-        "with": 0,
-        "without": 1
+        "with": 1,
+        "without": 1,
+        "withScores": [
+          0,
+          0,
+          1
+        ],
+        "withoutScores": [
+          0,
+          1,
+          0
+        ]
       },
       {
         "name": "idem-settlement-content",
-        "with": 1,
-        "without": 0
+        "with": 3,
+        "without": 0,
+        "withScores": [
+          1,
+          1,
+          1
+        ],
+        "withoutScores": [
+          0,
+          0,
+          0
+        ]
       },
       {
         "name": "j01-blitz-unique-win",
-        "with": 1,
-        "without": 1
+        "with": 3,
+        "without": 3,
+        "withScores": [
+          1,
+          1,
+          1
+        ],
+        "withoutScores": [
+          1,
+          1,
+          1
+        ]
       },
       {
         "name": "j02-cluster-multiplier-grid",
         "with": 1,
-        "without": 0
+        "without": 0,
+        "withScores": [
+          1,
+          0,
+          0
+        ],
+        "withoutScores": [
+          0,
+          0,
+          0
+        ]
       },
       {
         "name": "j03-paid-double-split",
+        "with": 2,
+        "without": 0,
+        "withScores": [
+          0,
+          1,
+          1
+        ],
+        "withoutScores": [
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "name": "moving-wild-collector-order",
         "with": 0,
-        "without": 0
+        "without": 0,
+        "withScores": [
+          0,
+          0,
+          0
+        ],
+        "withoutScores": [
+          0,
+          0,
+          0
+        ]
       },
       {
         "name": "nonce-epoch-contiguity",
-        "with": 1,
-        "without": 0
+        "with": 3,
+        "without": 0,
+        "withScores": [
+          1,
+          1,
+          1
+        ],
+        "withoutScores": [
+          0,
+          0,
+          0
+        ]
       },
       {
         "name": "r01-hidden-round-state",
-        "with": 1,
-        "without": 0
+        "with": 3,
+        "without": 0,
+        "withScores": [
+          1,
+          1,
+          1
+        ],
+        "withoutScores": [
+          0,
+          0,
+          0
+        ]
       },
       {
         "name": "r02-parimutuel-rounding",
-        "with": 1,
-        "without": 1
+        "with": 3,
+        "without": 3,
+        "withScores": [
+          1,
+          1,
+          1
+        ],
+        "withoutScores": [
+          1,
+          1,
+          1
+        ]
       },
       {
         "name": "stake-debit-before-result",
-        "with": 1,
-        "without": 0
+        "with": 2,
+        "without": 0,
+        "withScores": [
+          1,
+          0,
+          1
+        ],
+        "withoutScores": [
+          0,
+          0,
+          0
+        ]
       },
       {
         "name": "verify-single-float",
         "with": 1,
-        "without": 0
+        "without": 0,
+        "withScores": [
+          1,
+          0,
+          0
+        ],
+        "withoutScores": [
+          0,
+          0,
+          0
+        ]
       }
     ]
   },
   "codex": {
     "model": "gpt-6.1-sol, effort max (judge same)",
+    "runs": 3,
+    "runMeans": [
+      {
+        "with": 0.6666666666666666,
+        "without": 0.2777777777777778
+      },
+      {
+        "with": 0.6481481481481481,
+        "without": 0.3888888888888889
+      },
+      {
+        "with": 0.7037037037037037,
+        "without": 0.3148148148148148
+      }
+    ],
     "cases": [
       {
         "name": "c01-reel-weight-rtp",
-        "with": 1,
-        "without": 1
+        "with": 2,
+        "without": 1,
+        "withScores": [
+          0,
+          1,
+          1
+        ],
+        "withoutScores": [
+          0,
+          1,
+          0
+        ]
       },
       {
         "name": "c02-cached-balance",
-        "with": 1,
-        "without": 1
+        "with": 3,
+        "without": 2,
+        "withScores": [
+          1,
+          1,
+          1
+        ],
+        "withoutScores": [
+          1,
+          1,
+          0
+        ]
       },
       {
         "name": "c03-no-deposit-bonus",
         "with": 0,
-        "without": 0
+        "without": 1,
+        "withScores": [
+          0,
+          0,
+          0
+        ],
+        "withoutScores": [
+          0,
+          1,
+          0
+        ]
       },
       {
         "name": "c04-high-volatility-sample",
-        "with": 1,
-        "without": 1
+        "with": 3,
+        "without": 3,
+        "withScores": [
+          1,
+          1,
+          1
+        ],
+        "withoutScores": [
+          1,
+          1,
+          1
+        ]
       },
       {
         "name": "c05-mersenne-twister",
-        "with": 1,
-        "without": 0
+        "with": 3,
+        "without": 1,
+        "withScores": [
+          1,
+          1,
+          1
+        ],
+        "withoutScores": [
+          0,
+          0,
+          1
+        ]
       },
       {
         "name": "c06-path-dependent-retriggers",
-        "with": 1,
-        "without": 0
+        "with": 3,
+        "without": 0,
+        "withScores": [
+          1,
+          1,
+          1
+        ],
+        "withoutScores": [
+          0,
+          0,
+          0
+        ]
       },
       {
         "name": "c07-sha256-length-extension",
-        "with": 1,
-        "without": 0.5
+        "with": 2,
+        "without": 0,
+        "withScores": [
+          1,
+          0.5,
+          1
+        ],
+        "withoutScores": [
+          0.5,
+          0.5,
+          0.5
+        ]
       },
       {
         "name": "c08-modulo-bias-scale",
         "with": 0,
-        "without": 0
+        "without": 0,
+        "withScores": [
+          0,
+          0,
+          0
+        ],
+        "withoutScores": [
+          0,
+          0,
+          0
+        ]
       },
       {
         "name": "c09-certified-slot-animation",
-        "with": 1,
-        "without": 1
+        "with": 3,
+        "without": 3,
+        "withScores": [
+          1,
+          1,
+          1
+        ],
+        "withoutScores": [
+          1,
+          1,
+          1
+        ]
       },
       {
         "name": "c10-draw-call-budget",
-        "with": 0,
-        "without": 0
+        "with": 2,
+        "without": 1,
+        "withScores": [
+          0,
+          1,
+          1
+        ],
+        "withoutScores": [
+          0,
+          1,
+          0
+        ]
       },
       {
         "name": "c12-reseed-between-bets",
-        "with": 0,
-        "without": 0
+        "with": 1,
+        "without": 0,
+        "withScores": [
+          0,
+          0,
+          1
+        ],
+        "withoutScores": [
+          0,
+          0,
+          0
+        ]
       },
       {
         "name": "c13-client-session-clock",
-        "with": 1,
-        "without": 0
+        "with": 3,
+        "without": 0,
+        "withScores": [
+          1,
+          1,
+          1
+        ],
+        "withoutScores": [
+          0,
+          0,
+          0
+        ]
       },
       {
         "name": "c14-production-rtp-change",
-        "with": 1,
-        "without": 0
+        "with": 3,
+        "without": 2,
+        "withScores": [
+          1,
+          1,
+          1
+        ],
+        "withoutScores": [
+          0,
+          1,
+          1
+        ]
+      },
+      {
+        "name": "cascade-orb-final-sum",
+        "with": 0,
+        "without": 0,
+        "withScores": [
+          0,
+          0,
+          0
+        ],
+        "withoutScores": [
+          0,
+          0,
+          0
+        ]
       },
       {
         "name": "f05-crash-one-target",
-        "with": 1,
-        "without": 1
+        "with": 3,
+        "without": 3,
+        "withScores": [
+          1,
+          1,
+          1
+        ],
+        "withoutScores": [
+          1,
+          1,
+          1
+        ]
       },
       {
         "name": "f06-sic-bo-profit-odds",
         "with": 0,
-        "without": 0
+        "without": 0,
+        "withScores": [
+          0,
+          0,
+          0
+        ],
+        "withoutScores": [
+          0,
+          0,
+          0
+        ]
       },
       {
         "name": "f13-rtp-ci-acceptance",
-        "with": 1,
-        "without": 0
+        "with": 3,
+        "without": 0,
+        "withScores": [
+          1,
+          1,
+          1
+        ],
+        "withoutScores": [
+          0,
+          0,
+          0
+        ]
       },
       {
         "name": "idem-settlement-content",
-        "with": 0,
-        "without": 0
+        "with": 1,
+        "without": 0,
+        "withScores": [
+          0,
+          1,
+          0
+        ],
+        "withoutScores": [
+          0,
+          0,
+          0
+        ]
       },
       {
         "name": "j01-blitz-unique-win",
-        "with": 0,
-        "without": 0
+        "with": 1,
+        "without": 2,
+        "withScores": [
+          1,
+          0,
+          0
+        ],
+        "withoutScores": [
+          1,
+          0,
+          1
+        ]
       },
       {
         "name": "j02-cluster-multiplier-grid",
-        "with": 1,
-        "without": 1
+        "with": 3,
+        "without": 3,
+        "withScores": [
+          1,
+          1,
+          1
+        ],
+        "withoutScores": [
+          1,
+          1,
+          1
+        ]
       },
       {
         "name": "j03-paid-double-split",
+        "with": 2,
+        "without": 0,
+        "withScores": [
+          1,
+          1,
+          0
+        ],
+        "withoutScores": [
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "name": "moving-wild-collector-order",
         "with": 0,
-        "without": 0
+        "without": 0,
+        "withScores": [
+          0,
+          0,
+          0
+        ],
+        "withoutScores": [
+          0,
+          0,
+          0
+        ]
       },
       {
         "name": "nonce-epoch-contiguity",
-        "with": 0,
-        "without": 0
+        "with": 2,
+        "without": 0,
+        "withScores": [
+          1,
+          0,
+          1
+        ],
+        "withoutScores": [
+          0,
+          0,
+          0
+        ]
       },
       {
         "name": "r01-hidden-round-state",
-        "with": 0,
-        "without": 0
+        "with": 2,
+        "without": 0,
+        "withScores": [
+          1,
+          0,
+          1
+        ],
+        "withoutScores": [
+          0,
+          0,
+          0
+        ]
       },
       {
         "name": "r02-parimutuel-rounding",
-        "with": 1,
-        "without": 1
+        "with": 3,
+        "without": 3,
+        "withScores": [
+          1,
+          1,
+          1
+        ],
+        "withoutScores": [
+          1,
+          1,
+          1
+        ]
       },
       {
         "name": "stake-debit-before-result",
-        "with": 1,
-        "without": 0
+        "with": 3,
+        "without": 0,
+        "withScores": [
+          1,
+          1,
+          1
+        ],
+        "withoutScores": [
+          0,
+          0,
+          0
+        ]
       },
       {
         "name": "verify-single-float",
-        "with": 0,
-        "without": 0
+        "with": 3,
+        "without": 0,
+        "withScores": [
+          1,
+          1,
+          1
+        ],
+        "withoutScores": [
+          0,
+          0,
+          0
+        ]
       }
-    ]
+    ],
+    "skillReadRates": {
+      "any": 1,
+      "expected": 0.8395061728395061
+    }
   }
 }

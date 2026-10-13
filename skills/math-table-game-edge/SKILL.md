@@ -1,6 +1,6 @@
 ---
 name: math-table-game-edge
-description: Use when agents derive table-game RTP or house edge from fixed odds, payout tables, profit versus gross returns, pushes, ties, commissions, caps, or strategy-dependent Blackjack stakes.
+description: Use when agents derive table-game RTP or house edge (Sic Bo, baccarat, Blackjack) from fixed odds, payout tables, 'a:1' profit versus gross returns and the right denominator, pushes, ties, commissions, caps, or strategy-dependent Blackjack stakes.
 metadata:
   constraints: C4, C14
 ---
@@ -18,7 +18,7 @@ metadata:
 2. Enumerate outcomes for each bet type: `RTP = Σ pᵢXᵢ`, `edge = 1-RTP`. For a binary loss/win bet, gross multiplier `M=T/p` targets RTP `T`; with push probability `q`, use `M=(T-q)/p`. Additional return atoms require the full sum. MSS `games/sicbo/rtp98.ts` `config` uses profit odds: small/big RTP is `105/216 × 2`, not `105/216 × 1`.
 3. Include ties and commission in each affected bet's outcomes. MSS `games/baccarat-live/engine.ts` `settle` pushes player/banker bets on ties and returns principal plus commission-adjusted winnings on banker wins. Banker RTP is `pBanker×grossBankerReturn + pTie`; the separately wagered tie bet has its own paytable.
 4. Compute caps, commission and rounding using exact integer money atoms and declared rational factors. Measure at minimum and representative stakes; winning return can depend on the wallet grid. Apply gross caps before normalizing returned atoms to `X`. Blend bet types using actual stake shares, not equal weights or a marketing headline; shared outcomes affect variance even when EV sums.
-5. Pin Blackjack rules and player policy: RTP is strategy-dependent. Count Double/Split as additional paid stakes. Variable-cost strategy RTP is `Σ returns / Σ stakes`, with a ratio-estimator CI (`math-montecarlo-simulation`), not mean per-hand ratios. MSS `games/blackjack-multi-hands/index.ts` `server.play` routes these actions to `doubleDown`/`splitHand`; debit encodings and legality belong to the dedicated table-game skill.
+5. Pin Blackjack rules/player policy: RTP is strategy-dependent. Count Double/Split as additional paid stakes. Variable-cost RTP is `Σ returns / Σ stakes`, with a ratio-estimator CI (`math-montecarlo-simulation`), never mean per-hand ratios. MSS `games/blackjack-multi-hands/index.ts` `server.play` routes `doubleDown`/`splitHand`; debit encoding/turn advancement use `build-instant-crash-games`. Model surrender as terminal with configured gross return: ordinary half-stake versus separately configured dealer-Ace natural even-money (2× gross here). Enforce first-decision, unsplit-hand and upcard eligibility; defer credit until round settlement. Verify eligibility and odd wallet-unit flooring. MSS `games/blackjack-multi-hands/state.ts` `availableActionsForHand`/`payoutAtoms`; MSS `games/blackjack-multi-hands/index.ts` `settleRound`.
 6. Separate per-stake return `Σ internalReturns / Σ internalStakes` from surviving-bankroll/committed-bankroll return. Returning unspent bankroll is not game return. MSS `games/baccarat-1000/index.ts` `PerStakeReturn` tracks the former separately; bankroll-run games use `build-bankroll-run-games`.
 
 ## Correctness constraints

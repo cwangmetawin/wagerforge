@@ -59,6 +59,12 @@ Coverage of MetaWin's production server (MSS) against a fixed denominator. Each 
 - An unquoted frontmatter `name` or `description` containing `: ` or ` #` is an error: strict YAML loaders reject
   or truncate it (law 8).
 
+### Results
+- Coverage: a fresh blind check finds 69 of 72 patterns taught and 27 of 34 families full. P028, P039 and P047
+  teach the safe rule that some MSS games deviate from; the owner decides whether they count. The strict open-ended
+  check finds 2 of 34 families full (v0.3.1: 1).
+- Evals, 39 cases, three runs per agent on 0e5b263: __CL_RESULTS__
+
 ## 0.3.1 — 2026-10-13
 
 ### Changed (reference scripts)

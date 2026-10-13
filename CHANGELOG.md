@@ -18,6 +18,11 @@ Coverage of MetaWin's production server (MSS) against a fixed denominator. Each 
 - `math-betting-progressions`: stop-line denominators and precedence, table-limit stop or reset, Martingale,
   Paroli, D'Alembert, Fibonacci, 1-3-2-6, Labouchère, Oscar's Grind and fixed-ratio spreads.
 - Eval cases `baccarat-chip-floor-pair-rank` and `martingale-push-cap-stop-lines`.
+- `build-live-table-operations`: chip undo and clear-table refunds, empty rounds, side bets that depend on a main
+  bet, command windows and deadlines, seat queues and idle release, withdrawal and restake before risk.
+- `build-wager-limit-admission`: currency and precision locks, worst-case liability against maximum exposure,
+  per-chip versus per-spot limits, minimum and maximum bets, wallet-grid admission before the RNG, auto cash-out.
+- Eval cases `live-table-undo-side-empty-round` and `shared-room-stake-admission`.
 
 ### Changed (validator)
 - A `build-*` skill without a `## Default stack` section outside code fences is an error (law 3).

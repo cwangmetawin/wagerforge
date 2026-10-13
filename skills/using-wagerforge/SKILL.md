@@ -41,6 +41,7 @@ A game's name, theme or renderer never decides its money or fairness model; find
 | Blackjack: scoring, naturals, dealer and peek rules, shoes; insurance, Double, Split, charts, 21+3 | `math-blackjack-rules`, `math-blackjack-actions` |
 | Player skill decides the result | `build-skill-wager-games` |
 | An external server reports the result | `build-signed-realtime-settlement` |
+| Table bets: baccarat, roulette, Sic Bo settlement; progressions and stop lines | `math-table-bet-rules`, `math-betting-progressions` |
 
 ## Order
 

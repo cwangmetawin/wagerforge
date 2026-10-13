@@ -13,6 +13,11 @@ Coverage of MetaWin's production server (MSS) against a fixed denominator. Each 
   liability, natural and insurance returns on the wallet grid, burns and reshuffle timing.
 - `math-blackjack-actions`: insurance, Double, Split, split aces and re-splits, strategy charts with fallbacks, 21+3.
 - Eval cases `blackjack-split-21-grid-peek` and `blackjack-insurance-double-funding`.
+- `math-table-bet-rules`: the baccarat tableau, Banker commission rounding per chip with a minimum on every chip,
+  pair bets on the original two ranks, roulette inside and announced bets, la partage and en prison, Sic Bo bets.
+- `math-betting-progressions`: stop-line denominators and precedence, table-limit stop or reset, Martingale,
+  Paroli, D'Alembert, Fibonacci, 1-3-2-6, Labouchère, Oscar's Grind and fixed-ratio spreads.
+- Eval cases `baccarat-chip-floor-pair-rank` and `martingale-push-cap-stop-lines`.
 
 ### Changed (validator)
 - A `build-*` skill without a `## Default stack` section outside code fences is an error (law 3).

@@ -77,6 +77,13 @@ test('frontmatter must stay portable to Codex: unknown top-level keys are errors
   assert.ok(has(check({ 'math-x': skill('math-x', { description: '>' }) }).errors, /one line/))
 })
 
+test('an unquoted name or description may not contain ": " or " #", so strict YAML loaders accept it', () => {
+  assert.ok(has(check({ 'math-x': skill('math-x', { description: 'Use when auditing table bets: baccarat and roulette.' }) }).errors, /description contains ": " or " #" unquoted/))
+  assert.ok(has(check({ 'math-x': skill('math-x', { description: 'Use when testing #hash comments.' }) }).errors, /unquoted/))
+  assert.deepEqual(check({ 'math-x': skill('math-x', { description: '"Use when auditing table bets: baccarat and roulette."' }) }), { errors: [], warnings: [] })
+  assert.deepEqual(check({ 'math-x': skill('math-x', { description: 'Use when ratios like 3:2 or C#-style ids appear.' }) }), { errors: [], warnings: [] })
+})
+
 test('the title is the skill name, so every skill reads the same way in the catalogue', () => {
   assert.deepEqual(check({ 'math-x': skill('math-x') }).errors, [])
   assert.ok(has(check({ 'math-x': skill('math-x', { title: '# Math X Mathematics' }) }).errors, /title "Math X Mathematics" must be the skill name "math-x"/))
@@ -169,6 +176,16 @@ test('commands, agents, hooks and top-level docs are checked too', () => {
   assert.ok(has(r.errors, /agent name "not-y" != file "y"/))
   assert.ok(has(r.errors, /\[hooks\/h\.mjs\] dangling reference wagerforge:writing-plans/))
   assert.ok(has(r.errors, /\[README\.md\] references "superpowers:"/))
+})
+
+test('every build-* skill states its default stack and escape hatch (Law #3)', () => {
+  const r = check({ 'build-a': skill('build-a') })
+  assert.ok(has(r.errors, /\[build-a\] build skill has no "## Default stack/))
+  const stack = '## Default stack (+ escape hatch)\n\nDefault: TypeScript + Node. Else map the same concepts.'
+  assert.deepEqual(check({ 'build-a': skill('build-a', { body: stack }) }), { errors: [], warnings: [] })
+  assert.deepEqual(check({ 'math-a': skill('math-a') }), { errors: [], warnings: [] })
+  const fenced = check({ 'build-a': skill('build-a', { body: '```\n## Default stack\n```' }) })
+  assert.ok(has(fenced.errors, /\[build-a\] build skill has no/))
 })
 
 test('every domain skill must be reachable from the using-wagerforge router', () => {

@@ -14,6 +14,8 @@ const CONSTRAINT_KEY_PHRASES = new Map([
 ])
 const CORRECTNESS_HEADING_RE = /^#{1,6}\s*correctness constraints\b/im
 const CORE_INSIGHT_RE = /^> \*\*Core insight:\*\* \S/
+// Law #3: every build-* skill states its default stack and how to map it to another stack.
+const DEFAULT_STACK_RE = /^## Default stack\b/m
 // Skill references: the namespaced form anywhere, and a bare pillar-prefixed name in backticks.
 const NS_REF_RE = /wagerforge:([a-z0-9-]+)/g
 const BARE_REF_RE = /`((?:math|fair|build|econ|qa|comp)-[a-z0-9-]+|using-wagerforge)`/g
@@ -75,6 +77,19 @@ export function correctnessSection(body) {
 
 const listDir = (dir) => (existsSync(dir) ? readdirSync(dir, { withFileTypes: true }) : [])
 
+// A plain (unquoted) YAML scalar may not contain ": " or " #"; strict YAML parsers reject the line or cut it short.
+// Our reader is lenient, so check the raw top-level lines: a portable skill must parse in any YAML loader.
+function checkPlainScalars(tag, text, errors) {
+  const lines = text.replace(/\r\n/g, '\n').split('\n')
+  const end = lines.indexOf('---', 1)
+  for (const line of lines.slice(1, end)) {
+    const m = line.match(/^(name|description):\s*(.*)$/)
+    if (!m) continue
+    const value = m[2].trim()
+    if (value && !/^["']/.test(value) && /: | #/.test(value)) errors.push(`${tag} frontmatter ${m[1]} contains ": " or " #" unquoted, which strict YAML rejects; quote the value`)
+  }
+}
+
 function checkFrontmatterKeys(tag, fm, errors) {
   for (const k of Object.keys(fm)) {
     if (!ALLOWED_FM_KEYS.has(k)) errors.push(`${tag} frontmatter key "${k}" is not portable (allowed: ${[...ALLOWED_FM_KEYS].join(', ')}; put project data under metadata:)`)
@@ -117,6 +132,7 @@ function checkSkill(skillsDir, dir, known, secrets, errors, warnings) {
   const { fm } = parsed
   const body = stripFences(parsed.body)
   checkFrontmatterKeys(tag, fm, errors)
+  checkPlainScalars(tag, text, errors)
   if (!fm.name) errors.push(`${tag} frontmatter missing name`)
   else {
     if (!SKILL_NAME_RE.test(fm.name)) errors.push(`${tag} name not hyphen-case: ${fm.name}`)
@@ -136,6 +152,7 @@ function checkSkill(skillsDir, dir, known, secrets, errors, warnings) {
     const after = body.slice(body.indexOf(h1[0]) + h1[0].length).split('\n').find((l) => l.trim())
     if (!after || !CORE_INSIGHT_RE.test(after)) errors.push(`${tag} first line after the title must be "> **Core insight:** …"`)
   }
+  if (dir.startsWith('build-') && !DEFAULT_STACK_RE.test(body)) errors.push(`${tag} build skill has no "## Default stack (+ escape hatch)" section (Law #3)`)
   const wc = wordCount(parsed.body)
   if (wc > WORD_HARD_CAP) errors.push(`${tag} body ${wc} words > hard cap ${WORD_HARD_CAP}`)
   else if (wc > WORD_BUDGET) warnings.push(`${tag} body ${wc} words > budget ${WORD_BUDGET}`)

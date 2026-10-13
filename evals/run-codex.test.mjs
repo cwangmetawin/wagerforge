@@ -55,7 +55,9 @@ const expected = [
   ['stalled-room-void-refunds', 'build-round-recovery-contracts', ['stalled', '18.00', 'proven terminal', 'accepted but unsettled', 'after tick entry']],
   ['tote-capped-pool-remainders', 'build-pooled-market-operations', ['50.00', '1.74', 'ascending', 'RETURN_EXCESS', '1850/5550']],
   ['wild-run-scatter-entry-credit', 'math-slot-evaluation-rules', ['first ordinary symbol', '= 6', '106', '132']],
-  ['escalation-floor-wild-injection', 'math-slot-board-state-rules', ['mode-specific caps', 'rung index 13', '1800', 'two subsequent wave climbs', 'discarded', 'rung index 11', 'independent rolls', '0.488', 'pays before its persistent upgrade', 'pays 150 coins', 'once per winning wave']]
+  ['escalation-floor-wild-injection', 'math-slot-board-state-rules', ['mode-specific caps', 'rung index 13', '1800', 'two subsequent wave climbs', 'discarded', 'rung index 11', 'independent rolls', '0.488', 'pays before its persistent upgrade', 'pays 150 coins', 'once per winning wave']],
+  ['fixed-odds-ceil-quote-admission', 'math-payout-precision-rules', ['33334', '98.94', '97.194', 'last refused', '1510.00', '151x charged']],
+  ['guaranteed-symbol-replay-budget', 'math-forced-outcome-shaping', ['36.0396716858', '91.1682626514', 'deep-clone', 'cannot be inferred', 'same explicit RNG tape']]
 ]
 
 test('frontmatter preserves quoted regex backslashes and splits inline lists', () => {
@@ -261,9 +263,9 @@ test('timeout addresses the whole process group, never pid -1 or zero', () => {
   for (const pid of [0, 1, -2, NaN, undefined]) assert.throws(() => api.processGroup(pid))
 })
 
-test('suite contains exactly the 37 requested cases', () => {
+test('suite contains exactly the 39 requested cases', () => {
   const folders = readdirSync(root, { withFileTypes: true }).filter(entry => entry.isDirectory() && entry.name !== 'results').map(entry => entry.name).sort()
-  assert.equal(expected.length, 37)
+  assert.equal(expected.length, 39)
   assert.deepEqual(folders, expected.map(([name]) => name).sort())
 })
 test('README counts and coverage table match the complete case suite', () => {

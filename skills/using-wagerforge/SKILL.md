@@ -41,6 +41,7 @@ A game's name, theme or renderer never decides its money or fairness model; find
 | Blackjack: scoring, naturals, dealer and peek rules, shoes; insurance, Double, Split, charts, 21+3 | `math-blackjack-rules`, `math-blackjack-actions` |
 | Player skill decides the result | `build-skill-wager-games` |
 | An external server reports the result | `build-signed-realtime-settlement` |
+| Payout and quote precision; forced-outcome shaping and its RTP | `math-payout-precision-rules`, `math-forced-outcome-shaping` |
 | Slot wild/scatter policies, entry counts, gamble; strip stops, latent state, escalation, injection | `math-slot-evaluation-rules`, `math-slot-board-state-rules` |
 | Stalled-round recovery contracts; pooled markets and tote pools | `build-round-recovery-contracts`, `build-pooled-market-operations` |
 | Live tables: betting windows, undo, seats; stake limits and admission | `build-live-table-operations`, `build-wager-limit-admission` |

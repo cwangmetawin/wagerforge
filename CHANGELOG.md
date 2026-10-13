@@ -1,6 +1,25 @@
 # Changelog
 
-## 0.3.1 — unreleased
+## 0.3.2 — unreleased
+
+Coverage of MetaWin's production server (MSS) against a fixed denominator. Each item merges on its own.
+
+### Added (coverage)
+- `docs/coverage/mss-mechanisms.json`: the 398 MSS mechanisms classed teach 196, fingerprint 187 and drop 15. The
+  teach entries fall under 72 patterns that name no game, each with its MSS evidence. Approved 2026-10-13; fixed.
+
+### Added (skills)
+- `math-blackjack-rules`: scoring and naturals, settlement precedence, soft 17 and the dealer draw gate, peek
+  liability, natural and insurance returns on the wallet grid, burns and reshuffle timing.
+- `math-blackjack-actions`: insurance, Double, Split, split aces and re-splits, strategy charts with fallbacks, 21+3.
+- Eval cases `blackjack-split-21-grid-peek` and `blackjack-insurance-double-funding`.
+
+### Changed (validator)
+- A `build-*` skill without a `## Default stack` section outside code fences is an error (law 3).
+- An unquoted frontmatter `name` or `description` containing `: ` or ` #` is an error: strict YAML loaders reject
+  or truncate it (law 8).
+
+## 0.3.1 — 2026-10-13
 
 ### Changed (reference scripts)
 - **Exact RTP statistics.** `scripts/dyadic.mjs` does exact arithmetic on finite doubles.
@@ -44,7 +63,7 @@
   1 of 34 families full. The owner chose to close this criterion as not met. The proposal for the
   next phase is `docs/plans/2026-10-12-v0.3.2-coverage-proposal.md`.
 
-## 0.3.0 — unreleased
+## 0.3.0 — 2026-10-13
 
 ### Removed (breaking)
 - **superpowers is gone.** The 14 vendored process skills, the `using-superpowers` bootstrap injection,

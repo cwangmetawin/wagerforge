@@ -45,7 +45,9 @@ const expected = [
   ['j02-cluster-multiplier-grid', 'math-lines-ways-cluster', ['x2 or more', '0.5 x (2 + 4) = 3', 'never zero']],
   ['j03-paid-double-split', 'build-instant-crash-games', ['NEW paid stakes', 'binding shadow', 'declared debit mode']],
   ['moving-wild-collector-order', 'math-moving-wild-collection', ['before refill', 'covered coins', 'retained multiplier', '18']],
-  ['cascade-orb-final-sum', 'math-cascade-modifiers', ['terminal sum', '63', 'defaulting to one', 'cap']]
+  ['cascade-orb-final-sum', 'math-cascade-modifiers', ['terminal sum', '63', 'defaulting to one', 'cap']],
+  ['blackjack-split-21-grid-peek', 'math-blackjack-rules', ['split', 'per hand flooring', '0.16', 'peek', 'all-bets liability', 'insurance offer', 'negative peek', 'player-natural credits wait for the hole-card reveal']],
+  ['blackjack-insurance-double-funding', 'math-blackjack-actions', ['fallback', 'half the opening stake', '55', 'no double-for-less', 'soft 13 row', 'before the run opens', 'never fill holes', 'insurance choice as TAKE or DECLINE']]
 ]
 
 test('frontmatter preserves quoted regex backslashes and splits inline lists', () => {
@@ -251,9 +253,9 @@ test('timeout addresses the whole process group, never pid -1 or zero', () => {
   for (const pid of [0, 1, -2, NaN, undefined]) assert.throws(() => api.processGroup(pid))
 })
 
-test('suite contains exactly the 27 requested cases', () => {
+test('suite contains exactly the 29 requested cases', () => {
   const folders = readdirSync(root, { withFileTypes: true }).filter(entry => entry.isDirectory() && entry.name !== 'results').map(entry => entry.name).sort()
-  assert.equal(expected.length, 27)
+  assert.equal(expected.length, 29)
   assert.deepEqual(folders, expected.map(([name]) => name).sort())
 })
 test('README counts and coverage table match the complete case suite', () => {

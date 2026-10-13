@@ -1,7 +1,7 @@
 {
   "name": "wagerforge",
   "description": "iGaming domain skills for Claude Code and Codex — slot math, provable fairness, RGS & durable settlement, game economy, math/RNG QA and gambling compliance.",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "author": {
     "name": "Chao Wang"
   },

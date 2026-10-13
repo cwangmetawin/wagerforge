@@ -38,6 +38,7 @@ A game's name, theme or renderer never decides its money or fairness model; find
 | Fixed-odds quotes vs pooled markets | `math-fixed-odds-event-markets` vs `build-prediction-market-games` |
 | One buy-in, many internal hands | `build-bankroll-run-games` |
 | Card shoes, hole cards, timed shared tables | `fair-shoe-draw-ledger`, `build-live-table-games` |
+| Blackjack: scoring, naturals, dealer and peek rules, shoes; insurance, Double, Split, charts, 21+3 | `math-blackjack-rules`, `math-blackjack-actions` |
 | Player skill decides the result | `build-skill-wager-games` |
 | An external server reports the result | `build-signed-realtime-settlement` |
 

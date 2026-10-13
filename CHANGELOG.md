@@ -28,6 +28,16 @@ Coverage of MetaWin's production server (MSS) against a fixed denominator. Each 
 - `build-pooled-market-operations`: resale orders and the order book, cancelling an invalid pool, winner allocation
   and rake, largest-remainder atoms, capped pool payouts.
 - Eval cases `stalled-room-void-refunds` and `tote-capped-pool-remainders`.
+- `math-slot-evaluation-rules`: wild-run and scatter policies (dual wild/scatter symbols keep substituting), connected
+  ways seeds and splits, free-game entry and retrigger counting per phase, expanding symbols, continuation and
+  bought-entry accounting, gamble features.
+- `math-slot-board-state-rules`: strip stops and declared refill sources, the reference board for conditional odds,
+  latent round state, persistent versus per-spin escalation, special-symbol injection.
+- Eval cases `wild-run-scatter-entry-credit` and `escalation-floor-wild-injection`.
+
+### Changed (skills)
+- `math-lines-ways-cluster`: connected ways declare their dead-end policy (MSS barValhalla retains forward dead
+  ends; piggyBank reads wild maxima, then prunes) instead of always pruning.
 
 ### Changed (validator)
 - A `build-*` skill without a `## Default stack` section outside code fences is an error (law 3).

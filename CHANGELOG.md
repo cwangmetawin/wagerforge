@@ -35,6 +35,11 @@ Coverage of MetaWin's production server (MSS) against a fixed denominator. Each 
   latent round state, persistent versus per-spin escalation, special-symbol injection.
 - Eval cases `wild-run-scatter-entry-credit` and `escalation-floor-wild-injection`.
 
+### Added (dashboard)
+- The dashboard has an English page (`docs/dashboard/en/index.html`) with a language switch, and
+  `docs/dashboard/llms.txt` for agents: give an agent the site URL and it installs the skills with the
+  pinned commands. `--ref` pins every install command, download and source link; deploys pass a release tag.
+
 ### Changed (skills)
 - `math-lines-ways-cluster`: connected ways declare their dead-end policy (MSS barValhalla retains forward dead
   ends; piggyBank reads wild maxima, then prunes) instead of always pruning.

@@ -14,16 +14,16 @@ iGaming domain skills for **Claude Code and Codex** — slot math, provable fair
 
 The dashboard at <https://wagerforge.gladiatorstudios.co.uk> (English: <https://wagerforge.gladiatorstudios.co.uk/en/>) shows the latest signed-off release: every skill, the C1–C14 constraints, MSS coverage and the behaviour evals. Give that URL to a coding agent and it can install the skills itself: the page and <https://wagerforge.gladiatorstudios.co.uk/llms.txt> carry the install commands pinned to the release tag, the plugin ZIP and a link to every `SKILL.md`.
 
-Releases are git tags (`v0.3.0`, `v0.3.1`), each a version the owner signed off; `main` may carry unreleased work. The commands below install `v0.3.1`; use the newest tag.
+Releases are git tags (`v0.3.0`, `v0.3.1`, `v0.3.2`), each a version the owner signed off; `main` may carry unreleased work. The commands below install `v0.3.2`; use the newest tag.
 
 ## Install — Claude Code
 
 ```
-claude plugin marketplace add cwangmetawin/wagerforge#v0.3.1
+claude plugin marketplace add cwangmetawin/wagerforge#v0.3.2
 claude plugin install wagerforge@wagerforge-dev
 ```
 
-Inside a Claude Code session the same steps are `/plugin marketplace add cwangmetawin/wagerforge#v0.3.1` and `/plugin install wagerforge@wagerforge-dev`. After `#` give a branch or tag name, not a commit SHA. A local checkout works too: `/plugin marketplace add <path-to-wagerforge>`.
+Inside a Claude Code session the same steps are `/plugin marketplace add cwangmetawin/wagerforge#v0.3.2` and `/plugin install wagerforge@wagerforge-dev`. After `#` give a branch or tag name, not a commit SHA. A local checkout works too: `/plugin marketplace add <path-to-wagerforge>`.
 
 Restart Claude Code. Verify: `/plugin` lists **wagerforge** as enabled; the commands resolve: `/wagerforge:fairness-audit`, `/wagerforge:rtp-check`, `/wagerforge:settlement-check`, `/wagerforge:new-minigame`.
 
@@ -32,7 +32,7 @@ Restart Claude Code. Verify: `/plugin` lists **wagerforge** as enabled; the comm
 Codex (0.159+) reads the same marketplace file, so one release serves both agents:
 
 ```
-codex plugin marketplace add cwangmetawin/wagerforge --ref v0.3.1
+codex plugin marketplace add cwangmetawin/wagerforge --ref v0.3.2
 codex plugin add wagerforge --marketplace wagerforge-dev
 ```
 
@@ -40,7 +40,18 @@ A local checkout works too: `codex plugin marketplace add <path-to-wagerforge>`.
 
 Skills appear as `wagerforge:<skill>`; Codex picks them by description, or name one in your prompt (for example `$wagerforge:fair-verify`). Codex runs no plugin hooks, slash commands or agents — everything they do is reachable through the skills, starting at `wagerforge:using-wagerforge`.
 
-Codex lists skills within a size budget (about 22 KB of names and descriptions). With hundreds of personal skills (for example in `~/.agents/skills`), plugin skills can be crowded out entirely: in a test with about 350 personal skills, Codex listed none of wagerforge's. Check with `codex debug prompt-input "hi"`; for iGaming work, a separate `CODEX_HOME` with only the skills you need keeps wagerforge listed. Claude Code registered every wagerforge skill in the same test.
+Codex lists skills within a size budget (about 22 KB of names and descriptions). With hundreds of personal skills (for example in `~/.agents/skills`), plugin skills can be crowded out entirely: in a test with about 350 personal skills, Codex listed none of wagerforge's. Check with `codex debug prompt-input "hi"`. A separate `CODEX_HOME` alone does not help, because personal skills under `HOME` are still read; raise its skill budget as well. Tested with 357 personal skills, all 79 wagerforge skills are then listed:
+
+```
+export CODEX_HOME=~/.codex-wagerforge
+codex login
+codex plugin marketplace add cwangmetawin/wagerforge --ref v0.3.2
+codex plugin add wagerforge --marketplace wagerforge-dev
+printf '\n[skills]\nmax_context_tokens = 60000\n' >> "$CODEX_HOME/config.toml"
+codex debug prompt-input hi | grep -o 'wagerforge:[a-z0-9-]*' | sort -u | wc -l
+```
+
+Start Codex with that `CODEX_HOME` for iGaming work; your everyday `~/.codex` stays as it is. Claude Code registered every wagerforge skill in the same test.
 
 ## Pillars (skill prefixes)
 

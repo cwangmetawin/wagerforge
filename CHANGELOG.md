@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.3.2 — unreleased
+## 0.3.2 — 2026-10-13
 
 Coverage of MetaWin's production server (MSS) against a fixed denominator. Each item merges on its own.
 
@@ -59,10 +59,14 @@ Coverage of MetaWin's production server (MSS) against a fixed denominator. Each 
 - An unquoted frontmatter `name` or `description` containing `: ` or ` #` is an error: strict YAML loaders reject
   or truncate it (law 8).
 
+### Changed (docs)
+- README: install commands pinned to `v0.3.2`, and a tested Codex setup for many personal skills (a separate
+  `CODEX_HOME` with a larger skill budget).
+
 ### Results
 - Coverage: a fresh blind check finds 69 of 72 patterns taught and 27 of 34 families full. P028, P039 and P047
-  teach the safe rule that some MSS games deviate from; the owner decides whether they count. The strict open-ended
-  check finds 2 of 34 families full (v0.3.1: 1).
+  teach the safe rule that some MSS games deviate from; the owner counts them as taught (72 of 72 patterns, 34 of 34
+  families). The strict open-ended check finds 2 of 34 families full (v0.3.1: 1).
 - Evals, 39 cases: Claude's with-skill mean was ahead in all three runs on 37f60b1 (0.641/0.321, 0.667/0.218,
   0.551/0.321) and in one run on 0e5b263 (0.628/0.359). The Codex runs did not finish (stopped to free the
   machine); `evals/summary.json` still holds v0.3.1's runs.

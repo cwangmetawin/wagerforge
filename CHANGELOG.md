@@ -16,6 +16,8 @@ Coverage of MetaWin's production server (MSS) against a fixed denominator. Each 
 
 ### Changed (validator)
 - A `build-*` skill without a `## Default stack` section outside code fences is an error (law 3).
+- An unquoted frontmatter `name` or `description` containing `: ` or ` #` is an error: strict YAML loaders reject
+  or truncate it (law 8).
 
 ## 0.3.1 — 2026-10-13
 

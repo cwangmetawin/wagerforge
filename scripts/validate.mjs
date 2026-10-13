@@ -14,6 +14,8 @@ const CONSTRAINT_KEY_PHRASES = new Map([
 ])
 const CORRECTNESS_HEADING_RE = /^#{1,6}\s*correctness constraints\b/im
 const CORE_INSIGHT_RE = /^> \*\*Core insight:\*\* \S/
+// Law #3: every build-* skill states its default stack and how to map it to another stack.
+const DEFAULT_STACK_RE = /^## Default stack\b/m
 // Skill references: the namespaced form anywhere, and a bare pillar-prefixed name in backticks.
 const NS_REF_RE = /wagerforge:([a-z0-9-]+)/g
 const BARE_REF_RE = /`((?:math|fair|build|econ|qa|comp)-[a-z0-9-]+|using-wagerforge)`/g
@@ -136,6 +138,7 @@ function checkSkill(skillsDir, dir, known, secrets, errors, warnings) {
     const after = body.slice(body.indexOf(h1[0]) + h1[0].length).split('\n').find((l) => l.trim())
     if (!after || !CORE_INSIGHT_RE.test(after)) errors.push(`${tag} first line after the title must be "> **Core insight:** …"`)
   }
+  if (dir.startsWith('build-') && !DEFAULT_STACK_RE.test(body)) errors.push(`${tag} build skill has no "## Default stack (+ escape hatch)" section (Law #3)`)
   const wc = wordCount(parsed.body)
   if (wc > WORD_HARD_CAP) errors.push(`${tag} body ${wc} words > hard cap ${WORD_HARD_CAP}`)
   else if (wc > WORD_BUDGET) warnings.push(`${tag} body ${wc} words > budget ${WORD_BUDGET}`)

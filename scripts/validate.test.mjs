@@ -171,6 +171,16 @@ test('commands, agents, hooks and top-level docs are checked too', () => {
   assert.ok(has(r.errors, /\[README\.md\] references "superpowers:"/))
 })
 
+test('every build-* skill states its default stack and escape hatch (Law #3)', () => {
+  const r = check({ 'build-a': skill('build-a') })
+  assert.ok(has(r.errors, /\[build-a\] build skill has no "## Default stack/))
+  const stack = '## Default stack (+ escape hatch)\n\nDefault: TypeScript + Node. Else map the same concepts.'
+  assert.deepEqual(check({ 'build-a': skill('build-a', { body: stack }) }), { errors: [], warnings: [] })
+  assert.deepEqual(check({ 'math-a': skill('math-a') }), { errors: [], warnings: [] })
+  const fenced = check({ 'build-a': skill('build-a', { body: '```\n## Default stack\n```' }) })
+  assert.ok(has(fenced.errors, /\[build-a\] build skill has no/))
+})
+
 test('every domain skill must be reachable from the using-wagerforge router', () => {
   const router = (body) => skill('using-wagerforge', { body })
   const r = check({ 'using-wagerforge': router('| Math | `math-a` |'), 'math-a': skill('math-a'), 'math-b': skill('math-b'), 'econ-c': skill('econ-c') })

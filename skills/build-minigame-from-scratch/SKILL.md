@@ -1,29 +1,35 @@
 ---
 name: build-minigame-from-scratch
-description: Use when scaffolding a new crypto minigame (plinko, mines, limbo, dice, crash) end to end — wiring the server-authoritative outcome, provable fairness, settlement, and a thin renderer. Keywords new minigame, scaffold, plinko, mines, limbo, crash, server-authoritative.
+description: Use when scaffolding a new real-money crypto minigame, defining an IGame state machine, adding one-round autobet, or preparing server, fairness, math, and frontend deliverables. Keywords new minigame, scaffold, plinko, mines, limbo, dice, crash, autobet.
 ---
 
 # build-minigame-from-scratch
 
-> **Core insight:** The minigame is a thin skin; the only thing it must own is the server-authoritative seam. But never trust the shared GDK's money helpers — its `MathOperations.roundDown()` uses `ROUND_CEIL` (rounding inverted), which silently corrupts house edge.
+> **Core insight:** A new minigame is a validated server round contract: outcomes, continuation, abandonment and autobet must share documented economics and verifiable payment paths.
 
 ## When to use / When NOT
-- Use when: starting a new crypto minigame from zero.
-- NOT for: slot-specific reel/symbol work (a slot is a different shape).
+
+- Use when starting a single-player crypto minigame from a spec.
+- NOT for reel-slot presentation or multiplayer settlement; use `build-slot-reels-symbols` or `build-game-server-rgs`.
 
 ## Default stack (+ escape hatch)
-A new MetaWin crypto minigame is a **thin React 19 + Vite app over the versioned `@mini-games/studio` GDK** (Zustand 5, TanStack Query 5, decimal.js) in the turbo/pnpm monorepo — scaffold by copying `apps/_mini-game-template`. The app is the skin; reusable logic (balance/session, fairness UI, autobet, money math) lives in the shared GDK. Pixi/Phaser is the *slot* renderer, not the minigame default — reach for it via the escape hatch only when a round needs a canvas/sprite scene. Other stacks: keep the same server-authoritative seam regardless of renderer.
 
-## Process (compose existing skills — do not reinvent)
-1. **Outcome on the server only:** derive with `fair-rng-core`; map with `fair-outcome-mappers`. The client renders the server-resolved result; it never computes the outcome.
-2. **Provable fairness:** commit/reveal via `fair-commit-reveal`; ship an independent verifier via `fair-verify`.
-3. **Round-lifecycle FSM + host session bracketing:** drive the play hook as `onMutate → startGameSession()` + reset UI; `onSuccess → setBalanceFromApi(response.balance)` then animate; `onError → endGameSession()` to release host balance ownership. (Bridge contract itself → `build-host-bridge`.)
-4. **Math:** set house edge / payout table via the math skills; validate with `qa-math-validation`.
-5. **Money:** settle via `build-durable-settlement` + `build-wallet-and-money` (idempotent, exactly-once).
-6. **Compliance:** gate bets through `comp-responsible-gaming` limits.
+Default: TypeScript + PixiJS/Phaser presentation + Node server, with exact integer atoms or decimal money. Other stacks map `IGame` to their server adapter, opaque state to persisted round state, and the renderer to a read-only view. Frontend packages and host hooks require their own verified contract; MSS does not establish them.
+
+## Process
+
+1. Write the spec before scaffolding: economy, variants/default, actions, charged costs, strategy-dependent RTP, caps and disconnect policy. Follow MSS `docs/DEVELOPMENT_WORKFLOW.md` Track A.
+2. Export a lean `IGame`: `name`, per-action `bets`, synchronous `play`, `config(variant)`, `action`, `simulate`, `proveFairness`, `stats`. The platform owns wager/round IDs. Use injected server RNG, `fair-rng-core`, `fair-outcome-mappers`, `fair-commit-reveal` and `fair-verify`; the client renders public results only.
+3. Validate bet, params, state shape and action legality on every call; reject repeated/out-of-order commands with coded errors. Snapshot the resolved opening config and preserve complete opaque server state for continuation. Shape checks do not authenticate state; verify platform persistence and client masking. MSS `games/mealOrNoMeal/index.ts` `pickKept` and `requireRound` illustrate these boundaries.
+4. Implement abandoned-round `action()` for multi-step games using the documented policy. MSS `games/fruitMachine/index.ts` `server.action` banks a pending win rather than gambling it.
+5. Ship a paying `autobet`: one stake, one complete round, the player's interactive decision policy, terminal `next: []`; never batch several wagers or mark it `validate: false`. Record single-step or explicit product exemptions in README. Reuse interactive draws/order where possible; document genuine divergence and branch proofs. Test payout and RNG parity; MSS `games/partyPong/index.ts` `autobet` and `games/partyPong/test-partyPong.test.ts` cover both.
+6. Verify full outcomes, including recursive features, and complete API-round payments. Route money to `build-wallet-and-money` / `build-durable-settlement`, limits to `comp-responsible-gaming`, and strategy/action/stake math evidence to `qa-math-validation`.
+7. Deliver README, SIM_RESULTS, FRONTEND and current GAME_RULES. Update player rules with payout/mechanic changes; this new-game requirement does not require retrofitting released legacy games.
 
 ## Pitfalls / red flags
-Client-computed outcomes; trusting a server "verify" echo (use `fair-verify`); non-idempotent settlement; skipping RG limits; forgetting `endGameSession()` on error (host keeps balance locked); reusing the GDK's `MathOperations.roundUp()/roundDown()` as-is — their rounding modes are inverted (`roundDown` uses `ROUND_CEIL`), so fix on port.
+
+Deleting continuation fields; trusting `next` instead of server legality checks; treating a snapshot as authenticated input; missing abandonment/autobet; presenting pending winnings as credited money; copying unverified frontend helpers.
 
 ## Verification
-Outcome is reproducible from (seed,nonce); fairness verifier re-derives independently; settlement is idempotent; RTP validates.
+
+Record commands/results for lint, tests, build and per-variant/action/strategy sims. Exercise malformed state, duplicate/out-of-order actions, variant changes during open rounds, abandonment, full proof replay, autobet parity and payment reconciliation. Verify the actual client envelope hides future outcomes; local tests alone do not establish this.

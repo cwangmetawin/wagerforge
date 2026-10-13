@@ -1,33 +1,34 @@
 ---
 name: econ-ab-testing
-description: Use when A/B testing game parameters - pre-validating with simulation, sizing the test, and avoiding peeking. Keywords A/B test, experiment, sample size, Bonferroni, peeking.
-constraints: C4
+description: Use when designing game A/B experiments, choosing analysis units, sizing cohorts, comparing payout distributions, or staging an economic rollout. Keywords A/B test, MDE, power, fingerprint, drain, multiplicity.
+metadata:
+  constraints: C4
 ---
 
 # econ-ab-testing
-
-> **Core insight:** "Enough spins" is a CI-half-width property (`1.96·SD/√N`), never a round count — high-volatility variants need up to 1e9 spins; accept only when declared RTP lands inside the converged CI (C4).
+> **Core insight:** A/B evidence depends on independent analysis units and validated payout distributions; raw spin counts, mean RTP alone, and cohort-routing tools cannot establish a safe or profitable treatment.
 
 ## When to use / When NOT
-- Use when: designing an A/B test on a game parameter (RTP, volatility, trigger odds, bet multiplier), sizing it, or pre-validating the variant by simulation.
-- NOT for: theoretical RTP impact of a weight change (→ `math-rtp-modeling`); building the simulator itself (→ `math-montecarlo-simulation`); generic experiment plumbing (→ `wagerforge:*`).
 
-## Default stack (+ escape hatch)
-Monte-Carlo via `math-montecarlo-simulation`; the power/sample-size calc is a thin from-scratch helper (no off-the-shelf wagerforge skill) computing `N = 2·(z_α/2 + z_β)²·σ² / Δ²` per arm. Real-repo grounding: cohort assignment rides Statsig (`@statsig/js-client`, host `useFeatureFlag`→`checkGate`); a variant ships via the one-bundle→N-RTP-SKU pipeline keyed by `gameCode` (`build-deploy-and-rtp-variant`). Statsig is used gate-only (`checkGate`), not `getExperiment`/`getDynamicConfig` — run the analysis in your own stats layer over the simulator, not inside the flag tool. Other stacks: same N formula; map "spin" → your unit-of-conversion event; map gate → your cohort router.
+- Use for game-economy experiments involving retention, net margin, volatility, or feature frequency.
+- Not for deriving game math (`math-rtp-modeling`) or establishing certification scope (`comp-rtp-certification`).
 
 ## Process
-1. **Pre-validate the variant.** Simulate the changed parameter until the CI half-width drops below tolerance at the required confidence (`1.96·SD_perSpin/sqrt(N) < tolerance`) — the spins needed scale with the variant's volatility, so size N to the interval, never a round number (C4). Reject any variant whose declared RTP falls outside the converged simulated CI before it ever reaches players.
-2. **Isolate one effect.** Volatility and RTP are orthogonal to each other and to hit frequency. Change RTP OR volatility per arm, never both — a confounded arm is uninterpretable.
-3. **Size up front.** Fix the sample size from `α=0.05, power=0.80` and the minimum detectable effect. Compute N (and runtime) before launch.
-4. **No peeking.** Do not look at significance until N is reached; sequential glances inflate the false-positive rate. Use a sequential/group-sequential design only if pre-registered.
-5. **Correct for multiplicity.** Testing several metrics or arms → apply Bonferroni (or FDR) to the threshold.
-6. **Block confounds.** Account for time-of-week, seasonal, and channel/geo/device effects (randomize or stratify); never compare arms run in different windows.
+
+1. **Declare the experiment.** Specify treatment, primary metric, analysis unit, minimum detectable effect, confidence, power, duration, exclusions, and stopping rules. Use stable player assignment for player metrics; shared pools may require room-level assignment to prevent cross-arm interference. Repeated spins from one player are not independent players; use aggregation or cluster-aware inference.
+2. **Validate math before exposure.** Resolve actual action/variant/stake/strategy through `econ-rtp-cost`; simulate complete paid rounds through `math-montecarlo-simulation`. Compare the whole distribution: hit/dead rates, SD, tail concentration, Gini, drain/ruin, and feature segments against declared sibling targets. MetaWin's production server (MSS) `common/stats/fingerprint.ts` `Fingerprint.processWagers` stores return histograms and unbinned moments; `tools/profile.js` `cmdFinalize` rejects stale sources. Check imported behavioral dependencies too: MSS `tools/fingerprint-wrapper.ts` `computeConfigHash` hashes only direct game-folder files. Regenerate after math changes; label intermediate and thin-tail evidence (fingerprint/drain analysis: `qa-game-fingerprints`).
+3. **Size the correct unit.** For equal independent arms with common unit-level SD, approximate per-arm `n = 2*(z_(1-alpha/2)+z_(1-beta))^2*sigma_unit^2/MDE^2`. Player-metric power needs player-level variance, not per-spin SD. Account for clustering, attrition, unequal exposure, and heavy tails; do not substitute a simulator's round count for cohort size.
+4. **Control inference.** Fix the test family and analysis schedule before launch. Bonferroni controls family-wise error; FDR controls a different quantity. Apply the selected adjusted threshold to decisions, not conflicting raw-p bands. Repeated significance checks require a predeclared sequential design; monitor money/safety guardrails continuously under separate stop rules.
+5. **Stage the rollout.** Validate routing and assignment/exposure logs, then use a bounded cohort with a holdout and rollback criteria before expansion. Audit actual variant resolution, payout liabilities, and active-round continuity. Block channel/time/geo/device confounds. Vendor gates or SKU pipelines require implementation evidence before relying on them.
 
 ## Correctness constraints
-- **C4:** A fixed "1M spins" is NOT sufficient. Sufficiency is a CI-width property: half-width = `1.96 · SD_perSpin / sqrt(N)`. High-volatility games need 5M to 1e9 spins to bound the interval. Accept a variant only when the declared RTP lies within the simulated CI at the required confidence — never on raw spin count alone.
+
+- **C4:** Simulation sufficiency is CI half-width below tolerance at declared confidence, not a fixed number of spins. Under independent finite-variance rounds, half-width is approximately `z*SD/sqrt(N)`. Tolerance acceptance requires `abs(mean-target)+halfWidth <= tolerance`; target-in-CI alone is compatibility, not equivalence. Rare tails and correlation require justified sampling/inference.
 
 ## Pitfalls / red flags
-- Trusting "1M spins" as proof (C4); peeking and stopping at first significance; confounding volatility with RTP changes; one threshold across many tests (forgetting Bonferroni/FDR); arms split across different time windows or channels; sizing the test after launch; assuming the flag tool (Statsig gates) computes significance for you — it only routes cohorts.
+
+Spin-level pseudoreplication; mean-only sign-off; stale fingerprints; undeclared coupled math changes; significance peeking; routing mistaken for analysis; unverified Statsig/SKU claims.
 
 ## Verification
-- Power calc reproduces required N for the stated MDE/α/power; simulated CI half-width is below tolerance at the declared confidence; variant's RTP sits inside that CI; analysis runs once, at the pre-set N, with the corrected significance threshold.
+
+Retain unit-level power inputs, fresh per-mode distribution evidence, assignment/exposure checks, adjusted decision thresholds, rollout guardrail results, and the prespecified final analysis. Use `qa-monte-carlo-cert` for simulation evidence.

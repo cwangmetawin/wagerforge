@@ -1,35 +1,27 @@
 ---
 name: math-crash-family
-description: Use when building constant-house-edge continuous-target games - crash, limbo, dice, aviator - with inverse-CDF outcome, an instabust atom, and EV-invariance across targets. Keywords crash, limbo, dice, aviator, house edge, inverse CDF.
+description: Use when deriving crash or limbo target RTP, instabust probability, floored multipliers, payout caps, or correlated cash-out tiers. Keywords crash, limbo, survival, inverse CDF, instabust, Chase.
 ---
 
 # math-crash-family
 
-> **Core insight:** The edge IS the instabust atom: all of `h` sits as point-mass at `x=1`. Because survival is `(1−h)/x`, `winChance·m·bet` cancels to `(1−h)·bet` for every target — target is a variance dial, never EV.
+> **Core insight:** Crash target RTP is constant only above 1x, before binding payout caps and settlement transforms; shared crash tiers have correlated outcomes.
 
 ## When to use / When NOT
-- Use when: deriving the math for a continuous cash-out / target game where one house edge `h` must hold for EVERY chosen target (crash, limbo, dice over/under, aviator).
-- NOT for: discrete-outcome RTP from reel weights/paytables (→ `math-rtp-modeling`); ladder/Mines survival-cancel games; empirical convergence (→ `math-montecarlo-simulation`).
-
-## Default stack (+ escape hatch)
-`scripts/rtp.mjs` `crashSurvival` / `crashEV`; sampler `rollCrashPoint(u, h)`. Other stacks: same closed form — survival `S(x)=(1−h)/x` and inverse-CDF sampling from a uniform `u∈[0,1)`.
+- Use for inverse-CDF crash distributions and target/cash-out pricing.
+- Not for uniform-interval dice, discrete ladders (`math-ladder-and-progression`), or slot outcomes (`math-rtp-modeling`).
 
 ## Process
-1. **Win chance from target.** A player cashing at multiplier `m` wins iff the crash point ≥ `m`. `winChance = (1−h)/m` (×100 for percent). At `m=1`, winChance = `1−h`.
-2. **Survival law.** `P(crash > x) = (1−h)/x` for `x ≥ 1`, and `1` for `x < 1`. This is `crashSurvival(x, h)`.
-3. **Instabust atom.** Probability mass `1 − S(1) = h` sits exactly at `x = 1.0` (the "instabust"). Without this atom the distribution does not integrate to 1 and EV leaks.
-4. **EV invariance.** Payout at target `m` is `m·bet`; EV `= winChance·m·bet = (1−h)/m·m·bet = (1−h)·bet` for ALL `m`. The target is a variance dial, never an EV dial. `crashEV(h) = 1−h`.
-5. **Inverse-CDF sampler.** Given uniform `u`: if `u < h` → bust at `1.0` (consume the atom); else `crashPoint = (1−h)/(1−u)` — the survival-side uniform: continuous at `u=h` (→ exactly `1.0`) and never below `1.0`. That is `rollCrashPoint(u, h)`; `h` is per-game and **server-sourced** (live from `/game/info`; never hardcode `0.98`). Floor/round to display precision only after the raw value. (A second valid construction the RGS uses: a separate RTP-gating roll `prob ≤ targetRTP` with multiplier `1/(1−u)`.)
-6. **N parallel rungs.** Running `N` independent geometric streaks each staking `bet/N` preserves total EV `(1−h)·bet`; it reshapes variance, not edge.
+1. **Define the event.** For ideal raw crash point `C`, `P(C >= x) = (1-h)/x` for `x > 1`, with atom `h` at `C=1`; `P(C >= 1)=1`. Require target `T>1`, aligned to the settlement grid, so instabust loses. MetaWin's production server (MSS) `games/chase/rtp98.ts` `cashOutAtMin` is `1.01`; MSS `games/chase/index.ts` `validateParams` checks the grid.
+2. **Sample, floor, settle.** With uniform `u` in `[0,1)`: `u<h` gives `1`; otherwise `(1-h)/(1-u)`. Floor to the display grid and settle against that same value; rounding upward raises survival and RTP. MSS `games/chase/index.ts` `rollCrashPoint` floors to hundredths before applying `maxCrash`; `settle` uses `tier <= crashPoint`. The displayed `1.00` mass includes continuous values floored down, so exceeds the raw atom when `h<1`.
+3. **Price caps explicitly.** Ideal uncapped gross RTP is `(1-h)`. For a single target with payout cap `K` expressed as a stake multiple, RTP is `(1-h)*min(T,K)/T`, provided the outcome cap permits `T`. A currency payout cap `A` means `K=A/stake`, making RTP stake-dependent. An outcome cap below `T` instead makes winning impossible. Quantize money in exact integer atoms under the declared payout rule; recompute resulting RTP. MSS `games/chase/index.ts` `settle` caps the aggregate monetary payout at `maxWinCap`.
+4. **Model shared tiers jointly.** Expected uncapped tier payouts add by linearity, but their survival events are nested: joint survival is determined by the highest target, never the product of marginal probabilities. Include covariance in variance and apply aggregate caps to the joint payout. MSS `games/chase/index.ts` `settle` splits stake across tiers sharing one crash point.
+5. **Use the correct helpers/specimen.** WF `scripts/rtp.mjs` exports `crashSurvival`, `crashEV`, and `crashTargetRTP`; it has no crash sampler. MSS `games/chase/index.ts` `rollCrashPoint` is the specimen. MSS `games/crash/index.ts` `play` is legacy, with commented-out `proveFairness`; do not scaffold from it. MSS `games/primedice/index.ts` `main` uses interval probability, not this crash sampler.
 
 ## Pitfalls / red flags
-- Dropping the instabust atom at `x=1` (mass `h`): probabilities no longer sum to 1; EV silently exceeds `1−h`.
-- Letting EV drift with the target — if `winChance·payout` is not constant across `m`, the survival law is wrong.
-- Pairing the `u<h` bust atom with `crashPoint=(1−h)/u` instead of `(1−h)/(1−u)` — yields sub-`1.0` values as `u→1` and a discontinuity at `u=h` (the shipped Chase/RGS code uses `(1−u)`). Omitting the `u<h` branch entirely also blows up / never busts.
-- Applying display rounding before the inverse-CDF, biasing the realized edge.
-- Splitting `N` rungs but rescaling stake by anything other than `bet/N`.
+- Claiming target invariance under binding caps, off-grid targets, or rounded payouts.
+- Treating parallel tiers as independent, or copying legacy monetary floats.
 
 ## Verification
-- Closed form: assert `crashEV(h) === 1−h` and that `winChance·m` is constant across several `m`.
-- Atom: `crashSurvival(1, h) === 1−h`, so `P(bust at 1) === h`.
-- Sampler: Monte-Carlo `rollCrashPoint` over many `u`; mean cash-out EV at fixed target converges to `(1−h)·bet` within CI (cross-check via `math-montecarlo-simulation`).
+- Check atom boundaries, minimum target, floor transitions, finite RNG mapping, outcome caps, and aggregate payout caps with deterministic fixtures.
+- Compare actual settled returns per target, stake, variant, and tier count against analytic/joint predictions; report simulation confidence intervals using `math-montecarlo-simulation`. Use `fair-verify` for player-held proof evidence.

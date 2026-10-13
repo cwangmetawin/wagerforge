@@ -1,36 +1,27 @@
 ---
 name: comp-self-exclusion
-description: Use when integrating self-exclusion - GamStop, static-IP whitelisting, real-time plus periodic scans. Keywords self-exclusion, GamStop, IP whitelist, exclusion scan.
+description: Use when integrating self-exclusion registers or enforcing exclusion at registration, login, deposit and bet boundaries. Keywords self-exclusion, GamStop, UNKNOWN register result, exclusion expiry, periodic scan, egress allowlist.
 ---
 
 # comp-self-exclusion
 
-> **Core insight:** A register timeout means "unknown," not "not excluded" — fail closed on money paths, and pin a static egress IP, or cloud-ephemeral source IPs drop off the allowlist and every scan silently passes.
+> **Core insight:** UNKNOWN is not clearance: validate exclusion records, then enforce the verdict at every entry and money gate; predicate tests cannot prove provider or transaction integration.
 
 ## When to use / When NOT
-- Use when: integrating a national self-exclusion register (e.g. GamStop) so excluded players are blocked across the platform.
-- NOT for: operator-internal limits, reality checks, or cool-offs (→ `comp-responsible-gaming`); certification paperwork (→ `comp-rtp-certification`, out of MVP scope).
-
-## Default stack (+ escape hatch)
-`scripts/self-exclusion.mjs` — `isSelfExcluded`, `shouldBlockBet` (server-clock window checks), and `egressIpWhitelisted` (egress-IP gate) — plus a static egress IP and a scheduler. Other stacks: any server-side HTTP client over TLS with mutual-auth credentials, plus a durable scan log. Route every register call through a fixed-IP proxy/NAT so the operator IP can be whitelisted.
+- Use for: local exclusion records and external register adapters, including GamStop.
+- NOT for: session/loss limits (`comp-responsible-gaming`), financial vulnerability (`comp-affordability`) or audit retention (`comp-audit-and-privacy`).
 
 ## Process
-1. Reserve a static egress IP (proxy or NAT gateway) for all register traffic; register it with the scheme so requests are allowlisted. Cloud auto-scaling and ephemeral IPs break the allowlist — pin egress. Pattern: a single manually-allocated reserved IP backing one NAT for all outbound (GCP `google_compute_router_nat` with `nat_ip_allocate_option = "MANUAL_ONLY"`, `nat_ips = [<reserved-address>]`; AWS Elastic IP on a single NAT gateway). Multi-AZ NATs / per-instance public IPs each present a different source IP and fall off the allowlist.
-2. Call the register over TLS only (verify cert + hostname), with the scheme's auth credentials pulled from a secret manager, never on disk.
-3. Real-time check at every gate: block at registration, login, deposit, and bet. A player can be excluded mid-session, so re-check on each money/entry action, not just once at signup.
-4. Periodic re-scan (24h) of the active player base to catch newly-excluded players between their real-time touchpoints; record each scan result with a timestamp for audit.
-5. On a match, enforce server-side: deny the action, suspend the account, and surface a neutral exclusion message — never a re-marketing prompt.
-6. Fail closed on register unavailability for new registrations and deposits; queue and retry, and alert if the scheme is unreachable beyond a threshold.
+1. **Normalize verdicts.** Distinguish excluded, valid clearance and UNKNOWN. Timeouts, provider errors, stale results and malformed responses block acceptance. Never turn unavailable register data into an empty exclusion list.
+2. **Validate first.** Check player identity, authoritative timestamps, complete exclusion records and amounts before comparison. Money gates use exact currency atoms. MetaWin's production server (MSS) `common/settlementModule/money.ts` `majorToAtoms` demonstrates rejecting invalid/off-grid money; it supplies no register integration.
+3. **Use predicates accurately.** `scripts/self-exclusion.mjs` exports `isSelfExcluded` and `shouldBlockBet` for `{playerId, exclusions, asOfMs, maxAgeMs, nowMs}`: `asOfMs` is when the register answered, and missing, future-dated or stale answers throw, so a failed lookup turned into an empty list cannot clear a player. Times are epoch milliseconds. Each record needs a non-empty `playerId` and safe-integer `untilMs`, or explicit `null` for indefinite exclusion. `nowMs` is a non-negative safe integer; finite expiry blocks while `nowMs<untilMs`. The entire list is validated; malformed input throws. The script does not call a provider or enforce a transaction.
+4. **Wire every gate.** Registration, login, deposit and bet consume the server verdict. Bind its version/freshness to acceptance; recheck queued money actions before debit and invalidate clearance when exclusion changes mid-session. Treat thrown validation/provider failures as refusal. The client displays the restriction without deciding eligibility.
+5. **Verify network requirements.** If the verified provider contract requires egress allowlisting, register every active/failover egress address. `egressIpWhitelisted({ip,whitelist})` tests exact string membership only; it does not observe real traffic or reject HTTP calls. GamStop-specific network requirements and scan/response timings are (unverified).
+6. **Retain scan evidence.** Configure rescans from sourced scheme requirements; record run id, authoritative time, provider status, policy version and enforcement result durably. Retry UNKNOWN checks without accepting the blocked action; require valid fresh clearance before resuming. Display neutral exclusion information without promotional nudges.
 
 ## Pitfalls / red flags
-- GamStop in the cloud without a static-IP proxy/NAT — ephemeral egress IPs fall off the allowlist and silently fail.
-- Checking only at registration, so a player excluded after signup keeps playing until the next scan.
-- Treating a register timeout as "not excluded" (failing open) instead of failing closed on money paths.
-- Plaintext or unauthenticated calls; cert/hostname not verified; credentials committed to disk instead of a secret manager.
-- No durable scan log, so you cannot prove to a regulator that periodic scans ran.
-- Client-side enforcement — the block must live at the server transaction layer.
+Missing expiry interpreted as expired; invalid records hidden after an earlier match; UNKNOWN converted to clear; signup-only checks; untested failover egress; predicate coverage advertised as end-to-end enforcement.
 
 ## Verification
-- `scripts/self-exclusion.test.mjs` covers `scripts/self-exclusion.mjs`: `isSelfExcluded`/`shouldBlockBet` block only inside the active server-clock window (excluded at registration, login, deposit, bet); `egressIpWhitelisted` gates the cloud egress IP so non-whitelisted scans are rejected.
-- Confirm all register traffic exits from the `egressIpWhitelisted` static IP and uses TLS with verified certs.
-- Inspect the scan log: each periodic run is timestamped and queryable for audit.
+- `scripts/self-exclusion.test.mjs` covers record-window, malformed-input and whitelist predicates only.
+- Add integration tests for all four gates, timeout/UNKNOWN/invalid results, mid-session changes, queued/concurrent bets, real egress/failover rejection, scan scheduling, durable logs and restart recovery. Prove refusal prevents acceptance/debit and no stale clearance permits play.

@@ -1,40 +1,36 @@
 ---
 name: comp-rng-certification
-description: Use when preparing RNG certification - CSPRNG selection, entropy sourcing, and GLI-19/WLA-SCS requirements. Keywords RNG certification, GLI-19, WLA-SCS, NIST 800-90, entropy.
-constraints: C5,C12
+description: Use when selecting a real-money RNG, auditing entropy and seed secrecy, defining adversarial unpredictability claims, or preparing source, lifecycle and statistical evidence for an RNG certification review.
+metadata:
+  constraints: C5, C12
 ---
 
 # comp-rng-certification
 
-> **Core insight:** Labs certify a PROPERTY (unpredictability), not a named algorithm; the real fault is a recoverable seed or non-CSPRNG, never lack of per-bet reseeding — a stateless `HMAC(serverSeed, clientSeed‖nonce)` is fully secure.
+> **Core insight:** RNG assurance requires unpredictability against an adversary and evidence against input selection; deterministic replay is useful, while recoverable seeds or operator-selected inputs defeat the claim.
 
 ## When to use / When NOT
-- Use when: selecting an RNG, sourcing entropy, or assembling the evidence pack (source review, seeding audit, field-vs-theoretical RTP) for an accredited lab.
-- NOT for: deriving theoretical RTP (→ `math-rtp-modeling`); player-verifiable commit/reveal (→ `fair-verify`); live RTP drift monitoring (→ `comp-rtp-certification`).
 
-## Default stack (+ escape hatch)
-Default: a CSPRNG (OS-provided or a NIST SP 800-90A DRBG) seeded from a high-entropy source, with an injectable RNG boundary for deterministic replay. Other stacks: keep the same property — unpredictability/non-determinism — and a recorded seed audit; map your DRBG/entropy modules onto the 800-90A/B/C roles below.
+- Use when selecting/auditing an RNG or preparing certification evidence for its actual deployed configuration.
+- NOT for theoretical RTP (`math-rtp-modeling`) or independent player verification (`fair-verify`). Neither simulation nor replay establishes certification.
 
 ## Process
-1. **Frame the requirement as a PROPERTY.** The certifiable claim is unpredictability/non-determinism, demonstrated to an accredited lab (GLI/iTech/BMM/eCOGRA) under GLI-19 / WLA-SCS — not "we use algorithm X". Document which property each control provides.
-2. **Choose a CSPRNG; never a statistical PRNG.** Use an OS CSPRNG or an 800-90A DRBG. Seed it from a real entropy source (800-90B); document the assembly (800-90C).
-3. **Audit the seed.** Show entropy source, seed length, reseed policy, and that seeds are never logged, predictable, or attacker-recoverable.
-4. **Produce field-vs-theoretical RTP.** Compare live results to the modeled RTP at 95% / 99% confidence intervals.
-5. **Assemble the evidence pack:** source-code review, seeding audit, statistical test results (NIST SP 800-22), field-vs-theoretical RTP. Apply Bonferroni when running 15+ tests.
+
+1. **Define the threat and scope.** State what players or operators can observe, predict, recover or select; separate RNG unpredictability, input-selection resistance and outcome replay. Pin jurisdiction, lab, standard/edition and requested approval scope. External regulatory/lab requirements are unverified until supported; do not assert universal reseeding, sample sizes or named-algorithm approval.
+2. **Select and trace the actual RNG.** Require a CSPRNG with documented entropy, state protection, initialization/reseed policy and failure behavior. Map the DRBG mechanism to NIST SP 800-90A, its entropy source to 800-90B and the construction to 800-90C; MT19937 fits none. A deterministic DRBG is not inherently defective. Audit production selection and every adapter, not merely the injectable function. Pin key/message encoding, extraction width, rejection cursor, draw limits/order, configuration, action, parameters and offset. The WF RNG is a standalone reference protocol, not automatic MSS compatibility. MetaWin's production server (MSS) `games/hitCrashers/fairness.ts` `takeoffDraw`/`proveFairness` reproduces 32 uint32 draws and an explicit offset/variant.
+3. **Audit the disclosure boundary.** Seeds/state must remain unpredictable and unrecoverable until all dependent future outcomes retire; production must expose no live RNG/debug traces or undealt outcomes. MSS `games/blackjack-table-live/engine.ts` `Shoe.draw` draws from composition when needed; `games/blackjack-table-live/index.ts` `tick` rotates after the final draw, rather than at deal.
+4. **Audit input selection separately.** Per-round `verify()` proves only the supplied tuple's outcome. Existing commit-before-client-seed, increment and no-reuse rules already forbid most attacks; round replay cannot detect skipped/reused/reordered nonces, server-selected client seeds or substituted commitments. Require player-kept commitments, fresh post-commit client entropy and complete allocation history (`fair-commit-reveal`, `fair-verify`). For chains, bind epoch/commitment, decoder/parameters and exact entropy event before an unpredictable contribution is revealed; forbid salt/chain re-selection or selective abort (`fair-hash-chain`).
+5. **Choose the correct proof evidence.** Versioned metadata determines derivation, draw order/cursor, commitment scope and reveal boundary. Multiplayer can use streams, shoe ledgers, chains or signed authority reports. MSS `games/hitShooter/fairness.ts` `proveFairness` consumes zero draws: its signed reports are not RNG proof. Adapter replay and independent player verification are separate deliverables.
 
 ## Correctness constraints
-- **C5:** Mersenne-Twister is cryptographically broken for real money — its full internal state is recoverable from ~624 consecutive outputs; require a CSPRNG. ISO/IEC 17025 accredits the LAB, not the RNG; the RNG requirements come from GLI-19 / WLA-SCS and mandate PROPERTIES (unpredictability/non-determinism), not a named algorithm. Apply a Bonferroni correction whenever running 15 or more statistical tests.
-- **C12:** The real fault is a non-CSPRNG or a recoverable/predictable seed — NOT a lack of reseeding between bets; a stateless `HMAC(serverSeed, clientSeed || nonce)` is secure. NIST roles split as: 800-90A = DRBG, 800-90B = entropy source, 800-90C = assembly. Cite the correct one per claim.
+
+- **C5:** Require CSPRNGs; MT19937's state is recoverable from about 624 outputs, which makes it unsuitable. ISO/IEC 17025 concerns lab accreditation, not RNG approval (external standard details unverified).
+- **C12:** Non-CSPRNGs or predictable/recoverable seeds are defects, not missing per-bet reseeding. Stateless HMAC can be secure with protected unpredictable keys and fixed unique inputs. NIST 800-90A/B/C mapping: DRBG/entropy/construction (external editions/applicability unverified).
 
 ## Pitfalls / red flags
-- Naming an algorithm as if it were the requirement (it is a property — C5).
-- Citing ISO/IEC 17025 as an RNG standard (it accredits the lab — C5).
-- "We reseed every bet, so we're fine" while using a non-CSPRNG or logged seed (C12).
-- Self-certification: tier-1 regulators require a third-party lab.
-- Reporting many statistical tests without Bonferroni (false positives — C5).
+
+- Calling deterministic replay, statistical success, an algorithm name or server-returned proof certification.
 
 ## Verification
-- Accredited-lab sign-off referencing GLI-19 / WLA-SCS.
-- Seed audit proves seeds are unlogged and non-recoverable.
-- NIST SP 800-22 suite passes on a large sample, Bonferroni-corrected at 15+ tests.
-- Field RTP sits within the 95% / 99% CI of theoretical RTP.
+
+- Keep deployed source/configuration identity, seed/lifecycle audit, known-answer/draw-parity tests, preregistered statistical evidence and lab findings. Independent checks need player-kept evidence; missing evidence yields `UNVERIFIABLE`. Report lab approval only with its dated scope/artifact.

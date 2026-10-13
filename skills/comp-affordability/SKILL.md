@@ -1,37 +1,27 @@
 ---
 name: comp-affordability
-description: Use when implementing affordability or financial-vulnerability checks - UKGC Stage 1/2 thresholds and decision logic. Keywords affordability, UKGC, financial vulnerability, net loss, CRA.
+description: Use when implementing affordability or financial-vulnerability gates, gaming net-loss triggers, gross-deposit limits, credit-reference review or pending-exposure policy. Keywords affordability, UKGC, net loss, CRA, deposit totals, vulnerability.
 ---
 
 # comp-affordability
 
-> **Core insight:** "Affordability" is a server-authoritative net-loss/CRA vulnerability gate run before debit — not a wallet balance check. MetaWin's `useCheckAffordability` is the latter; the name collides, the logic must not.
+> **Core insight:** Deposits change deposit totals; gaming net loss is settled stakes minus returns. Define the regulatory metric separately before using it to gate acceptance.
 
 ## When to use / When NOT
-- Use when: gating a deposit/bet on net-loss thresholds, running a frictionless CRA check, or applying gross deposit limits and pre-deposit prompts.
-- NOT for: self-exclusion/GamStop (→ `comp-self-exclusion`); reality checks, break intervals, session/loss caps (→ `comp-responsible-gaming`); audit-log integrity (→ `comp-audit-and-privacy`).
-
-## Default stack (+ escape hatch)
-Default: TS + Node, server-side check at the deposit/bet boundary, decimal.js for money, authoritative time-synced server clock. Other stacks: keep the boundary gate; map "CRA provider" → credit-reference adapter, "rolling net loss" → ledger aggregate.
-
-**Real-repo mapping (MetaWin):** a crypto sweepstakes operator (multi-currency wallet — `store/banking.js`, accounts `deposit/custodial/withdrawable/bonus`), not a UKGC fiat casino, so no net-loss/CRA/Stage machinery ships today. Map "rolling net loss" → server ledger aggregate, "gross deposit limit" → per-currency deposit total. WARNING: `composables/useCheckAffordability.js` is NOT this gate — it's a client-side BigNumber balance-vs-price test raising an `InsufficientWalletBalance` modal. Never reuse, rename, or co-locate the gate.
+- Use for: financial-vulnerability assessment and approved deposit/wagering eligibility policies.
+- NOT for: wallet balance sufficiency (`build-wallet-and-money`), self-exclusion (`comp-self-exclusion`), session controls (`comp-responsible-gaming`) or audit storage (`comp-audit-and-privacy`).
 
 ## Process
-1. **Boundary gate (server-side).** Run the check before every deposit/bet debit; client renders the verdict, never decides. Compute rolling **net loss = stakes − returns** over 30 days from the authoritative ledger (decimal.js, gross figures).
-2. **Stage 1 — frictionless.** When rolling net loss nears ~£150/month, fire a background credit-reference-agency (CRA) check for vulnerability signs (defaults, insolvency). No player upload, no blocking UI. Cache with TTL; escalate on signal.
-3. **Stage 2 — enhanced.** On escalation, require income/affordability docs. Target ~90% resolved within 24h; hold play above the assessed level until cleared. Record verdict, evidence refs, reviewer.
-4. **Gross deposit limits.** Enforce a **gross** (not net) deposit limit per player setting. Show a **pre-deposit limit prompt** before the first deposit; send **6-month reminders** to review it. No increase without cool-off/reauth.
-5. **Fail closed.** If a CRA/provider call errors or times out, deny or down-level rather than allow unchecked play; log context.
+1. **Define separate aggregates.** Gross deposits sum accepted deposits. Gaming net loss is `settledStakes-settledReturns`, including signed gains where returns exceed stakes. Deposits do not increase this loss. Define the applicable regulatory metric independently; do not assume it equals gaming net loss or deposit-minus-withdrawal flow.
+2. **Use authoritative entries.** Derive windowed totals from the ledger with event-time/window boundaries, currency, reversals and duplicate handling specified. MetaWin's production server (MSS) `games/roulette-1000/index.ts` `settleChunk` accumulates `wageredAtoms` and `returnedAtoms` after spin settlement; these are wagering totals, not deposit totals.
+3. **Keep money exact.** Use currency atoms or exact decimals; never mix currency units or add floats before parsing. MSS `common/settlementModule/money.ts` `majorToAtoms` rejects invalid/off-grid input. WF `scripts/money.mjs` `toAtoms` converts an individual amount to BigInt without rounding. Define valuation/time/precision explicitly when aggregating currencies.
+4. **Reserve exposure separately.** Before accepting a stake, compute the policy's prospective exposure from unsettled reservations plus the proposed stake. Update reservations and eligibility atomically with acceptance; settled stakes/returns replace reservations without double counting. A deposit gate can read loss history, but the deposit itself changes deposit totals only.
+5. **Version the review policy.** Specify thresholds, windows, provider schema, result freshness, escalation, permitted pending exposure and reviewed limits. UNKNOWN, invalid or unavailable required assessments block unchecked acceptance. Record policy version, evidence references, reviewer/verdict and effective time; clients render decisions. Activate increases only under the approved cooling/review policy.
+6. **Source jurisdiction requirements.** UKGC thresholds, Stage 1/2 scope, review SLAs, deposit prompts and reminder timings are (unverified) here. Obtain current authoritative requirements before configuring them; repository code does not establish regulatory compliance.
 
 ## Pitfalls / red flags
-- Mislabeling **net vs gross**: net loss drives Stage triggers; deposit **limits** are gross. Don't swap them.
-- Client-side enforcement or trusting client timestamps — both bypassable; gate on the server clock.
-- Confusing the regulatory gate with a wallet **balance-sufficiency** check (MetaWin's client-side `useCheckAffordability`): the gate is server-authoritative and runs before debit; the balance check only tells the UI the wallet can't cover the price.
-- Stage 1 that blocks or requests documents — it must be frictionless; only Stage 2 requests income docs.
-- Missing the pre-deposit prompt or 6-month reminders; allowing limit increases with no cool-off; failing open when the CRA provider is down.
-- Hardcoding the ~£150 / 24h SLA / 6-month cadence instead of config (thresholds are regulator-tunable).
+Deposit raising a stakes-minus-returns trigger; balance checks mislabeled vulnerability assessments; stale/provider-error verdicts treated as clearance; unsigned window totals; ignored pending stakes; hardcoded unsourced regulatory numbers.
 
 ## Verification
-- Boundary test: a deposit pushing rolling net loss past the threshold fires a Stage 1 CRA call before debit; a vulnerability signal escalates to Stage 2 and holds play.
-- Provider-timeout test proves fail-closed.
-- Audit shows the pre-deposit prompt fired once, a 6-month reminder scheduled, and every gross-limit increase carried a cool-off/reauth.
+- Deposit tests change gross-deposit totals and leave gaming net loss unchanged. Settled wagering tests move loss by stake minus return; gains, reversals and retries preserve the defined aggregate.
+- Integration tests cover exact boundaries, currency conversion, concurrent reservations, window rollover, provider UNKNOWN/timeouts, escalation/holds and approved limit changes. Retain refusal/no-debit evidence and policy-linked review records; predicates alone cannot prove these gates.

@@ -1,37 +1,37 @@
 ---
 name: math-cascade-tumble
-description: Use when modeling cascade / avalanche / tumble mechanics where wins remove symbols, new ones drop, and multipliers may grow - and closed form breaks. Keywords cascade, avalanche, tumble, retrigger variance.
-constraints: C6
+description: Use when agents model cascade, avalanche, or tumble wave loops, multiplier encoding, persistent feature state, retrigger caps, rejection retries, and session RTP estimates.
+metadata:
+  constraints: C6
 ---
 
 # math-cascade-tumble
-
-> **Core insight:** The geometric/retrigger closed form silently returns a confidently-precise WRONG RTP the moment multipliers grow, symbols stick, or wins cap — path-dependence breaks it structurally, not approximately; only CI-bounded Monte-Carlo (large N near p·R=1) is exact.
+> **Core insight:** STEP multipliers compound; ABSOLUTE wave multipliers do not. Preserve the full session state and estimate path-dependent RTP with validated Monte-Carlo and confidence intervals.
 
 ## When to use / When NOT
-- Use when: modeling tumble/avalanche/cascade rounds, win-then-drop chains, growing/sticky multipliers, or retrigger variance.
-- NOT for: single-event paytable/RTP derivation with no state carry (→ `math-rtp-modeling`); empirically validating an implementation generically (→ `math-montecarlo-simulation` / `qa-math-validation`).
 
-## Default stack (+ escape hatch)
-`scripts/tumble.mjs` is the runtime: `cascadeTotal(waves)` sums one round's payout (each wave's `win` × the COMPOUNDED multiplier so far), and `simulateCascadeRTP(roundFn, n, opts)` wraps `monteCarlo` from `scripts/rtp.mjs` to estimate RTP/hit-freq with 95%/99% CIs. Other stacks: same model — a `grid → resolve wins → remove → gravity → refill` wave loop feeding `cascadeTotal` per round; never a one-shot combinatorial formula.
+- Use for iterative win/remove/gravity/refill chains, growing multipliers, retriggers, and feature caps.
+- Not for evaluator selection (see `math-lines-ways-cluster`) or generic statistical acceptance (see `math-montecarlo-simulation`).
 
 ## Process
-1. Model ONE wave as a pure function of grid state: detect wins, diff-remove winning cells, apply gravity (shift survivors down), refill empty cells from the drop source.
-2. Loop waves until a wave produces no win; carry path-dependent state (multiplier level, sticky symbols, accumulated win, cap counter) into the next wave immutably.
-3. Round payout = Σ over waves of (wave win × current multiplier); the multiplier is read at the wave it applies to, not the round end.
-4. Estimate RTP/variance by Monte-Carlo over rounds; report mean with CIs; increase N until the CI half-width is below tolerance (see C6 — near criticality N must be large).
+
+1. Trace the production outcome source and resolved variant/action. One wave evaluates wins, removes the specified cells, applies gravity, and refills from the actual drop distribution. Preserve scatter, sticky-symbol, grid, and multiplier state according to the game's rules.
+2. Declare multiplier encoding and timing. `scripts/tumble.mjs` `cascadeTotal(waves)` accepts STEP factors and compounds them; `cascadeTotalAbsolute(waves)` accepts ABSOLUTE wave multipliers and sums `win×multiplier`. Unit wins with `[1,2,4]` give 11 versus 7. MetaWin's production server (MSS) `games/zeus/gameLogic.ts` `loadBaseGame` uses an absolute wave ladder. Never convert implicitly or multiply already-resolved payouts again; separately identify awards exempt from the wave multiplier.
+3. Iterate until no eligible win or the configured terminal cap. Carry current state and accumulated awards, snapshot response arrays at mutable boundaries, and isolate rejected attempts. A retry budget and its rejection scope are math inputs: MSS `games/perseus/gamePlay.ts` `playMain` redraws a rejected base outcome once; MSS `games/perseus/gameLogic.ts` `loadFreeGames` redraws a feature once with discard disabled. Do not model either as unlimited rejection; see `math-volatility-tuning`.
+4. Distinguish awarded free games from played free games. Clamp new awards against `maxRounds−awarded`, then play pending awards; reaching the award cap stops further awards, not play. MSS `games/cowAbduction/gameLogic.ts` `loadFreeGames` follows this rule; max win may terminate the feature early.
+5. Simulate complete paid rounds, including every cascade and free-game continuation, using actual stake/cap/rounding rules and exact integer atoms for settlement. `simulateCascadeRTP(roundFn,n,opts)` delegates to `monteCarlo`; supply normalized gross return per trial. Report mean, variance, confidence interval, sample size, configuration identity, and tail coverage. Monte-Carlo is an estimate, not an exact RTP.
 
 ## Correctness constraints
-- **C6:** A cascade/retrigger closed form is exact ONLY for subcritical (p·R<1), iid, non-path-dependent structure; with growing multipliers, sticky symbols, or win caps the closed form breaks and validated Monte-Carlo with CIs (and adequate N near criticality) is required.
+
+- **C6:** A geometric/retrigger shortcut is exact only for subcritical (`p·R<1`), iid, non-path-dependent structure. Growing multipliers, persistent symbols, or caps invalidate that shortcut; require validated Monte-Carlo with confidence intervals and adequate sample size near criticality.
 
 ## Pitfalls / red flags
-- Treating a tumble as one combinatorial draw instead of an iterative wave pipeline.
-- Applying a closed-form geometric/retrigger sum when multipliers grow, symbols stick, or wins are capped (C6).
-- Using p·R≥1 (at/near criticality) with too-small N — variance and tail explode; CI half-width stays wide.
-- Mutating the grid in place across waves (hides ordering bugs); resolving the multiplier at round end instead of per-wave.
-- Refilling from a distribution that differs from the documented drop source.
+
+- Compounding an absolute ladder, repricing past waves with the final multiplier, or using cosmetic strips as the refill model.
+- Skipping retry limits, terminating when rounds are awarded, or sharing live arrays with historical responses.
+- Calling a narrow interval proof of model correctness or missing rare capped outcomes.
 
 ## Verification
-- Subcritical iid case: `simulateCascadeRTP(roundFn, n).rtp` matches the closed form within `.ciHalfWidth` (sanity bridge).
-- Path-dependent case: report `simulateCascadeRTP(...).ciHalfWidth` below tolerance; show it shrinks as N grows; cross-check against `math-montecarlo-simulation`.
-- Unit-check `cascadeTotal`: compounding multipliers `[1,2,4]` over unit wins → total `11` (see `scripts/tumble.test.mjs`).
+
+- Check STEP/ABSOLUTE totals, removal/refill ordering, state snapshots, retry exhaustion, and capped retriggers with deterministic fixtures.
+- Compare a qualifying iid subcritical control with its geometric expectation; validate the complete path-dependent model against `math-montecarlo-simulation` acceptance criteria.

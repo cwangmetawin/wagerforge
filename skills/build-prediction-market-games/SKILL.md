@@ -1,42 +1,36 @@
 ---
 name: build-prediction-market-games
-description: Use when building the server engine for a live multi-player pooled prediction market — horse/sports/event books where players buy, sell, and cash out shares of outcomes at pool-derived prices before a parimutuel settlement. Keywords prediction market, parimutuel, pool, order book, shares, cash out, multiplayer market, AMM odds, horse-pro.
-constraints: C2, C14
+description: Use when building pooled prediction-market engines with outcome shares, resale orders, pool-derived quotes, cash-out, parimutuel settlement, or fault recovery. Keywords prediction market, order book, shares, rake, horse-pro, football-pro, snakes-pro.
+metadata:
+  constraints: C2, C14
 ---
 
 # build-prediction-market-games
 
-> **Core insight:** Price is emergent from the pool, never fixed odds — every stake moves everyone's price. The order book lets players exit early, so value open shares at the LIVE pool yet settle survivors against the FINAL locked composition, conserving payouts to the pot exactly (last-winner dust).
+> **Core insight:** Quotes, execution prices and redemption values are distinct contracts; proportional settlement needs scaled precision, explicit remainder ownership and recovery of remaining liabilities.
 
 ## When to use / When NOT
-- Use when: writing the server `IMultiplayerGame` engine for a LIVE pooled market — N per-outcome pools + N order books, buy/sell/cash_out of shares at pool-derived prices, parimutuel settlement (horse-pro, football-pro, snakes-pro).
-- NOT for: the generic RGS contract (→ `build-game-server-rgs`); parimutuel rake/EV/pricing economics (→ `econ-tournament`); crash/target math (→ `math-crash-family`); wallet legs (→ `build-wallet-and-money`); durable-settlement primitives (→ `build-durable-settlement`).
+- Use for: multiplayer pooled markets with tradable outcome shares.
+- NOT for: fixed-odds crash games (`math-crash-family`) or wallet implementation (`build-wallet-and-money`, `build-durable-settlement`).
 
 ## Default stack (+ escape hatch)
-Default: TS `IMultiplayerGame` (`init`/`join`/`command`/`tick`/`replay`); `state = { pools, orderBook[], bets[] }`; `fixValue` money. Other stacks: map `command`/`tick` to your handler/clock; keep pool/share/price math identical. Real status names: `waiting→playing→ended→settled`.
+TS + PixiJS/Phaser + Node; exact integer-atom/decimal money. Other stacks map command/tick/replay, pool liabilities and atomic ledger writes. Clients render server-resolved outcomes.
 
 ## Process
-1. **One pool + one order book per outcome.** `pools[o]` accumulates net stake on outcome `o`; `orderBook[o]` holds resale `SellOrder`s sorted ascending by `askPrice`.
-2. **Shares, not fixed odds.** A buy mints `shares`. **Market price** of `o` `= clamp(pool[o]/totalPool, 0.02, 0.90)` renormalized so prices sum to 1 (empty → uniform `1/N`); it moves on EVERY stake — recompute per command, never cache a quote. A holding's **value** is the parimutuel share `= shares/totalOutcomeShares × pool` — distinct from the price.
-3. **Secondary market.** `buy_<o>` mints from the pool; `sell_<o>` lists shares at an ask; `cash_out` realizes current proportional value; match/fill against the sorted book.
-4. **Phase machine on `tick`.** Strip outcome-revealing fields (winner/finishOrder/finishTime) from live responses; once the result is known, REJECT `sell`/`cash_out`.
-5. **Parimutuel settlement against the FINAL composition.** `valuePerShare = floor(payablePot / winningTotalShares)` (floored ≤ pot); `payout = shares × valuePerShare`; the **last winner absorbs the dust** (`payablePot − Σpaid`) so payouts sum to the pot exactly.
-6. **Idempotent commands.** Each buy/sell/cash_out is an atomic accept-OR-cancel guarded write keyed by command id; query shares O(1) via a per-tick cache.
+1. **Specify each market.** MetaWin's production server (MSS) `games/horse-pro/types/game.types.ts` `calculatePrices` clamps quotes to `[.02,.90]`, then renormalizes; empty pools quote `1/10`. MSS `games/football-pro/types/game.types.ts` `calculatePrices` uses net+phantom pools; empty effective pools quote `.40/.25/.35`. MSS `games/snakes-pro/index.ts` `server.tick` uses `[.10,.90]`, empty `.5/.5`. Renormalization can break original bounds.
+2. **Separate execution.** Fill eligible resale orders before minting remaining-budget shares. MSS `games/football-pro/index.ts` `server.tick` charges fees on matched payments and remaining pool investment; pool minting uses post-trade real net pools, with empty mint price `1/3`. Specify eligibility, fee routing and execution separately from displayed quotes.
+3. **Define redemption.** Proportional value is `shares/totalSideShares*sidePool`. MSS `games/snakes-pro/index.ts` `server.tick` pays `min(proportionalValue,max(0,originalInvestment*(1-fee)-alreadyRealized))`. Track sells/cash-outs per source bet; capped residual remains pooled.
+4. **Lock final holdings.** Bind command ids to players and immutable content; reject conflicting reuse. Guard settlement by phase, authoritative winner and once-per-round completion. MSS `games/snakes-pro/index.ts` `server.tick` checks winner mismatch only when an authoritative winner exists; require an authoritative result before settlement. Reject trading once results are determined; redact future results from public projections.
+5. **Preserve proportions.** MSS `games/snakes-pro/index.ts` `computePayouts`: `P=10**12`, `vps=Math.round((pot/winningShares)*P)/P`; if `vps*winningShares>pot`, use `Math.floor((pot/winningShares)*P)/P`. Pay `shares*vps`; only `abs(dust)>1e-8` goes to the last winning bet's player. Never floor to whole currency units. Exact atom allocation ends with `potAtoms-sum(previousPayoutAtoms)`. With zero winning shares nothing is divided: apply the declared unbacked-winner policy (step 6).
+6. **Derive EV.** For fixed holdings without early proceeds, `EV=p*winningShareFraction*netPot-s`. Fixed stake-proportional pools with `q=outcomeGross/totalGross>0` and fee `0<=r<1` give `EV=s[p(1-r)/q-1]`; positive EV requires `p>q/(1-r)`. Include realized proceeds when auditing exits. Specify unbacked-winner policy: MSS `games/horse-pro/index.ts` `settleMarket` can pay zero; MSS `games/football-pro/index.ts` `server.tick` refunds residual net.
+7. **Recover liabilities.** Refund remaining pooled holdings and merge earned `pendingPayouts` once; never refund original gross stakes after realization. MSS `games/snakes-pro/index.ts` `server.tick` fatal recovery supplies this pattern.
 
 ## Correctness constraints
-- **C2:** Every money leg (buy debit, cash-out/settlement credit) is an atomic, overdraft-safe, idempotent guarded write co-committed with the append-only ledger; never authorize a payout from a cache or replica.
-- **C14:** The gross-vs-net pool spread (rake) sets the certified RTP; switch among pre-certified rake/RTP variants at deploy without re-cert — re-cert only if the share/settlement math model changes.
+- **C2:** Use serializable, atomic, overdraft-safe, idempotent guarded writes with the ledger; caches update in that transaction. Never authorize spend from caches/replicas.
+- **C14:** Select pre-certified variants, display active RTP; recertify math-model changes. External promotions do not alter certified RNG RTP. Rake alone does not establish RTP.
 
 ## Pitfalls / red flags
-- Quoting a price once instead of re-pricing as the pool moves.
-- Settling against the LIVE composition, not the FINAL locked one.
-- Payouts not conserving to the pot (rounding drift, no last-winner dust) → money created/destroyed.
-- Cash-out paid from a cache/replica, or non-idempotent buy/sell → double-spend/replay (C2).
-- Leaking the result: unstripped winner/finish state, or sell/cash_out accepted post-result.
-- O(n) share queries in the hot tick instead of an O(1) cache.
+Stale quotes; duplicate realization; treating float tolerance as exact conservation.
 
 ## Verification
-- `Σ payouts == payablePot` exactly (dust to last winner); `valuePerShare · winningShares ≤ payablePot`.
-- Market price `== clamp(pool/totalPool,0.02,0.90)` (renormalized) and shifts after each stake; cash-out pays value `shares/totalOutcomeShares × pool` at command time.
-- Settlement uses the locked final composition; `sell`/`cash_out` rejected post-result; no outcome field in any live response.
-- Replaying a command id debits/credits exactly once.
+Prove `100` pot/two `100`-share winners pays `[50,50]`. Test per-game empty pools, resale-first execution, partial-sell/cash-out caps, unbacked winners, settlement replay and crash recovery. Legacy float conservation uses documented tolerance; atom conservation uses strict equality.

@@ -1,36 +1,31 @@
 ---
 name: math-feature-buy-and-jackpot
-description: Use when pricing a bonus-buy / feature-buy or modeling a progressive jackpot RTP contribution. Keywords bonus buy, feature buy, RTP parity, progressive jackpot, contribution.
-constraints: C14
+description: Use when pricing bonus buys or feature buys, comparing buy RTP, or separating fixed jackpots, progressive meter contributions, and reset seed returns.
+metadata:
+  constraints: C14
 ---
 
 # math-feature-buy-and-jackpot
 
-> **Core insight:** A buy never raises EV (only compresses variance in time), so its price = E[feature]/buyVariantRTP at parity; and a progressive's reset seed is outside-RNG operator capital — never a third RTP summand.
+> **Core insight:** Buy RTP is return per actual charged cost, parity is product policy, and recurring progressive reset seeds contribute to the money players receive.
 
 ## When to use / When NOT
-- Use when: pricing a bonus-buy/feature-buy entry, or reporting a jackpot's RTP contribution — fixed-multiplier tiers (MetaWin's real pattern) or a pooled/networked progressive.
-- NOT for: base RTP/house-edge/weight derivation (→ `math-rtp-modeling`); empirical convergence (→ `math-montecarlo-simulation`).
-
-## Default stack (+ escape hatch)
-`scripts/bonus-buy.mjs` — `bonusBuyCost` (buy cost at RTP parity), `rtpParity` (variant-RTP gap), `decomposeJackpotRtp` (advertised = base + pooled-jackpot slice). Fixed-tier example: a `jackpotWeights: [regular, mini, minor, major, mega]` array annotated with each tier's target RTP contribution, baked into the certified math config. Other stacks: same identities below; price = expected feature value at the disclosed buy-variant RTP, never a markup.
+- Use for buy pricing, route-specific return, and jackpot decomposition.
+- Base distribution modeling belongs to `math-rtp-modeling`; funded-pool operation belongs to `econ-progressive-jackpot`.
 
 ## Process
-1. **Bonus-buy price.** `buyCost = E[feature payout] / buyVariantRTP`. The buy variant MAINTAINS RTP PARITY — buyVariantRTP ≈ base RTP (equal or slightly above), never below. The buy compresses variance in TIME; it does NOT raise EV.
-2. Compute and DISCLOSE buy-variant RTP separately from base; assert `buyVariantRTP ≥ baseRTP` within tolerance, report the gap.
-3. **Jackpot — two shapes.** (a) FIXED-MULTIPLIER TIERS (MetaWin's real pattern): tiers (mini/minor/major/mega) won in-game, paid as `multiplier·bet`; their RTP contribution is baked INTO the certified base math via tier WEIGHTS — no external pool or seed, just a documented slice of the one certified RTP. (b) POOLED/NETWORKED PROGRESSIVE: `c` = 1–5% per-wager contribution into a pool; `advertisedRTP = baseRTP + jackpotContributionRTP` (base runs lower because skim `c` feeds the pool). The reset SEED is operator capital from OUTSIDE the wager stream — a top-up lifting EFFECTIVE return ABOVE advertised, NOT a third summand.
-4. Publish jackpot RTP contribution alongside base: fixed tiers, a documented slice of certified weights; pooled progressive, a separately-certified summand — never fold either silently into the headline number.
+1. Pin each actual bought route: charged cost B=c·innerBet, entry mix, retry/rejection rules, payout cap, and settlement rounding. In MetaWin's production server (MSS), `games/zeus/index.ts` `play` divides the charged buy bet by its cost; `games/zeus/gamePlay.ts` `playBuyFreegames` selects product-specific entry and `buyBands`. A bought feature need not share the natural feature distribution.
+2. Sum only newly payable gross wins across the complete round in exact integer atoms; retain display totals separately. Price identity: B=E[W]/rBuy. If changing B changes the distribution or rounding, recompute E[W] at the proposed price. MSS `games/tartarus/gamePlay.ts` `playMain` subtracts the already paid base win on natural continuations; `playBuyFreegames` initially pays zero and its continuation pays the full feature win.
+3. Declare the parity policy and disclose base and buy RTP separately. Higher rBuy means higher expected return per unit charged; a buy's variance is measured, not assumed. `scripts/bonus-buy.mjs` `bonusBuyCost({expectedFeaturePayout,buyVariantRTP})` implements the price identity; `rtpParity({buyVariantRTP,baseRTP,tol})` returns a gap and whether buy RTP is at least base minus tolerance. Reject non-finite inputs; expectation must be nonnegative and rBuy positive.
+4. Classify jackpots by actual payout mechanism. Fixed awards already belong to the game distribution: MSS `games/maneater/gameLogic.ts` `loadBaseGame` pays configured jackpots times bet; `games/coinUp/gameLogic.ts` `playBonus` sums cell values and a fixed grand. Do not add their EV again as an external pool slice.
+5. For a modeled progressive cycle with turnover T, recurring reset seed S, and fully paid meter cT: effective jackpot return=E[S+cT]/E[T]=c+S/E[T] for constant S. Funding transfers are not additional player payouts. A one-time seed vanishes only in the infinite-turnover limit. `decomposeJackpotRtp({baseRTP,jackpotMeterRTP})` merely adds those supplied components and labels the result `advertisedRTP`; it does not compute seed return or establish an approved disclosure model.
+6. Check stake regimes and natural/buy eligibility separately. MSS `games/zeus100k/gamePlay.ts` `fgBandReject` applies route-specific rejection below the absolute-floor threshold; bought routes keep their own cap (currency-floor editions: `math-guaranteed-payout-floor`).
 
 ## Correctness constraints
-- **C14:** Suppliers certify multiple RTP variants/bands; operators may switch among PRE-CERTIFIED variants at deploy without re-certification (display the active percent). Operator-funded promotions OUTSIDE the game RNG do NOT change the certified RTP. Re-cert is required ONLY when the math model (weights/paytable/feature logic) changes.
+- **C14:** Switching already approved variants within scope differs from changing weights, paytable, rejection, or feature logic. Display the active certified model; an outside-RNG operator promotion is not permission to hide a math-changing Promo or skip applicable recertification.
 
 ## Pitfalls / red flags
-- Pricing a buy above parity ("house take on the buy") — wrong; parity is the rule, gap must be ≥0 and small.
-- Claiming the buy raises expected value — it only reshapes variance over time.
-- Modeling a pooled progressive (skim + seed) when the game has fixed-multiplier tiers — those pay in-game as `multiplier·bet`, contribution already in the certified tier weights, no pool/seed.
-- For a pooled progressive, forgetting base runs below advertised RTP once the skim is removed.
-- Treating a pre-certified variant switch, or an operator promo outside the RNG, as needing re-cert (C14).
+Unverified contribution percentages; mandatory parity presented as a theorem; price based on natural-entry EV; double-counted fixed jackpots; recurring seed return erased by reserve funding.
 
 ## Verification
-- `scripts/bonus-buy.mjs` `rtpParity` / `bonusBuyCost`: assert `buyVariantRTP ≥ baseRTP` and price = E[feature]/buyVariantRTP within tolerance.
-- `scripts/bonus-buy.mjs` `decomposeJackpotRtp`: assert `advertisedRTP = baseRTP + jackpotContributionRTP` (operator-funded seed is a separate top-up, not a summand); cross-check `math-montecarlo-simulation`.
+Retain per-route charged-cost/payout evidence, minimum and representative stake checks, caps and rounding cases, and converged RTP CIs. For progressives reconcile complete cycle payouts and turnover; keep funding accounting separate.

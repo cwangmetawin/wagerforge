@@ -1,7 +1,8 @@
 ---
 name: build-wallet-and-money
-description: Use when implementing the wallet, balance, or money math of a real-money game — bet/win/balance arithmetic, the ledger, and overdraft safety. Keywords wallet, ledger, balance, decimal, idempotency, double-entry.
-constraints: C2
+description: Use when implementing real-money wallet debits, credits, balances, ledger idempotency, currency atoms, or payout rounding.
+metadata:
+  constraints: C2
 ---
 
 # build-wallet-and-money
@@ -9,27 +10,30 @@ constraints: C2
 > **Core insight:** Daily reconciliation only detects an overdraft after the money left; prevention is atomic at debit time — guarded `balance>=:amt` UPDATE + `CHECK(balance>=0)` co-committed with the ledger row, never authorized from a cache/replica.
 
 ## When to use / When NOT
-- Use when: building balance/debit/credit, the journal, or money arithmetic.
-- NOT for: the bet→settle orchestration (→ `build-durable-settlement`).
 
-## Default stack (+ escape hatch)
-`scripts/ledger.mjs` reference. Native amount is truth, fiat is display-only; precision from auth, never hardcoded; floor-round so players are never over-credited. Money libraries differ by layer — map "decimal" to the layer:
-- **RGS settlement (authoritative):** `fixValue(v)=Number(v.toFixed(2))` fiat slots / `toFixed(8)` crypto mini-games — NOT decimal.js. Pooled/parimutuel: integer-precision scaling (round `valuePerShare` to 10^12, floor if it would exceed the pot) and give the LAST winning bet `dust = pot − totalPaidOut` so payouts sum exactly to the pool.
-- **Host (Nuxt):** `bignumber.js` v10 for balance/affordability.
-- **Client GDK (studio):** `decimal.js` wrapper, default rounding FLOOR. Its `roundDown()` calls `Decimal.ROUND_CEIL` and `roundUp()` calls `ROUND_UP` (inverted names) — verify intent before reuse.
+- Use for wallet/journal primitives and currency conversion.
+- For placement, settlement decisions and recovery, use `build-durable-settlement`.
 
-Other stacks: same invariants in your ACID DB.
+## Default stack + escape hatch
+
+TypeScript + PixiJS/Phaser presentation + Node; authoritative BigInt atoms and an ACID database. Other stacks must preserve exact amounts, transactional guards and content-bound deduplication.
 
 ## Process
-1. Balance = SUM of an append-only journal (or a cache updated in the SAME txn as the append).
-2. Every debit is an atomic, overdraft-safe, idempotent guarded write under serializable isolation.
-3. All bet/win/balance arithmetic through the layer's money wrapper (`fixValue`/bignumber/decimal); for pooled payouts conserve money exactly (last-bet dust). Never authorize spend from a cache/replica.
+
+1. Validate non-empty identifiers, distinct accounts, positive stake/transfer and explicit non-negative payout before their mutation. `scripts/money.mjs` exports `toAtoms(amount, decimals)` (0–18; rejects off-grid/negative/non-finite input without rounding, and any Number beyond 15 significant digits, which JSON parsing may already have changed: send such amounts as decimal strings), `fromAtoms` (canonical decimal string), and `assertAtoms`. Decimal boundary input becomes atoms; `scripts/ledger.mjs` `transfer` accepts only positive BigInt.
+2. Journal entries are append-only double-entry: every transfer posts a debit and a matching credit that sum to zero in one transaction; balances derive from them. Acquire a UNIQUE idempotency key using `INSERT ... ON CONFLICT` in the same transaction as guarded balance UPDATE and journal inserts. Compare stored `{from,to,amount}`: identical replay is a no-op; changed content is a conflict. Insufficient transfers record no key. The reference `createLedger`/`balanceOf` use in-memory maps/BigInt, not durable storage: copy them only with the database rules in `build-durable-settlement` step 4.
+3. Specify rounding per layer, never “floor everything.” MetaWin's production server (MSS) `games/zeus/gamePlay.ts` `fixValue` uses `Number(x.toFixed(2))`; MSS `games/chase/index.ts` `fixValue` uses eight places. These round to nearest, not floor; preserve documented game math. When rounding is part of the game math, declare it per action and verify realized EV on every supported wallet grid: MSS `games/highLowHit/gameLogic.ts` `roundingPlan`/`applyStochasticRatio` round a fractional wallet-unit payout stochastically. Exact stake conversion rejects finer-than-grid values instead of changing the stake.
+4. Allocate exact pools in atoms, with documented proportional allocation and final payout `potAtoms-sum(previousPayoutAtoms)`. Legacy MSS `games/snakes-pro/index.ts` `computePayouts` rounds value-per-share at 10^12 precision, conditionally floors to avoid exceeding the pot, and corrects dust only when its magnitude exceeds 1e-8. Its conservation is tolerance-based, not exact atom equality.
+5. Signed external results (canonical fields, key isolation, round binding, lossless atom conversion) follow `build-signed-realtime-settlement`; a failed check leaves the round open and unpaid.
 
 ## Correctness constraints
-- **C2:** A cached balance is acceptable ONLY if updated atomically in the same ACID transaction as the append-only ledger insert, with `UPDATE wallet SET balance=balance-:amt WHERE balance>=:amt` co-committed with the ledger row, a `CHECK(balance>=0)`, and an idempotency key. Daily reconciliation is a detection control, NOT prevention. Never authorize spend from a cache or read replica.
+
+- **C2:** Debit is an atomic, overdraft-safe, idempotent guarded write under serializable isolation. A cached balance is allowed only when updated in the same ACID transaction as the ledger, with `CHECK(balance>=0)`. Never authorize spend from a cache/replica; daily reconciliation detects errors after the fact.
 
 ## Pitfalls / red flags
-Stored balance reconciled only daily (C2); float money; over-crediting via ceil-rounding; non-idempotent debits; assuming one universal decimal.js wrapper (server uses `fixValue`/`toFixed`, host uses bignumber.js); trusting the studio wrapper's inverted `roundDown`/`roundUp` names; pooled payouts that don't conserve money (no last-bet dust → sum != pool).
+
+String/Number ledger amounts; accepting invalid payout as zero; unbound idempotency keys; blanket floor rounding; claiming legacy float dust correction proves exact conservation.
 
 ## Verification
-`scripts/settlement.test.mjs`: balance-from-journal, overdraft refused, idempotent transfer.
+
+Run `scripts/money.test.mjs` and `scripts/settlement.test.mjs`; require real database concurrency/restart evidence via `qa-settlement-integrity`. Reference tests do not prove production persistence.

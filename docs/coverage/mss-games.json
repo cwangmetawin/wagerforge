@@ -1,0 +1,629 @@
+{
+  "source": {
+    "repo": "metawin-slot-server (MSS)",
+    "commit": "356fa2a6eee30d8ea3f0b7b2bf2fa370e68e4cb2",
+    "date": "2026-10-09"
+  },
+  "families": [
+    {
+      "id": "s01-paylines-feature-coins",
+      "name": "paylines + feature/coin game",
+      "coverage": "partial",
+      "skills": [
+        "math-lines-ways-cluster",
+        "math-cascade-tumble",
+        "math-feature-buy-and-jackpot",
+        "math-hold-and-win",
+        "math-guaranteed-payout-floor",
+        "build-game-server-rgs",
+        "qa-regression-golden"
+      ],
+      "games": [
+        "tothetop",
+        "tothetopPromo",
+        "maneater",
+        "maneaterPromo",
+        "discodazzle",
+        "discodazzle96",
+        "discodazzlePromo",
+        "goldDiggers",
+        "goldDiggers100k",
+        "bookOfDead",
+        "burningChili"
+      ],
+      "notes": "线赢、FG/买入、respin与floor已有；缺扩展/堆叠wild及金币盘增高、collector触发交互。"
+    },
+    {
+      "id": "s02-nudge-paylines",
+      "name": "nudge paylines",
+      "coverage": "partial",
+      "skills": [
+        "math-lines-ways-cluster",
+        "math-feature-buy-and-jackpot",
+        "math-guaranteed-payout-floor",
+        "build-game-server-rgs",
+        "qa-regression-golden"
+      ],
+      "games": [
+        "fruitNudge",
+        "fruitNudge100k",
+        "fruitNudgePromo",
+        "sheriffNudge",
+        "sheriffNudge100k"
+      ],
+      "notes": "线赢、最高wild、注额与floor已有；缺nudge/reset状态转换及Sheriff死特征的专门模型。"
+    },
+    {
+      "id": "s03-connected-ways-wilds",
+      "name": "connected ways + moving/collecting wilds",
+      "coverage": "partial",
+      "skills": [
+        "math-lines-ways-cluster",
+        "math-feature-buy-and-jackpot",
+        "build-game-flow",
+        "build-game-server-rgs",
+        "math-guaranteed-payout-floor",
+        "qa-regression-golden"
+      ],
+      "games": [
+        "barValhalla",
+        "barValhalla100k",
+        "barValhalla100kPromo",
+        "barValhallaSkin",
+        "piggyBank",
+        "piggyBank100k",
+        "piggyBankPromo",
+        "treasureHunter",
+        "treasureHunter100k"
+      ],
+      "notes": "connected剪枝、jackpot、选择续步与floor已有；缺移动/跳跃wild、金币收集及其交互转换。"
+    },
+    {
+      "id": "s04-hybrid-wins-collection",
+      "name": "hybrid paylines/betways + collection",
+      "coverage": "partial",
+      "skills": [
+        "math-lines-ways-cluster",
+        "math-feature-buy-and-jackpot",
+        "math-guaranteed-payout-floor",
+        "build-game-server-rgs",
+        "qa-regression-golden"
+      ],
+      "games": [
+        "allaboutthefish",
+        "allaboutthefishPromo",
+        "perseus",
+        "perseus100k",
+        "perseus100kPromo",
+        "cetusOnly",
+        "perseusCetusOnly"
+      ],
+      "notes": "线/ways、买入与floor已有；缺evaluator切换、Elvis/宝箱收集、shift及Cetus倍率meter。"
+    },
+    {
+      "id": "s05-ways-coin-ladder",
+      "name": "3-reel ways + coin ladder",
+      "coverage": "partial",
+      "skills": [
+        "math-lines-ways-cluster",
+        "math-feature-buy-and-jackpot",
+        "math-cascade-tumble",
+        "math-guaranteed-payout-floor",
+        "build-game-server-rgs",
+        "qa-regression-golden"
+      ],
+      "games": [
+        "cowAbduction",
+        "cowAbduction100k",
+        "cowAbductionPromo"
+      ],
+      "notes": "ways、固定jackpot、FG奖励/播放cap和floor已有；缺coin重复lift、tall-reel分布及hot-round模型。"
+    },
+    {
+      "id": "s06-count-anywhere-tumbles",
+      "name": "count-anywhere/OAK tumble",
+      "coverage": "partial",
+      "skills": [
+        "math-lines-ways-cluster",
+        "math-cascade-tumble",
+        "build-game-server-rgs",
+        "math-feature-buy-and-jackpot",
+        "math-guaranteed-payout-floor",
+        "qa-regression-golden"
+      ],
+      "games": [
+        "gates",
+        "sweetyTreaty",
+        "sweetyTreatyPromo",
+        "tartarus",
+        "tartarus100k",
+        "tartarus100kPromo",
+        "tartarusStream",
+        "medusa",
+        "medusa100k",
+        "medusaPromo",
+        "zeus",
+        "zeus100k",
+        "zeusPromo",
+        "bloodMoonRising"
+      ],
+      "notes": "OAK、绝对wave、选择续步与floor已有；缺分级wild及spin结束时orb/乘数求和的具体规则。"
+    },
+    {
+      "id": "s07-clusters-persistent-grid",
+      "name": "adjacency cluster + persistent grid",
+      "coverage": "partial",
+      "skills": [
+        "math-lines-ways-cluster",
+        "math-ladder-and-progression",
+        "math-cascade-tumble",
+        "math-feature-buy-and-jackpot",
+        "math-guaranteed-payout-floor",
+        "qa-regression-golden"
+      ],
+      "games": [
+        "sugarRush",
+        "sweetyCluster",
+        "sweetyCluster100k",
+        "sweetyCluster100ktest",
+        "candyCash",
+        "candyCash100k",
+        "riseOfTheWolf",
+        "riseOfTheWolf100k",
+        "riseOfTheWolfPromo"
+      ],
+      "notes": "flood-fill、先付款后升格、FG网格与scatter进阶已有；缺Column Surge按列充能的具体规则。"
+    },
+    {
+      "id": "s08-clusters-bomb-detonation",
+      "name": "cluster + bomb/square detonation",
+      "coverage": "partial",
+      "skills": [
+        "math-lines-ways-cluster",
+        "math-cascade-tumble",
+        "math-volatility-tuning",
+        "math-feature-buy-and-jackpot",
+        "math-guaranteed-payout-floor",
+        "build-game-server-rgs",
+        "qa-regression-golden"
+      ],
+      "games": [
+        "metaStrike",
+        "metaStrike100k",
+        "metaStrike100kPromo"
+      ],
+      "notes": "cluster、cascade、买入与floor已有；缺bomb/square触发、blast分带及dead-spin/model协调。"
+    },
+    {
+      "id": "s09-retained-respin-board",
+      "name": "hold-and-win/respin board",
+      "coverage": "partial",
+      "skills": [
+        "math-hold-and-win",
+        "build-game-server-rgs",
+        "qa-regression-golden"
+      ],
+      "games": [
+        "coins",
+        "coinUp"
+      ],
+      "notes": "CoinUp顺序、carry、Grand及cell留存已教；缺coins多收集器逐轮累计付款的专门规则。"
+    },
+    {
+      "id": "m01-discrete-single-shot",
+      "name": "discrete one-shot",
+      "coverage": "full",
+      "skills": [
+        "math-table-game-edge",
+        "math-plinko-lottery",
+        "build-minigame-from-scratch",
+        "fair-verify"
+      ],
+      "games": [
+        "bars",
+        "darts",
+        "hotdeck",
+        "primedice",
+        "ringOfFortune",
+        "popParade"
+      ],
+      "notes": "离散EV、颜色/target赔率、stake份额归一化、单步付款及完整draw回放已教；未见该行机制缺口。"
+    },
+    {
+      "id": "m02-independent-compound-draws",
+      "name": "independent compound draws",
+      "coverage": "partial",
+      "skills": [
+        "math-plinko-lottery",
+        "math-table-game-edge",
+        "build-minigame-from-scratch",
+        "fair-verify"
+      ],
+      "games": [
+        "tarot",
+        "regattaRivals"
+      ],
+      "notes": "独立三卡乘积和全draw回放已教；Regatta胜者/阵风联合模型及航道stake向量付款仍仅通用教学。"
+    },
+    {
+      "id": "m03-correlated-wire-payout",
+      "name": "correlated wire payout",
+      "coverage": "partial",
+      "skills": [
+        "math-ladder-and-progression",
+        "math-crash-family",
+        "math-rtp-modeling",
+        "build-minigame-from-scratch",
+        "fair-verify"
+      ],
+      "games": [
+        "circuitSnap"
+      ],
+      "notes": "生存乘积、相关EV相加及单步回放已有；缺bulb前缀RTP分摊、整数余项定价和wire合法路径模型。"
+    },
+    {
+      "id": "m04-cosmetic-flight-impacts",
+      "name": "cosmetic flight/impact one-shot",
+      "coverage": "partial",
+      "skills": [
+        "math-plinko-lottery",
+        "build-minigame-from-scratch",
+        "qa-cosmetic-sim-guard",
+        "fair-verify"
+      ],
+      "games": [
+        "bomberRun",
+        "flockShot",
+        "captainCannonCashFlight"
+      ],
+      "notes": "加权单步与装饰飞行边界已有；缺盲选多击归一化、落点条件金币和rung条件feature的具体模型。"
+    },
+    {
+      "id": "m05-replacement-draw-occupancy",
+      "name": "replacement draw/occupancy",
+      "coverage": "full",
+      "skills": [
+        "math-plinko-lottery",
+        "build-instant-crash-games",
+        "fair-verify"
+      ],
+      "games": [
+        "blitz",
+        "deck52"
+      ],
+      "notes": "无重复胜率、replacement占格、重叠行列付款、caps及完整draw回放已教；未见该行机制缺口。"
+    },
+    {
+      "id": "m06-cases-packs-loot",
+      "name": "cases/packs/loot",
+      "coverage": "partial",
+      "skills": [
+        "math-plinko-lottery",
+        "build-minigame-from-scratch",
+        "build-durable-settlement",
+        "fair-verify"
+      ],
+      "games": [
+        "cases",
+        "packs",
+        "hitDraw"
+      ],
+      "notes": "现金case/pack与外部幂等已有；缺实物分配、责任量纲、结果schema回放及签名award证据合同。"
+    },
+    {
+      "id": "m07-plinko-bucket-multipliers",
+      "name": "Plinko",
+      "coverage": "full",
+      "skills": [
+        "math-plinko-lottery",
+        "build-minigame-from-scratch",
+        "fair-verify",
+        "qa-cosmetic-sim-guard"
+      ],
+      "games": [
+        "plinko100k",
+        "plinko100kWorldCup"
+      ],
+      "notes": "binomial bucket、独立ball乘数、cap、headline最大倍率、单步付款及proof/cosmetic边界已教；无命名缺口。"
+    },
+    {
+      "id": "m08-target-crash-distribution",
+      "name": "target/crash distribution",
+      "coverage": "partial",
+      "skills": [
+        "math-crash-family",
+        "build-instant-crash-games",
+        "fair-outcome-mappers"
+      ],
+      "games": [
+        "chase",
+        "drill",
+        "crash"
+      ],
+      "notes": "crash分布、floor/cap及Chase共用tiers已教；缺Drill多结果流及legacy crash悬置续步的具体合同。"
+    },
+    {
+      "id": "m09-survival-cashout-ladders",
+      "name": "survival/cash-out ladders",
+      "coverage": "full",
+      "skills": [
+        "math-ladder-and-progression",
+        "build-instant-crash-games",
+        "build-minigame-from-scratch",
+        "fair-verify"
+      ],
+      "games": [
+        "flip",
+        "rockPaperScissors",
+        "moles",
+        "snakes",
+        "pepe",
+        "pump",
+        "goalStreak",
+        "floor13",
+        "partyPong",
+        "polarMines",
+        "scoville"
+      ],
+      "notes": "条件生存、RPS tie/终局、row mines、一次stake续步和autobet/action-proof差异已教；无命名缺口。"
+    },
+    {
+      "id": "m10-conditional-higher-lower",
+      "name": "conditional higher/lower",
+      "coverage": "full",
+      "skills": [
+        "math-conditional-value-games",
+        "build-wallet-and-money",
+        "build-instant-crash-games",
+        "qa-game-rules-contract",
+        "fair-verify"
+      ],
+      "games": [
+        "highLowHit"
+      ],
+      "notes": "排除同rank、首风险edge、保证步、随机舍入、强制bank及免费续步/回放已教；未见该行机制缺口。"
+    },
+    {
+      "id": "m11-fair-gamble-stopping",
+      "name": "fair-gamble/optional-stopping",
+      "coverage": "partial",
+      "skills": [
+        "math-conditional-value-games",
+        "build-instant-crash-games",
+        "build-minigame-from-scratch",
+        "fair-verify"
+      ],
+      "games": [
+        "kiln",
+        "sniperRange",
+        "twist"
+      ],
+      "notes": "条件EV、可选停止与免费续步已有；缺Kiln开局/伸展、Sniper随机步乘和Twist状态递推的具体模型。"
+    },
+    {
+      "id": "m12-conditional-value-dig",
+      "name": "public-board conditional-value dig",
+      "coverage": "partial",
+      "skills": [
+        "math-conditional-value-games",
+        "build-instant-crash-games",
+        "build-minigame-from-scratch",
+        "qa-game-fingerprints",
+        "fair-verify"
+      ],
+      "games": [
+        "deepDelve",
+        "cheeseHeist",
+        "thinIce"
+      ],
+      "notes": "条件生存价、列状态、共享engine及续步回放已教；缺因子表具体求值与开局权重求解的教学。"
+    },
+    {
+      "id": "m13-wheel-bonus-doubleup",
+      "name": "running-light wheel + recursive bonus + double-up",
+      "coverage": "partial",
+      "skills": [
+        "math-plinko-lottery",
+        "math-conditional-value-games",
+        "math-cascade-tumble",
+        "build-instant-crash-games",
+        "build-minigame-from-scratch",
+        "qa-fairness-verification"
+      ],
+      "games": [
+        "fruitMachine"
+      ],
+      "notes": "weighted wheel、fair double、bank及eager recursive proof已有；缺逐symbol公平权重及有界递归bonus EV推导。"
+    },
+    {
+      "id": "m14-deal-reveal-offers",
+      "name": "Deal/No-Deal reveal/offer",
+      "coverage": "full",
+      "skills": [
+        "math-conditional-value-games",
+        "fair-outcome-mappers",
+        "build-instant-crash-games",
+        "fair-verify"
+      ],
+      "games": [
+        "mealOrNoMeal"
+      ],
+      "notes": "covered含kept的offer/ceiling、Fisher-Yates、hidden/config snapshot及一次付款/abandonment已教；无命名缺口。"
+    },
+    {
+      "id": "m15-interactive-multihand-blackjack",
+      "name": "interactive multi-hand Blackjack",
+      "coverage": "partial",
+      "skills": [
+        "math-table-game-edge",
+        "build-instant-crash-games",
+        "fair-outcome-mappers",
+        "fair-shoe-draw-ledger"
+      ],
+      "games": [
+        "blackjack-multi-hands"
+      ],
+      "notes": "策略RTP、额外扣款、终局credit及shoe框架已有；缺座位/子手轮转、Surrender和双扣款编码的专门合同。"
+    },
+    {
+      "id": "m16-automated-bankroll-tables",
+      "name": "automated bankroll-run tables",
+      "coverage": "partial",
+      "skills": [
+        "build-bankroll-run-games",
+        "math-table-game-edge",
+        "fair-shoe-draw-ledger"
+      ],
+      "games": [
+        "baccarat-1000",
+        "blackjack-1000",
+        "roulette-1000"
+      ],
+      "notes": "一次买入、分块账本、免费STOP、迁移和两种return分母已有；缺四词展开/warmup及run级proof的具体配方。"
+    },
+    {
+      "id": "r01-shared-housebanked-sicbo",
+      "name": "shared house-banked Sic Bo",
+      "coverage": "full",
+      "skills": [
+        "math-table-game-edge",
+        "build-live-table-games",
+        "build-game-server-rgs",
+        "build-durable-settlement",
+        "fair-verify"
+      ],
+      "games": [
+        "sicbo"
+      ],
+      "notes": "共享骰的逐bet gross EV、profit转return、timed house phases、退款与三骰draw回放框架已教；无命名缺口。"
+    },
+    {
+      "id": "r02-live-housebanked-tables",
+      "name": "live-dealer-style house tables",
+      "coverage": "partial",
+      "skills": [
+        "math-table-game-edge",
+        "build-live-table-games",
+        "fair-shoe-draw-ledger"
+      ],
+      "games": [
+        "baccarat-live",
+        "blackjack-live",
+        "blackjack-table-live",
+        "roulette-live"
+      ],
+      "notes": "paid actions、private projection、退款及shoe ledger已有；缺并发/单活动玩家调度差异和轮盘封盘抽样时点。"
+    },
+    {
+      "id": "r03-pooled-parimutuel-markets",
+      "name": "pooled/parimutuel markets",
+      "coverage": "partial",
+      "skills": [
+        "build-prediction-market-games",
+        "econ-tournament",
+        "fair-outcome-mappers"
+      ],
+      "games": [
+        "horse-pro",
+        "football-pro",
+        "snakes-pro",
+        "hit"
+      ],
+      "notes": "份额交易、池分配、费用和恢复已有；旧hit的价格oracle/PF不一致及replay缺失未专门教学。"
+    },
+    {
+      "id": "r04-quoted-fixed-odds-markets",
+      "name": "quoted fixed-odds spectator markets",
+      "coverage": "partial",
+      "skills": [
+        "math-fixed-odds-event-markets",
+        "econ-tournament",
+        "build-durable-settlement",
+        "build-game-server-rgs",
+        "fair-verify"
+      ],
+      "games": [
+        "snakes-hit",
+        "hit-ai-wars"
+      ],
+      "notes": "事件定价、overround区分、锁价、legacy pool及舍入已有；缺cashout价比乘费用的具体估值公式。"
+    },
+    {
+      "id": "r05-shared-clock-crash",
+      "name": "shared-clock multiplayer crash",
+      "coverage": "partial",
+      "skills": [
+        "math-crash-family",
+        "math-ladder-and-progression",
+        "build-game-server-rgs",
+        "fair-verify",
+        "qa-fairness-verification",
+        "econ-tournament"
+      ],
+      "games": [
+        "skyfall",
+        "hitCrashers"
+      ],
+      "notes": "分布、生存定价、offset回放与tick已有；缺每玩家fade/全桌crash区分、末存活池及catch时间优先级。"
+    },
+    {
+      "id": "r06-weighted-geography-parlay",
+      "name": "weighted geography/Parlay draw",
+      "coverage": "partial",
+      "skills": [
+        "math-plinko-lottery",
+        "math-fixed-odds-event-markets",
+        "build-game-server-rgs",
+        "build-durable-settlement",
+        "fair-verify",
+        "fair-commit-reveal"
+      ],
+      "games": [
+        "world-spin"
+      ],
+      "notes": "weighted draw、关联Parlay、有理报价及wallet floor已有；缺双承诺绑定与抽样前后void揭示的专门合同。"
+    },
+    {
+      "id": "r07-realtime-target-shots",
+      "name": "realtime target/shot wagers",
+      "coverage": "partial",
+      "skills": [
+        "build-skill-wager-games",
+        "build-game-server-rgs"
+      ],
+      "games": [
+        "giftBox"
+      ],
+      "notes": "server几何/clock、hybrid RNG与shot资金守恒已有；缺Piercing分腿成本及Ricochet并行terminalAt排序合同。"
+    },
+    {
+      "id": "r08-skill-life-authority",
+      "name": "skill-life wager authority",
+      "coverage": "partial",
+      "skills": [
+        "build-skill-wager-games",
+        "fair-verify",
+        "build-signed-realtime-settlement"
+      ],
+      "games": [
+        "hitShooter"
+      ],
+      "notes": "现行tick权威模拟、life资金守恒和零money-RNG已有；旧HMAC报告链、epoch/tick去重证明仍未专门教学。"
+    },
+    {
+      "id": "r09-signed-realtime-settlement",
+      "name": "signed realtime settlement adapters",
+      "coverage": "partial",
+      "skills": [
+        "build-signed-realtime-settlement",
+        "build-wallet-and-money",
+        "build-durable-settlement"
+      ],
+      "games": [
+        "hitShooterLife",
+        "hitSpaceshipLife"
+      ],
+      "notes": "签名规范、key/round绑定、免费settle与失败留OPEN已有；缺死亡/退款/撤离逐杀fee和杀奖cap的具体付款式。"
+    }
+  ]
+}

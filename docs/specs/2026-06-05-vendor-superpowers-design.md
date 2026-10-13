@@ -1,5 +1,7 @@
 # wagerforge — Vendoring superpowers (self-contained integration) — Design
 
+> **Superseded (2026-10-12, v0.3.0):** superpowers was removed from wagerforge. Kept as history only; do not implement.
+
 - **Date:** 2026-06-05
 - **Status:** Approved (design); pending spec review → implementation plan
 - **Author:** Chao Wang

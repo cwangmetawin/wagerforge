@@ -1,31 +1,31 @@
 ---
 name: fair-outcome-mappers
-description: Use when mapping provably-fair randomness to a concrete game outcome — a card 0-51, a mines tile, keno picks, a crash multiplier, a plinko bucket — and you must avoid modulo bias. Keywords rejection sampling, Fisher-Yates, inverse CDF, modulo bias.
-constraints: C8
+description: Use when reducing random integers to a range (modulo bias, x % n, roulette) or mapping provably-fair randomness to cards, mines tiles, grid coordinates, keno picks, crash multipliers, or plinko buckets using rejection sampling, Fisher-Yates, or inverse CDF.
+metadata:
+  constraints: C8, C11
 ---
 
 # fair-outcome-mappers
 
-> **Core insight:** Modulo bias on a full 32-bit draw is ~1e-8, not the folklore "11%" — the real trap is splitting one big draw into a grid via `% range` when the source size isn't a multiple of `range`.
+> **Core insight:** Uniform mapping depends on both source and target domain sizes; exact reduction and independent axis draws must match the versioned runtime draw contract.
 
 ## When to use / When NOT
-- Use when: turning a hash/stream into integers, permutations, or distribution samples.
-- NOT for: the keyed derivation itself (→ `fair-rng-core`).
-
-## Default stack (+ escape hatch)
-`scripts/fair-rng.mjs` `nextInt`/`shuffle`/`fairFloat`. Other stacks: replicate the rejection-sampling bound exactly.
+- Use for integers, permutations, grid coordinates and distribution samples.
+- NOT for keyed derivation (see `fair-rng-core`) or proving input provenance/history (see `fair-verify`).
 
 ## Process
-1. Uniform integer in `[0,range)`: **rejection sampling** (`nextInt`) — draw whole bytes, reject the top `space % range`, return `x % range`.
-2. Permutation (cards/tiles): **Fisher-Yates** with `nextInt(i+1)` (`shuffle`).
-3. Continuous (crash/limbo): inverse-CDF on `fairFloat` (e.g. `floor((1-h)/u)` styles) — done in the math skills.
+1. Specify a uniform integer source of size `N` and target range `R`. For `N=qR+t`, modulo residues have `q` or `q+1` preimages. Reject `x >= N-(N%R)` before `x%R`; acceptance then gives equal counts. MetaWin's production server (MSS) `common/rng/FloatSourcedIntegerRng.ts` `randomInteger` uses power-of-two reduction and rejection, assuming a uint32-grid float source.
+2. Keep arithmetic exact. `scripts/fair-rng.mjs` `nextInt(stream, range)` supports `1..2^32` with at most four bytes per candidate; use BigInt for larger domains. Pin the actual protocol's byte width, rejection consumption and cursor; the WF helper is not automatically MSS-compatible.
+3. Shuffle with descending Fisher–Yates, drawing `j` uniformly in `[0,i]`: `shuffle(stream,n)` uses `nextInt(i+1)`. Record all consumed draws, including cosmetic draws.
+4. For a row/column mapper, draw each axis independently and uniformly. MSS `games/snakes-pro/snake-game.ts` `generateFoodSequence` draws x then y with `draw(gridSize)`, repeats for occupancy (at most 100 attempts), then draws the golden flag. Preserve this order and audit occupancy/cap behavior. The former range-1000→26×26 mapper is retired.
+5. For inverse-CDF outcomes, pin endpoints, atoms, rounding, caps and variant parameters. MSS `games/chase/index.ts` `rollCrashPoint` has an instabust branch plus a floored/capped `(1-h)/(1-u)` path; a generic `/u` sketch cannot replace that decoder.
 
 ## Correctness constraints
-- **C8:** Modulo bias occurs ONLY when the source space size isn't a multiple of `range`; it's negligible (~1e-8) when reducing a full 32-bit+ value and exactly zero for power-of-two ranges. Fix = make the source a multiple of `range` OR rejection-sample (what `nextInt` does). The dramatic "11% coin / 0.02% dice" figures correspond to tiny truncated windows, not real HMAC pipelines.
+- **C8:** Modulo is unbiased exactly when `R` divides `N`. Bias can be negligible for small ranges relative to uint32, but large for comparable domains; there is no universal `1e-8` bound. Power-of-two targets divide power-of-two sources. Use rejection for arbitrary ranges.
+- **C11:** Correct the source/target counts; keyed derivation still needs HMAC (`fair-rng-core`). A secure primitive does not repair biased reduction.
 
 ## Pitfalls / red flags
-Naive `hashInt % range` on a narrow window; biased shuffles (`i` vs `i+1` off-by-one); trusting a server-side decode instead of re-deriving (→ `fair-verify`).
-- **Full-range draw, wrong-size source.** A *large* source still biases if its size isn't a multiple of `range`. Live: snakes-pro maps a range-1000 draw to a 26×26 grid via `r % 26` / `floor(r/26) % 26` — but 1000 = 38·26+12, so columns/rows 0–11 are over-sampled (~2.6%). Mapper-side fix: draw a multiple of the target (`range = 676`, or one `nextInt(26)` per axis) or rejection-sample; never `% range` over a mismatched source.
+Statistical uniformity is not exact uniformity. Shared mapper code is not stream parity: MSS `games/snakes-pro/tests/rtp/foodSequence-golden.test.ts` records a known failing runtime/proof test; initialization offset, RNG source and occupancy still differ.
 
 ## Verification
-`nextInt` stays in range, deterministic, ~uniform for non-power-of-two ranges (see `fair-rng.test.mjs`).
+Exhaustively count every source value: naive byte `%6` gives `[43,43,43,43,42,42]`. `scripts/fair-reduction.test.mjs` exhausts one-/two-byte domains and checks three-/four-byte rejection boundaries. Retain an analytical proof for wider domains, exact draw transcripts and engine/proof vectors. Statistics supplement these checks with stated power; they never prove absence of modulo bias.

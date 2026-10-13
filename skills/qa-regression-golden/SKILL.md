@@ -1,36 +1,32 @@
 ---
 name: qa-regression-golden
-description: Use when building golden-result regression tests for deterministic game logic - seeded RNG, frozen outcomes, byte-for-byte comparison. Keywords golden result, regression test, seeded RNG, deterministic replay.
+description: Use when freezing canonical game results, detecting payout or RNG-call regressions, or validating strict request-by-request replay.
 ---
 
 # qa-regression-golden
-
-> **Core insight:** Freeze the recorded draw sequence (the `*Cheats.json` entropy replayed via `TrackedRNG.load`), not just the seed — a seed only reproduces outcomes if draw count and order stay byte-stable, which logic changes silently break.
+> **Core insight:** RNG sequences are replay inputs; a golden additionally freezes the expected canonical result and rejects changed draw limits, exhaustion, fallback and unused draws.
 
 ## When to use / When NOT
-- Use when: locking known-good game outcomes against an exact seed so any logic change that perturbs results fails loudly.
-- NOT for: statistical RNG quality (→ `qa-rng-statistical`); RTP convergence/distribution (→ `qa-monte-carlo-cert`); invariant math proofs (→ `qa-math-validation`).
 
-## Default stack (+ escape hatch)
-Default: TS + Node test runner; a seedable, deterministic integer RNG (record/replay decorator over a CSPRNG core) feeding the real game code; goldens as committed fixture files. In the MetaWin RGS this is concrete: the server-side `TrackedRNG` decorator (`common/rng/TrackedRNG.ts`; `load()`/`reset()`/`dump()`, default `RNG_MAX = 2**32`, supersedes `CheatPlayer`/`cheatRNG`) auto-records every `rng(limit, purpose)`, and the recorded sequences are committed per game as `*Cheats.json` (e.g. `games/perseus/PerseusCheats.json`) — those files ARE the goldens. Other stacks: same shape — inject a deterministic RNG, snapshot canonicalized output, diff on replay.
+- Use for deterministic server-result regressions and reviewed math changes.
+- Statistical convergence: `qa-monte-carlo-cert`; payout invariants: `qa-math-validation`; player fairness evidence: `qa-fairness-verification`.
 
 ## Process
-1. Make the RNG injectable and fully deterministic: one explicit `seed` (plus entropy/salt) in → identical draw sequence out. Never read ambient `Math.random`/wall-clock inside game logic.
-2. Pick a fixed, representative seed set (boundary cases, max-win, feature triggers, multi-step rounds). Record the seed AND captured entropy alongside each golden.
-3. Run the real game code under each seed; serialize the full result deterministically (stable key order, fixed decimal precision, no timestamps/run-ids) and freeze it as the golden fixture. The captured entropy IS the recorded integer RNG sequence (in the RGS, a `*Cheats.json` array replayed via `TrackedRNG.load([...])` then `reset()` before each round) — commit it, never regenerate it silently.
-4. On every run, re-execute the same seeds and compare the new serialization byte-for-byte against the stored golden. Any mismatch fails.
-5. Wire it as a pre-commit gate (and CI) so no change merges without passing; on intended logic changes, regenerate goldens deliberately and review the diff.
-6. Rotate the test seed set quarterly so the suite does not ossify around one lucky sequence; archive retired seeds, never silently drop coverage.
+
+1. Inject RNG at the real resolver boundary. Record each request's action, params, variant/resolved config, incoming state, stake and wallet grid, plus ordered draws and their requested limits. Capture purpose labels where available. Reconstruct continuation state from the preceding response.
+2. Store replay input separately from expected canonical response, state, next actions and incremental payment. MetaWin's production server (MSS) `common/rng/TrackedRNG.ts` `createTrackedRNG` records inputs; `games/perseus/PerseusCheats.json` contains draw strings, not expected output assertions.
+3. Require a strict adapter: validate finite integer draws in [0, limit), match every recorded limit and order, reject exhaustion immediately, forbid live-RNG fallback, and reject leftover input after each request. MSS `common/rng/TrackedRNG.ts` `createTrackedRNG` only logs over-limit values and falls back on exhaustion; `common/cheats/CheatFinder.ts` `holds` checks fallback and full consumption for non-pinned records. Pinned exceptions are insufficient for goldens.
+4. Replay each request with its own sequence and correct action/state/variant; never reuse one whole-round stream for separate requests. MSS `common/cheats/CheatFinder.ts` `verifyCheat` carries base-response state into each follow-up. Freeze the limits explicitly; old value-only sequences cannot detect every range change.
+5. Canonicalize without discarding economic meaning: stable keys, preserved array order, exact integer atoms for money, explicit types. Reject non-finite or unsupported values; JSON serialization can collapse NaN into null. Normalize nondeterministic transport fields explicitly; do not erase payout, state or variant differences.
+6. Cover losses, boundary wins, max-win paths, features, buys, stopping policies and multi-step incremental payments. Keep boundary fixtures permanently; add cases after defects instead of arbitrary quarterly rotation.
+7. Gate CI on exact canonical comparison. Intended behavior changes require explicit fixture regeneration and review of input/output diffs plus certification implications; never overwrite mismatches automatically.
 
 ## Pitfalls / red flags
-- Nondeterminism leaks: unseeded RNG, `Date.now`, map/JSON key-order drift, float formatting, locale — all produce phantom diffs. Canonicalize serialization.
-- Auto-overwriting goldens on mismatch (e.g. blanket `--update`) silently launders real regressions — regeneration must be explicit and diff-reviewed.
-- Not logging the seed/entropy → a failure is unreproducible and certification is invalid.
-- Comparing parsed objects with loose equality instead of the exact serialized bytes hides precision and ordering bugs.
-- One frozen seed forever: rotate, and keep boundary/max-win seeds in the set.
-- Client-side replay: goldens must come from server-authoritative resolution, never client-computed outcomes.
+
+Seed-only replay with changing draw order; cheat predicates accepted as output assertions; loose comparisons; undocumented canonicalization; production RNG or future-outcome traces exposed by test tooling.
 
 ## Verification
-- Run the suite twice on an unchanged tree: identical pass, zero diffs (proves determinism, not luck).
-- Introduce a deliberate off-by-one in payout logic: the gate must fail on the affected seeds.
-- Confirm the pre-commit hook blocks a commit on any byte mismatch, and that each golden carries its seed + entropy for replay.
+
+Run unchanged fixtures twice. Inject payout-only, requested-limit, extra-draw, missing-draw and unused-input changes; each relevant fixture must fail. Confirm request boundaries, zero payouts and complete state transitions are compared.
+
+Golden replay proves reproducibility, not player fairness. `fair-verify` must use the player's pre-bet saved commitment, player-generated client seed and contiguous accepted-bet nonces; missing evidence is UNVERIFIABLE, never PASS.

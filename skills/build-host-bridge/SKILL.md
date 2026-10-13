@@ -1,36 +1,38 @@
 ---
 name: build-host-bridge
-description: Use when integrating a game into an operator shell - a connector SDK + one-way postMessage notify (slots) or an inline mount (minigames) - with strict session bracketing. Keywords operator integration, connector SDK, postMessage, iframe, host bridge, session.
+description: Use when integrating a game with an operator shell, connector SDK, iframe or inline mount, defining postMessage contracts, or diagnosing host-session, reconnect and remount failures.
 ---
 
 # build-host-bridge
-> **Core insight:** Slot play is RGS-direct via the connector SDK; the parent `postMessage` channel is send-only notify, never the play transport — never await a result posted back. Origin-validation belongs to the host consumer, not the send-only slot.
+> **Core insight:** A host bridge follows a verified transport and lifecycle contract; presentation events never authorize money movement or determine round completion.
 
 ## When to use / When NOT
-- Use when: wiring a finished game into an operator/RGS shell — slots via a global connector SDK (+ one-way notify), minigames via inline DOM mount — bracketing every round with start/end session calls.
-- NOT for: in-game payout/RTP logic (server-authoritative; → `math-rtp-modeling`); wallet ledger (→ `build-wallet-and-money`); per-round game state (→ `build-game-flow`).
+
+- Use for operator embedding, transport adaptation and host lifecycle integration.
+- NOT for payout math, wallet accounting or wagering state machines; use `math-rtp-modeling`, `build-wallet-and-money` and `build-game-flow`.
 
 ## Default stack (+ escape hatch)
-Default: TS + a host-provided global connector SDK (slotify-style) for slots + React `createRoot` for inline minigame mounts. Other shells: any global connector that calls the RGS directly (slots), or any DOM mount + custom-event bus (minigames). Keep the host contract (connector API, notify names, session lifecycle) identical across frameworks.
+
+TypeScript adapter + PixiJS/Phaser client + Node RGS; exact integer money atoms. Other stacks map transport, event schemas, mounting and teardown to the same verified shell contract. Choose iframe or inline embedding from that contract, not game genre.
 
 ## Process
-Pick the bridge by game type — two distinct contracts, not variants of one:
 
-1. **Slots → connector SDK (RGS-direct) + one-way notify.** The game (in an iframe) loads a host-provided global connector SDK (e.g. slotify `window.connector`, a separate non-bundled script) and calls the RGS **directly** for play: `create`/`authenticate`/`info`/`play`/`replay`. The parent shell does NOT broker balance/bet/spin and posts nothing back. Separately, the iframe fires **one-way** notifications to the parent — `PostMessageToParent('spinStart', { bet })` then `PostMessageToParent('spinEnd', { wonAmount })` (target `'*'`); send-only, never consumes inbound. The client renders only the server's `playResponse`.
-
-2. **Minigames → inline mount, no iframe.** Mount into the host's `<div>` with `createRoot` (no iframe, no postMessage). Install one global `window.mwgame` exactly once, backed by a private `EventTarget` (guard re-installs so a second mount reuses the instance). Read config URL-query-first, then the host element's `data-*` attribute.
-
-3. **Session bracketing (both paths).** Open a session at round start (`startGameSession`). On ANY error, call `endGameSession` FIRST — before surfacing the error — so the host never sees a dangling session; treat it as unconditional cleanup.
+1. **Pin the actual contract.** Inspect client and host source/SDK documentation; record versions, mount ownership, config precedence, message direction, schemas, request correlation and session-hook semantics. SDK globals, notify names and session calls are (unverified) in this evidence set; WF's historical descriptions supply no current implementation proof.
+2. **Adapt server results.** Keep outcome authority on the server. MetaWin's production server (MSS) `docs/GDK_CONTRACT.md` `IGame.play` documents `win`, `state`, `data` and `next`; MSS contains game modules, not the client/host SDK implementation. Verify the platform envelope separately and expose only the documented public projection.
+3. **Separate lifecycle signals.** Distinguish display totals, newly payable amounts, animation completion and round completion. MSS `games/fruitMachine/index.ts` `spin` can return positive `data.totalWin`, `win: 0` and `next: ["gamble", "bank"]`. Continue according to authoritative state and the verified platform completion contract; animation or UI errors must not settle/refund a bet.
+4. **Enforce message boundaries.** For `postMessage`, use the verified destination origin. Any receiver validates origin, source, schema and request identity before dispatch. Treat notification-only versus request/response channels as explicit contract properties.
+5. **Implement owned cleanup.** Balance session hooks according to their documented meaning, including refusal, timeout, disconnect and remount. Release owned listeners/timers/mounts and preserve the original error if cleanup fails. A host-session cleanup call must not discard an accepted open wager.
+6. **Reconcile uncertain replies.** Resolve the existing platform request/round before enabling further paid actions; do not automatically submit a replacement wager. Identical retries preserve identity/content; the same key with different content must conflict. Money recovery belongs to `build-durable-settlement`.
 
 ## Pitfalls / red flags
-- Treating the parent `postMessage` channel as the slot play transport, or awaiting a result posted back — slots call the RGS directly via the connector SDK; `postMessage` is send-only notify. (Origin/source validation belongs to the CONSUMER — the host — not the send-only slot game.)
-- Installing `window.mwgame` per-mount instead of once → duplicate listeners, leaked `EventTarget`s.
-- Letting the client decide the outcome from the bet — the settled result is always the server's; animation is cosmetic.
-- An error path returning without `endGameSession` → orphaned sessions, stuck balances.
-- Reaching for an iframe in a minigame, or routing slot **play** through `postMessage` rather than the connector SDK (postMessage is notify-only).
-- Hardcoding config, ignoring URL-query-first → data-attr precedence.
+
+- Assuming transport, config precedence or session APIs from game genre.
+- Trusting wildcard destinations or unchecked inbound messages.
+- Declaring funds credited from a displayed win or animation-end event.
+- Treating every error as round closure; duplicate mounts or replacement bets after timeouts.
 
 ## Verification
-- Slots: a spin calls `connector.play` → RGS and renders the returned `playResponse`; exactly one one-way `spinStart{bet}` then `spinEnd{wonAmount}` to the parent; the game never consumes an inbound result.
-- Minigames: `window.mwgame` installs once (re-mount does not re-create it); config resolves from query string, then data-attr.
-- Force an error mid-round; confirm `endGameSession` fires before the error surfaces — no session left open.
+
+- Retain versioned host/client contract evidence and integration traces for paid actions, continuation, pending display wins, terminal zero wins, errors and reconnects.
+- Exercise repeated mount/unmount, invalid message origins/sources, late replies and identical/conflicting retries; prove no extra debit, credit or cancellation.
+- Mock tests cannot establish the real SDK's behavior. Missing client/host source or integration evidence remains (unverified).

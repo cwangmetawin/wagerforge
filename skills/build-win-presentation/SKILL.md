@@ -1,33 +1,33 @@
 ---
 name: build-win-presentation
-description: Use when building win presentation - tiering (big/mega/epic by x-bet threshold), currency count-up, win-line lifecycle, and a data-driven responsive scene graph. Keywords win presentation, big win, count up, win lines, scene graph.
+description: Use when building win tiers, currency count-ups, win-line lifecycles or responsive celebration layouts, especially when display totals differ from credited or pending winnings. Keywords win presentation, totalWin, clientWin, big win, count up, win lines.
 ---
 
 # build-win-presentation
-> **Core insight:** Win presentation is read-only theatre over `totalWin`: tier, count-up, and lines are derived from the settled server value, never inputs to it — a too-low band hides cash but cannot shrink the credited win.
+> **Core insight:** Display totals drive read-only celebration; `response.win` is this call's credited amount, while a positive non-terminal `totalWin` may still be pending and lost.
 
 ## When to use / When NOT
-- Use when: choosing a win tier, animating a currency count-up, driving win-line show/hide, or laying out the celebration scene responsively.
-- NOT for: computing win amount or RTP (server-authoritative — see math/RGS skills); reels or symbols (sibling `build-*` skills); asset packing (`asset-pipeline`).
+
+- Use when choosing tiers, animating count-ups, highlighting wins or laying out celebrations.
+- NOT for payout calculation (`build-game-server-rgs`), reel motion (`build-slot-reels-symbols`) or asset packing (`build-asset-pipeline`).
 
 ## Default stack (+ escape hatch)
-Default: TS + PixiJS; tiering/scene as JSON; count-up driven by your game's per-frame timeline (interpolate `elapsed/duration`), NOT a tween lib (real games ship no GSAP). Other stacks: GSAP/your tween engine is an acceptable escape hatch; PixiJS containers→your display tree; band config and scene JSON stay engine-agnostic.
+
+Default: TypeScript + PixiJS/Phaser, Node server, exact integer/decimal money; presentation bands/layouts in config and an injected currency formatter. Other stacks map containers to their display tree and count-ups to their timeline/tween engine. MSS supplies server contracts, not evidence for a particular frontend library or layout schema.
 
 ## Process
-1. **Tier selection (presentational only).** Keep a descending-ordered band config: `winThresholds[{ name, threshold, isBigWin?, isMegaWin?, isEpicWin?, isMidWin?, isLowWin?, isBoring?, noCelebration?, loopDur, loopFrames }]` where `threshold` is a `bet` multiple and tier is set by boolean flags (not an `action` string). Pick the highest band where `totalWin >= threshold * bet`. Never changes the credited amount — `totalWin` is the server result.
-2. **Tier → action map.** Derive the action from the band's flags: `isBigWin/isMegaWin/isEpicWin` → big-win posting; max-win flag → max-win posting; else ordinary `PRESENT_WIN`; `noCelebration`/boring presents nothing special.
-3. **Count-up.** Interpolate from the prior running win (`server total − this win`, or 0) up to server `totalWin` over a band-driven duration, rendering each frame via an **injected currency handler** (symbol + grouping/decimals from session/auth currency — never hardcode). Big-win count-ups step `countFrom → countTo` across bands. Never format money inline.
-4. **Win-line / symbol lifecycle.** Payline games sequence each winning line: show line + symbol highlight, hold, then hide before the next — hold/loop durations server-parameterizable (band config or result, not a magic constant). Cascade/cluster-pay games instead drive per-symbol win states, not animated lines.
-5. **Scene graph.** Build the responsive scene from a flat layout JSON `{ layouts: { <container-name>: { landscape:{x,y,scaleX,scaleY}, portrait:{...} } } }`. A resizer iterates named containers and, on each resize/orientation change, reads `layouts[name][orientation]` and re-applies position/scale.
+
+1. Define an adapter from the game's documented display fields to display amount, increment/history, stake basis and pending/credited status. Keep these separate from `response.win`, the amount credited by that play call. MSS `games/fruitMachine/index.ts` `spin` returns positive `data.totalWin`, `win: 0` and `next: ["gamble", "bank"]`; `gamble` can later forfeit it.
+2. Reconcile cumulative display and incremental credits explicitly. MSS `games/zeus/gamePlay.ts` `playMain` stores continuation `win = total - baseWin`, while `totalWin`/`clientWin` remain cumulative. Do not add those totals to the wallet or count the base credit twice. Balance changes come from authoritative wallet responses.
+3. Choose the highest eligible band using the documented stake basis: `displayAmount >= threshold * referenceStake`. Configure thresholds and presentation events; handle zero-stake demo play without division. Buy-cost versus unit-stake labels must be explicit. Band flags/schema are application choices, never payout rules.
+4. Count from a documented previous display value to the new display target using configured duration. Derive `total - increment` only if that game's contract guarantees it. Label pending/at-risk winnings appropriately; a count-up does not prove settlement. Format every frame through the currency formatter without changing authoritative amounts.
+5. Highlight server-reported lines or symbol events: show, hold, hide; sequence cascades/cluster events according to the response. Hold/loop timing comes from presentation config unless the server contract supplies it. Do not infer or recalculate payline awards.
+6. Use immutable orientation layouts and cancel/reset count-ups, highlights and listeners on interruption. Skip finishes visuals only; continuation/terminal handling belongs to `build-game-flow`.
 
 ## Pitfalls / red flags
-- Letting the tier or count-up target decide or alter the win — it is cosmetic; the settled `totalWin` is always the server field.
-- Hardcoding currency symbol, decimals, or grouping instead of the injected currency handler (precision comes from auth).
-- Hardcoded animation/loop durations — must be parameterizable so server can tune timing.
-- Mutating the scene/band config in place; build new orientation layouts rather than editing shared objects.
-- Only testing landscape on desktop — verify portrait anchors on a real phone.
+
+Calling every positive total settled; balance updates from animated numbers; universal `totalWin` semantics; wrong stake denominator; treating band transitions as betting actions; assuming all games send timing or winning lines.
 
 ## Verification
-- Unit-test the tier selector: `totalWin` exactly at a band edge picks that band; just below picks the lower band; tier choice never mutates `totalWin`.
-- Snapshot the count-up's final formatted string for several currencies/locales via the injected currency handler.
-- Toggle portrait/landscape and confirm the resizer re-applies `layouts[name][orientation]` per container; win lines show then hide in order with no overlap.
+
+Cover pending positive total followed by loss/bank, cumulative total with incremental credit, band edges, demo/buy stake bases and currency precision. Assert presentation never mutates response money or triggers wallet credit. Verify final strings, highlight cleanup, skip endpoints and portrait/landscape layouts in the client; MSS server tests alone cannot prove these visuals.

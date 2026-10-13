@@ -1,37 +1,28 @@
 ---
 name: econ-ltv-cac
-description: Use when modeling player lifetime value vs acquisition cost - cohort forecasting, segmentation, and bonus ROI. Keywords LTV, CAC, cohort, retention, FTD.
+description: Use when forecasting player lifetime value, comparing cohort acquisition cost, evaluating promotional ROI, or discounting retained net gaming margin. Keywords LTV, CAC, FTD cohort, churn, discount rate, net margin.
 ---
 
 # econ-ltv-cac
-
-> **Core insight:** LTV is the lever, not CAC. Raise retained value upfront with per-segment offers; chasing cheap traffic buys low-LTV cohorts that collapse the ratio. And freebet stakes add zero deposit revenue.
+> **Core insight:** LTV is a discounted net-margin forecast with explicit cashflow timing; deposits and free grants are not gaming revenue, and a blended LTV:CAC ratio can hide losing cohorts.
 
 ## When to use / When NOT
-- Use when: forecasting cohort LTV, comparing to CAC, segmenting players, or sizing a dynamic offer for true acquisition ROI.
-- NOT for: pricing a single bonus / wagering requirement (→ `econ-bonus-design`); aggregate game RTP margin accounting (→ `math-rtp-modeling`).
 
-## Default stack (+ escape hatch)
-`scripts/ltv.mjs` exports `ltv({ monthlyMargin, churnRate })` (geometric-sum LTV = monthlyMargin / churnRate), `ltvCacRatio(ltvValue, cac)`, and `maxAcquisitionSpend({ ltvValue, targetRatio = 3 })` (max per-player spend holding target LTV:CAC). Other stacks: same model — group FTD cohorts, fit retention/spend curves, discount future net margin to present value.
+- Use for cohort forecasts, acquisition budgets, segmentation, and incremental offer ROI.
+- Not for pricing one bonus (`econ-bonus-design`) or deriving a game's RTP (`math-rtp-modeling`).
 
 ## Process
-1. Define the cohort by acquisition channel, geo, and device (axes that move retention and spend); anchor on first-time deposit (FTD) as the entry event.
-2. Project per-cohort LTV = discounted sum of expected net gaming revenue (house edge × wagering) minus bonus give-away over retained lifetime; fit retention/spend curves from cohort history, not a flat average.
-3. Compute CAC = acquisition spend ÷ FTDs for the cohort. iGaming CAC runs ~$280–$1,400/FTD; segment it, never average across channels.
-4. Evaluate LTV:CAC against the ~3:1 target. Below it, the cohort is over-priced or under-monetized; above ~5:1 you may be under-investing in growth.
-5. Optimize LTV UPFRONT: use per-segment offers that raise retained value rather than chasing the cheapest CAC. The lever is LTV, not acquisition price.
-6. Model freebet / campaign bets per the real contract (`@mini-games/studio` `Campaign type:'freeBets'`, `config{bets,amount,currency}` + `playerState{used,totalWin,amount}`): the STAKE is a fixed free grant that never settles to the native balance as a deposit, so it adds zero deposit revenue — count only its give-away/margin. Freebets are currency-locked (applied only when player currency == `config.currency`); attribute that margin to the campaign's native-currency cohort only.
+
+1. **Define the cohort and accounting.** Specify entry event, such as FTD, attribution window, channel, geography, device, currency, and observation/censoring period. Acquisition spend and cohort counts must share the same boundary. Reconcile authoritative money in exact integer atoms; convert only under a declared valuation policy (`build-wallet-and-money`).
+2. **Build net-margin cashflows.** Gaming margin is settled stakes minus game returns, with promotional and direct operating costs deducted once. Deposits are funding transfers, not revenue; free promotional stakes supply no deposit revenue. Record realized promotional cost through `econ-bonus-design`, preserving campaign/currency attribution without assuming an external campaign API. Use newly paid returns rather than cumulative display totals: MetaWin's production server (MSS) `games/tartarus/gamePlay.ts` `playMain` returns incremental continuation `win` separately from cumulative `totalWin/clientWin`.
+3. **Declare timing and model assumptions.** Fit retention and spend from cohort history. `scripts/ltv.mjs` `ltv({monthlyMargin, churnRate, discountRate=0})` assumes constant monthly margin M, constant monthly churn q, monthly discount d, and first margin at t=0: `LTV = M*(1+d)/(q+d)`. With d=0 this is M/q. If the first margin arrives at t=1, the corresponding model is `M/(q+d)`; do not shift timing silently. Uneven margins or retention require the explicit discounted survival-weighted sum instead.
+4. **Validate inputs and forecasts.** The helper requires finite signed margin, `0<q<=1`, and finite `d>=0`; negative margins remain visible. Estimate uncertainty, disclose censoring, and backtest against held-out mature cohorts. These finite-number helpers are analytical estimates, not authoritative money arithmetic.
+5. **Price acquisition explicitly.** `CAC = attributed acquisition spend / acquired cohort members`; an FTD cohort uses FTDs as denominator. `ltvCacRatio(ltvValue, cac)` requires finite positive CAC. `maxAcquisitionSpend({ltvValue, targetRatio=3})` divides forecast LTV by a positive planning ratio; 3 is a helper default, not an industry requirement. Negative LTV implies no positive acquisition budget under this model. Measure incremental margin and retention uplift from offers via `econ-ab-testing`.
 
 ## Pitfalls / red flags
-- Blended LTV:CAC hiding a money-losing channel inside a profitable average — segment.
-- Treating CAC as the only lever; the higher-leverage move is raising LTV upfront via segmentation and offers.
-- Counting freebet / campaign STAKES as deposit revenue: a free grant never settles to the native balance as a deposit. (Native is truth, fiat display-only — yet the WIN is still fiat-converted for display; don't confuse "no deposit settlement" with "no display conversion".)
-- Modeling freebet margin in the wrong cohort: campaigns are currency-locked to `config.currency`, so it belongs to that cohort only.
-- Flat retention/spend assumptions instead of cohort-fitted curves; ignoring discount on future revenue.
-- Optimizing CAC down at the expense of cohort quality (cheap traffic, poor retention) so LTV:CAC collapses.
+
+Blended cohorts; deposits counted as revenue; promotional spend counted in both forecast and CAC; double-counted wins; unsupported CAC/ratio benchmarks; invented Studio currency-lock contracts; optimistic extrapolation from immature cohorts; discounting t=0 margin.
 
 ## Verification
-- Per-segment LTV:CAC lands near 3:1 with cohort-fitted curves, not a blended number.
-- CAC inputs fall in $280–$1,400/FTD or are explicitly justified.
-- Freebet/campaign stakes contribute zero deposit revenue and never settle to the native balance as deposits; their margin is attributed to the `config.currency` cohort.
-- `scripts/ltv.mjs` reproduces a known cohort within tolerance: `ltv` from monthly margin and churn, `ltvCacRatio` vs CAC, `maxAcquisitionSpend` at the target ratio.
+
+Retain reconciled cohort inputs, timing/discount conventions, uncertainty and backtests. `ltv({monthlyMargin:100,churnRate:.1,discountRate:.05})` is approximately 700 under t=0 timing; verify numerical tolerance and invalid-input rejection with `scripts/ltv.test.mjs`. A ratio target is a decision input, not proof of profitability.

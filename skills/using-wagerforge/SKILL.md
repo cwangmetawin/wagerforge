@@ -1,32 +1,46 @@
 ---
 name: using-wagerforge
-description: Use when starting any iGaming, slot, or crypto-minigame task (RTP/house-edge math, provable fairness/RNG, RGS or wallet settlement, game economy, math/RNG QA, or gambling compliance) — routes to the right wagerforge skill, including the bundled generic engineering-process skills.
+description: Use when starting any iGaming, slot, or crypto-minigame task (RTP/house-edge math, provable fairness/RNG, RGS or wallet settlement, game economy, math/RNG QA, or gambling compliance) — routes to the right wagerforge domain skill.
 ---
 
-# Using wagerforge
+# using-wagerforge
 
 > **Core insight:** The prefix router is the only path that loads the law-bound (C1–C14, server-authoritative) corrections; "just coding the payout/RNG" while skipping it is precisely how refuted folk-math ships.
 
-wagerforge is the domain layer for building real-money slot & crypto-minigame software. It **bundles** the generic engineering-process skills (vendored from superpowers, MIT — see `THIRD-PARTY-NOTICES.md`); wagerforge owns the iGaming WHAT.
+wagerforge is a domain-only skill library for real-money slot and crypto-minigame software, for Claude Code and Codex alike. It ships no generic process skills: design, plan, test and review with the process your setup already has; wagerforge supplies the iGaming WHAT inside that process.
 
-## Routing
+## Routing — pick the task, open the named skill
 
-**Generic engineering process → the bundled `wagerforge:` process skills** (do NOT reimplement):
-- ideation/design → `wagerforge:brainstorming`
-- plan a spec → `wagerforge:writing-plans`
-- execute → `wagerforge:subagent-driven-development` / `wagerforge:executing-plans`
-- TDD → `wagerforge:test-driven-development`
-- debugging → `wagerforge:systematic-debugging`
-- review → `wagerforge:requesting-code-review` / `wagerforge:receiving-code-review`
-- authoring a wagerforge skill → `wagerforge:writing-skills`
+| Task | Start with |
+|---|---|
+| RTP, house edge, paytables, reels, volatility | `math-rtp-modeling`, `math-paytable-config`, `math-volatility-tuning` |
+| One mechanic's math | `math-lines-ways-cluster`, `math-cascade-tumble`, `math-hold-and-win`, `math-guaranteed-payout-floor`, `math-crash-family`, `math-ladder-and-progression`, `math-conditional-value-games`, `math-plinko-lottery`, `math-table-game-edge`, `math-fixed-odds-event-markets`, `math-feature-buy-and-jackpot` |
+| How many simulated rounds | `math-montecarlo-simulation` |
+| Provable fairness, RNG, seeds, verifiers | `fair-rng-core`, then `fair-outcome-mappers`, `fair-commit-reveal`, `fair-hash-chain`, `fair-shoe-draw-ledger`, `fair-verify`, `fair-verification-ui` |
+| Server, round state, settlement, money | `build-game-server-rgs`, `build-instant-crash-games`, `build-durable-settlement`, `build-wallet-and-money`, `build-signed-realtime-settlement`, `build-live-table-games`, `build-bankroll-run-games`, `build-skill-wager-games`, `build-prediction-market-games` |
+| Scaffold, client, shipping | `build-minigame-from-scratch`, `build-slot-reels-symbols`, `build-win-presentation`, `build-game-flow`, `build-asset-pipeline`, `build-mobile-performance`, `build-host-bridge`, `build-deploy-and-rtp-variant` |
+| Bonus, jackpot, A/B, LTV, economy, tournaments | `econ-*` |
+| Proving it works | `qa-math-validation`, `qa-monte-carlo-cert`, `qa-game-fingerprints`, `qa-regression-golden`, `qa-game-rules-contract`, `qa-fairness-verification`, `qa-rng-statistical`, `qa-settlement-integrity`, `qa-cosmetic-sim-guard`, `qa-load-and-observability` |
+| Responsible gaming, certification, audit, privacy | `comp-*` |
 
-**Domain task → wagerforge skill by prefix:**
-- probability/RTP/paytable → `math-*`
-- provable fairness, RNG, seeds → `fair-*`
-- engine, RGS, wallet, settlement, deploy → `build-*`
-- bonus, jackpot, A/B, LTV, liveops → `econ-*`
-- simulation/cert/regression/load testing → `qa-*`
-- responsible gaming, certification, audit → `comp-*`
+## Route by mechanism, not by name or renderer
+
+A game's name, theme or renderer never decides its money or fairness model; find the mechanism first.
+
+| Mechanism | Skill |
+|---|---|
+| Paylines, ways, connected ways, clusters, count-anywhere | `math-lines-ways-cluster` (tumbles: `math-cascade-tumble`) |
+| Retained cells and respins | `math-hold-and-win` |
+| "100k" currency floor vs headline max multiplier | `math-guaranteed-payout-floor` vs `math-plinko-lottery` |
+| Hi-Lo, offers, dig-or-bank, fair continuations | `math-conditional-value-games` |
+| Fixed-odds quotes vs pooled markets | `math-fixed-odds-event-markets` vs `build-prediction-market-games` |
+| One buy-in, many internal hands | `build-bankroll-run-games` |
+| Card shoes, hole cards, timed shared tables | `fair-shoe-draw-ledger`, `build-live-table-games` |
+| Player skill decides the result | `build-skill-wager-games` |
+| An external server reports the result | `build-signed-realtime-settlement` |
 
 ## Order
-Process-before-implementation holds: brainstorm → plan → execute, with wagerforge domain skills invoked **inside** implementation. User instructions (CLAUDE.md) outrank skills.
+
+Specimens cited as `MSS <path>` point at MetaWin's production game server (metawin-slot-server), the read-only reference these skills are calibrated against; the rule stated first is the portable one.
+
+Design and plan first; implement with the domain skills open; prove it with the matching `qa-*` skill before calling anything done. The server decides every outcome and payout; the client only renders. User instructions (CLAUDE.md / AGENTS.md) outrank skills.

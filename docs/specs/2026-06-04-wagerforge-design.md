@@ -1,5 +1,7 @@
 # wagerforge — Design Spec
 
+> **Status (2026-10-12, v0.3.0):** superpowers is no longer a dependency and is not bundled — the companion model in §1, §4 and the soft-check in §9/§11 are superseded. wagerforge is domain-only and loads in both Claude Code and Codex. The correctness constraints C1–C14 (§7) remain law.
+
 *Status: draft for review · Date: 2026-06-04 · Author: Chao + Claude*
 *Grounding research: [`docs/research/2026-06-04-research-dossier.md`](../research/2026-06-04-research-dossier.md) (43-agent workflow). Security: [`docs/SECURITY-NOTE.md`](../SECURITY-NOTE.md).*
 

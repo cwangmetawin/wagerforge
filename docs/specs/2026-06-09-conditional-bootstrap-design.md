@@ -1,5 +1,7 @@
 # wagerforge — Conditional SessionStart bootstrap (dual-install safe) — Design v2
 
+> **Superseded (2026-10-12, v0.3.0):** superpowers was removed from wagerforge. Kept as history only; do not implement.
+
 - **Date:** 2026-06-09
 - **Status:** Reworked after 10-expert panel (`docs/research/2026-06-09-conditional-bootstrap-panel.md`, verdict: rework-spec-first). Pending re-confirmation → implementation plan.
 - **Author:** Chao Wang

@@ -1,37 +1,29 @@
 ---
 name: qa-cosmetic-sim-guard
-description: Use when adding a CI guard that a game visual or physics simulation matches the server-decided outcome - e.g. Plinko physics landing equals the server bucket index. Keywords cosmetic sim, physics guard, visual regression, server outcome.
+description: Use when checking that Plinko physics or other cosmetic simulations visibly match a server-resolved bucket without influencing payout.
 ---
 
 # qa-cosmetic-sim-guard
-
-> **Core insight:** Snapshot the physics-derived bucket BEFORE the client overwrites it with the server `multiplierIndex`. Asserting after compares the server index to itself — the shipped Plinko "check" does exactly this and catches nothing.
+> **Core insight:** Compare the independently measured visual landing with the server bucket before any correction; payout always follows the server-resolved result.
 
 ## When to use / When NOT
-- Use when: a game runs a physics/visual sim (Plinko balls, wheels, dice) but the SERVER decides the outcome, and you need a guard that the simulated landing equals the server bucket.
-- NOT for: validating server math (→ `qa-monte-carlo-cert`, `qa-math-validation`); generic image-diff UI regression (→ Playwright/screenshot).
 
-## Default stack (+ escape hatch)
-Default: TS + Matter.js (or PixiJS physics) + Node test runner. Other stacks: any deterministic 2D physics engine — map "engine step" → fixed-dt tick, "bodies" → static pegs + 1 ball.
+- Use for cosmetic physics, wheels or dice that present a server-decided outcome.
+- Server math: `qa-math-validation`; genuinely player-controlled wager outcomes require a separate authority model (skill-wager games: `build-skill-wager-games`).
 
 ## Process
-1. **Server is authoritative.** The round response carries the bucket `multiplierIndex`; the client must OVERWRITE the physics-derived landing with it before paying or animating. (Real: `mini-game-plinko-100k/.../Canvas.tsx` derives index from `ball.position.x`, then `index = ball.multiplierIndex`.)
-2. **Determinism model.** Production Plinko does NOT replay one trajectory per index; it rotates a POOL of pre-baked launch-X points keyed `[rows-8][multiplierIndex]` (`PlinkoProvider.tsx` does `pool.shift()`/`pool.push()` per drop), so the SAME index starts from a DIFFERENT x each drop. Reproducibility is per-drop: fixed launch-x + static immovable pegs + fixed timestep (`Runner.create({ isFixed: true, delta: 1000/60 })`) ⇒ same path. Your guard FIXES launch-x, never rotates.
-3. **Snapshot the PHYSICS landing bucket** from the settled ball's x BEFORE the step-1 overwrite; assert it equals `multiplierIndex`.
-4. **Two asserts, one helper:**
-   - dev-only runtime assert (throws/logs in dev, no-op in prod) to catch drift early.
-   - CI test that, per index, drops a fixed-launch-x seeded ball asserting `physicsDerivedIndex === multiplierIndex`.
-5. **Fail the build** on mismatch. A degenerate check often exists but is BROKEN: `Canvas.tsx` compares the bucket label to `multipliers[index]` AFTER `index` was reassigned to the server index, so it can NEVER catch drift; `plinko-chao` ships the SAME broken check (`Canvas.tsx:278-295`). Both compare the server index to itself, so regressions (moved peg, changed gravity/dt, stale launch-x table) ship silently.
+
+1. Define server result fields and their presentation mapping before building the guard. MetaWin's production server (MSS) `games/plinko100k/index.ts` `settle` resolves `multiplierIndex`, optional ball multiplier, combined capped multiplier and `win`. Render their server-resolved meaning; physical landing never authorizes a payment.
+2. Inspect the actual client implementation. Named Canvas/provider files, launch pools and engine settings are unavailable in MSS and remain (unverified); do not infer their behavior from the server. Identify where the simulated position becomes a bucket and where server-result correction occurs.
+3. Capture the raw physics-derived bucket before overwriting position, index or label with server data. Compare that snapshot to the server `multiplierIndex`, with rows/risk/layout included in the context. A comparison after correction can compare a value with itself.
+4. Define reproducible per-drop inputs: actual launch parameters, fixed timestep, geometry, collision settings and layout. If launch pools exist, test all supported entries or document sampling coverage; do not rotate unspecified pool state inside a reproducibility test. A fixed launch point alone does not prove engine determinism across runtimes.
+5. Cover every supported bucket and layout, including extremes; test ball-multiplier presentation independently from landing. Keep runtime drift diagnostics separate from the authoritative payment path. In production, correct or degrade the presentation to the server result while preserving the settled receipt; a cosmetic mismatch must not re-roll or repeat the bet.
+6. Record server receipt, raw landing, corrected display and simulation inputs together. Prevent test capture from exposing private state or future outcomes.
 
 ## Pitfalls / red flags
-- Treating the physics result as the payout source — it is cosmetic; the server index wins.
-- Asserting AFTER the overwrite (index vs itself) — snapshot the physics bucket BEFORE `index = ball.multiplierIndex`.
-- Pre-baked launch-X tables (`physicsPattern.ts`, ~456 KB of `{x, y:-4}` points; header may mislabel them a "trajectory dataset") baked against frozen peg/gravity/restitution constants with NO CI guard: change a constant and launch-x lands in the wrong bucket.
-- Variable-dt stepping or rotating the seed pool in the test → non-reproducible, flaky CI.
-- Dynamic/movable pegs, or spawn tied to viewport size → trajectory drifts per machine.
-- Asserting a screenshot, not the bucket index — slow, brittle, misses the invariant.
-- No prod escape hatch: a hard throw in prod turns a cosmetic glitch into a broken round — degrade to the server index.
+
+Payout derived from physics; assertions after server correction; screenshots without bucket evidence; viewport-dependent geometry; variable timestep; assuming one launch point covers every pool entry; claiming a verified client bug from MSS alone.
 
 ## Verification
-- The CI test loops every `multiplierIndex`, simulates, asserts the settled bucket matches; perturbing peg, gravity, or `dt` fails it.
-- The dev assert fires when sim and server disagree; production renders the server index regardless.
+
+Retain a coverage matrix and per-drop raw-bucket comparisons. Perturb geometry, gravity, launch parameters or timestep and show the affected guard detects drift. Inject a mismatch and verify production presentation converges to the server result with exactly the original payment. Mark browser/client execution unverified until those artifacts exist.

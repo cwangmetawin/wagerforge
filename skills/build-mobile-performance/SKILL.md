@@ -1,38 +1,44 @@
 ---
 name: build-mobile-performance
-description: Use when optimizing a web game for mobile - frame budget, draw-call batching, texture compression, and memory - profiling on real low/mid-range Android. Keywords mobile performance, draw calls, frame budget, texture compression, batching.
-constraints: C10
+description: Use when a mobile web game janks, runs out of memory, loses its graphics context, or needs frame-time, draw-call, overdraw, texture and sustained-play profiling on real target devices.
+metadata:
+  constraints: C10
 ---
 
 # build-mobile-performance
-
-> **Core insight:** On Android GPU/CPU share unified RAM, so "VRAM" is no separate budget; batching cuts CPU driver submissions, not GPU load — and overdraw, not call count, is what actually stutters.
+> **Core insight:** Mobile draw-call and texture-memory budgets are soft and workload-dependent; optimize the bottleneck measured on real target devices while preserving the server-resolved outcome.
 
 ## When to use / When NOT
-- Use when: a web game janks, stutters, or OOMs on phones, or you're budgeting frame time, draw calls, textures, or memory for mobile.
-- NOT for: desktop-only perf; settled-outcome correctness (→ `build-game-server-rgs`); asset/atlas authoring (→ `game-art`).
+
+- Use for mobile rendering, resource pressure and sustained gameplay profiling.
+- NOT for asset authoring (use `build-asset-pipeline`) or settlement correctness (use `build-game-server-rgs`).
 
 ## Default stack (+ escape hatch)
-Default: TS + PixiJS 7 (pixi-spine 4; up to 16 textures/batch), WebP atlases via tex-packer (the only format MetaWin's 14 slots ship), Spine only for animating symbols, static at rest. NOTE: WebP is transfer/disk compression — it decodes to full RGBA8 in VRAM, so does NOT shrink VRAM. KTX2/Basis Universal (4–10× smaller VRAM) is the right *concept* for a true VRAM cut but isn't used here; reach for it only if VRAM is the proven bottleneck. Other stacks, same idea: batch shared textures, pool objects, cap atlas size. Map: Pixi batch ↔ Phaser/Three draw-call merge; KTX2 ↔ ASTC/ETC2.
+
+TypeScript + PixiJS/Phaser client + Node server; exact integer money atoms. Other engines map rendering submissions, resource lifetimes and quality settings to their profiler. Renderer versions, batching limits and texture formats require target-client evidence (unverified).
 
 ## Process
-1. Set targets first: ~16ms frame budget (60fps) on your shipped device class; ~50–100MB assets on mid-range phones. All numbers are heuristics, not laws.
-2. Profile on a real 2–3-year-old Android (e.g. Snapdragon 6/7), never a flagship or emulator — the desktop↔low-end gap is 5–10×.
-3. Measure draw calls AND overdraw, not just call count. Cut calls by atlasing/batching shared textures; cut overdraw by reducing layered transparency.
-4. Cut VRAM as real slots do: cap the MOBILE atlas page below GPU MAX_TEXTURE_SIZE (e.g. 2016 under the 2048 legacy limit, vs 4096 desktop), spilling to multi-page sheets; convert idle Spine skeletons to static sprites (shared texture, batched, no per-frame solve); destroy filters (ColorMatrixFilter) and per-symbol RenderTextures after use, clearing refs.
-5. Pool sprites; run Spine only WHILE a symbol animates, reverting to static at rest (a sustained-load iPhone GPU can drop the WebGL context at ~30 live skeletons @60fps).
-6. Profile a SUSTAINED session (autoplay/long spin), not first seconds — startup 60fps ≠ sustained.
+
+1. **Pin the evidence boundary and outcome fixtures.** Client optimization must preserve server results. MetaWin's production server (MSS) `games/coinUp/gamePlay.ts` `buildResponse` returns grids, bonus data and a resolved win. MSS supplies no corresponding renderer or device/GPU measurements; those remain (unverified).
+2. **Define targets before testing.** Agree device tiers, browser versions, representative scenes, session duration and frame-time/stability goals. Separate downloaded bytes, decoded texture resources and live runtime allocations; record how each is measured.
+3. **Locate the bottleneck.** Capture main-thread/frame times, rendering submissions, overdraw/shader work, uploads and memory using the target device's available profiling tools. Include loading, long frames, sustained gameplay and thermal behavior. Neither call count nor overdraw alone identifies every slowdown.
+4. **Change only measured costs.** Evaluate atlasing/batching for submission overhead, fewer transparent layers for overdraw, pooling for allocation churn, or lower resolution for proven resource pressure. Re-measure the complete scene; smaller files alone establish no runtime-memory saving.
+5. **Check resource ownership.** Track allocations through repeated rounds, remounts, background/foreground transitions and graphics-context recovery. Release owned resources at the correct lifecycle boundary; preserve resources still shared by active objects.
+6. **Keep quality changes cosmetic.** Preserve authoritative result snapshots, required controls, amounts and rules. Simplified animation must not select a continuation, place another bet or change credit. Follow `build-game-flow` for wagering transitions.
 
 ## Correctness constraints
-- **C10:** Mobile draw-call and VRAM thresholds are SOFT and workload-dependent — 800 well-batched calls can run fine while 150 heavy-overdraw calls stutter, so never treat a fixed call/VRAM number as a pass/fail gate. Android uses UNIFIED memory (GPU/CPU share RAM), so VRAM isn't a separate budget. Batching/atlasing is primarily a CPU optimization (fewer driver submissions), not a GPU one. Always profile on real low/mid-range Android against a 30fps floor — never assume desktop or emulator results transfer.
+
+- **C10:** Draw-call/VRAM thresholds are soft and workload-dependent. Android GPUs mostly share unified memory with the CPU, so texture allocations are not a separate VRAM budget. Budget per device tier and profile real low/mid-range Android; include GPU allocations in overall device memory pressure. Measure submission cost separately from overdraw and resource residency. Fixed call counts or MB values do not establish performance. See WF `docs/specs/2026-06-04-wagerforge-design.md` §7.
 
 ## Pitfalls / red flags
-- Testing only on Chrome desktop or flagship phones; trusting emulators.
-- Treating a draw-call/VRAM number as a hard gate (C10).
-- Declaring victory on startup fps; ignoring sustained thermal throttle.
-- Assuming WebP/PNG atlases shrink VRAM — they decode to RGBA8; cap atlas size or use KTX2/ASTC for a real cut.
-- Per-frame allocations (no pooling) causing GC pauses.
+
+- Universal texture/page/batch limits or unsupported compression ratios.
+- Startup-only, flagship-only or emulator-only measurements.
+- Inferring texture residency from download size.
+- Treating server simulation/tick timings as client rendering evidence.
 
 ## Verification
-- On target low/mid Android, a sustained autoplay loop holds ≥30fps (floor), frame time tracked, not eyeballed.
-- Draw calls AND overdraw measured via a frame profiler; asset memory within 50–100MB.
+
+- Retain before/after profiles with device, browser, renderer revision, scene, duration, frame-time distributions, memory peaks and context failures; assess the agreed per-tier targets.
+- Replay the same server fixtures across quality settings; verify result order, displayed amounts, controls and continuations remain correct.
+- Source inspection and local builds cannot prove mobile performance. Missing real-device measurements remain (unverified).

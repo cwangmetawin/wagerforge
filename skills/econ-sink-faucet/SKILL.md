@@ -1,35 +1,28 @@
 ---
 name: econ-sink-faucet
-description: Use when balancing a game or casino economy - sinks (wagering, house edge) vs faucets (wins, bonuses, loyalty) - and monitoring margin health. Keywords sink, faucet, economy balance, margin, churn.
+description: Use when reconciling player balance flows, comparing promotional outflows with expected gaming margin, or diagnosing cohort-level economy leaks. Keywords sink, faucet, settled stakes, cashable promotions, theoretical margin, ledger reconciliation.
 ---
 
 # econ-sink-faucet
-
-> **Core insight:** The sink is `Σ wager × houseEdge`, not turnover — and theoretical-loss-based winback is a faucet that scales off that same edge, so tightening RTP raises both and partly self-cancels.
+> **Core insight:** Reconcile gross stakes against game returns, or compare promotions alone with expected edge; adding game wins after netting them into the sink counts them twice.
 
 ## When to use / When NOT
-- Use when: auditing whether faucets (wins, bonuses, loyalty) and the wagering sink are in balance per cohort, or diagnosing margin compression / bonus-driven churn.
-- NOT for: deriving a single game's RTP/house edge (→ `math-rtp-modeling`); per-offer bonus cost and wagering requirements (→ `econ-bonus-design`); LTV:CAC forecasting (→ `econ-ltv-cac`).
 
-## Default stack (+ escape hatch)
-Default: Node + decimal.js over a server-side ledger; cohort rollups in SQL. Money is float-safe (integer minor units or decimal). Other stacks: same identity — sum signed ledger flows per cohort over a rolling window; map your wins/bonus/loyalty events to faucets and your settled wagers to the sink.
+- Use for cohort/currency flow reconciliation, promotional budget coverage, and margin-leak diagnosis.
+- Not for individual bonus pricing (`econ-bonus-design`), theoretical game RTP (`math-rtp-modeling`), or lifetime forecasts (`econ-ltv-cac`).
 
 ## Process
-1. Classify every economy flow. Faucets (value entering player balances): wins, bonus credits, and the loyalty stack — instant rakeback/"Theo-based" winback, daily/weekly/monthly cashback, rank-up, streak, reload. Sink (value permanently exiting): the house edge realized on settled wagering — i.e. `sink = Σ wager × houseEdge`, not gross wager turnover.
-2. Pick a cohort key (channel/geo/device/signup-week) and a rolling window; never aggregate the whole book — a healthy whale cohort hides a bleeding bonus-hunter cohort.
-3. Compute per cohort: total faucet value vs total sink volume. Health ratio `faucetValue / sinkVolume`. > 1 means more value is dispensed than the edge captures — margin erodes. Persistently « 1 with high churn means the offering feels too tight.
-4. Trend the ratio over time; alert on rate-of-change, not just level. A ratio drifting up week-over-week is the early margin-compression signal.
-5. Attribute moves: split faucet into wins vs bonus vs each loyalty program separately (winback / cashback / rank-up / streak are independently feature-flagged and tuned) so you know which lever caused the imbalance before changing RTP, bonus generosity, or loyalty accrual.
+
+1. **Set the accounting boundary.** Choose cohort, currency, and window; record opening/closing balances, deposits, withdrawals, escrow, pending credits, and transfers. Authoritative amounts use exact integer atoms; reject off-grid inputs (`build-wallet-and-money`). MetaWin's production server (MSS) `common/settlementModule/money.ts` `majorToAtoms` parses the decimal representation and refuses amounts finer than the wallet grid; its legacy float specimens are not a money-arithmetic template.
+2. **Reconcile realized flows.** Let S be settled stake debits, W credited game returns, and P operator-funded cashable promotional/loyalty value, each counted once. Without external funding or pending-liability changes, `playerDelta = W + P - S` and `houseMargin = S - W - P` before operating costs. Add deposits minus withdrawals and other identified transfers to player movement when present. Reverse refunded stakes; rejected bets create no settled turnover. Keep open bets and pending payouts as liabilities, not losses. Derive fate from durable decisions; use `qa-settlement-integrity` for replay/refund handling.
+3. **Keep expectation separate.** Theoretical margin is `H = sum(stake*(1-activeRTP))`, with the correct action/stake/strategy model (`econ-rtp-cost`). It is not realized ledger loss. If H>0, promotional coverage is `P/H`: game wins are excluded from that numerator because H already nets expected wins. At H<=0 the ratio is undefined or misleading; report signed expected margin and promotional spend separately.
+4. **Attribute promotional flows once.** Separate bonus conversion, cashback, loyalty, and other observed programs; restricted bonus face value is not automatically cashable spend. If a verified loyalty contract pays fraction a of theoretical loss, model its outflow jointly with H: changing edge changes both. Do not assume MSS or an external host implements a particular winback stack, feature flag, or accrual formula.
+5. **Diagnose by cohort and uncertainty.** Compare realized margin with expected margin, payout concentration, promotional spend, and liability changes. High-volatility tail outcomes can dominate short windows. Trend reconciled flows and investigate anomalies before changing RTP; a low coverage ratio or high churn alone does not establish causation. Validate interventions through `econ-ab-testing`.
 
 ## Pitfalls / red flags
-- Counting gross wager turnover as the sink — only the house edge actually exits; using turnover wildly overstates sink and hides leaks.
-- Whole-book aggregation masking a toxic cohort; always slice by cohort.
-- Treating sticky/non-withdrawable bonus credit as realized faucet value before it converts — overstates faucets.
-- Ignoring loyalty/cashback as a faucet; it is real outflow that compounds, and it is a stack of separately-toggled programs, not one line item.
-- Modeling rakeback/"Theo-based" winback as a fixed cost: it is a fraction of theoretical loss (wager × houseEdge), so it auto-scales with the sink — tightening RTP raises both the realized edge and this faucet, partly cancelling the margin gain; model the two together.
-- Reacting to one noisy window instead of the trend; faucet variance is high at low volume.
-- Tightening RTP to fix a ratio that bonuses actually caused — fix the right lever.
+
+Wins in both gross-credit and net-edge accounting; turnover mistaken for profit; expected edge called realized loss; refunds counted as gaming wins; pending credits treated as free margin; noncashable grants valued as withdrawals; whole-book averages hiding loss-making cohorts.
 
 ## Verification
-- Reconcile: `Σ faucets − sink` per cohort should match the cohort's net ledger movement (house P&L) over the window; a gap means a flow is misclassified or double-counted.
-- Backtest the alert threshold against a past margin-compression episode — it should have fired before margin moved.
+
+For S=100, W=96, P=0, player movement is -4 and house margin +4; promotional coverage is zero, not 24. Reconcile exact atom balances including external transfers and liabilities, compare expected/realized margin separately, and backtest alerts against retained ledger evidence.

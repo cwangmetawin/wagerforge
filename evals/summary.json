@@ -1,0 +1,263 @@
+{
+  "date": "2026-10-12",
+  "claude": {
+    "model": "sonnet (judge sonnet)",
+    "cases": [
+      {
+        "name": "c01-reel-weight-rtp",
+        "with": 1,
+        "without": 1
+      },
+      {
+        "name": "c02-cached-balance",
+        "with": 1,
+        "without": 1
+      },
+      {
+        "name": "c03-no-deposit-bonus",
+        "with": 1,
+        "without": 1
+      },
+      {
+        "name": "c04-high-volatility-sample",
+        "with": 1,
+        "without": 0
+      },
+      {
+        "name": "c05-mersenne-twister",
+        "with": 1,
+        "without": 1
+      },
+      {
+        "name": "c06-path-dependent-retriggers",
+        "with": 1,
+        "without": 1
+      },
+      {
+        "name": "c07-sha256-length-extension",
+        "with": 0.5,
+        "without": 1
+      },
+      {
+        "name": "c08-modulo-bias-scale",
+        "with": 1,
+        "without": 0
+      },
+      {
+        "name": "c09-certified-slot-animation",
+        "with": 1,
+        "without": 1
+      },
+      {
+        "name": "c10-draw-call-budget",
+        "with": 1,
+        "without": 1
+      },
+      {
+        "name": "c12-reseed-between-bets",
+        "with": 0,
+        "without": 0
+      },
+      {
+        "name": "c13-client-session-clock",
+        "with": 1,
+        "without": 0
+      },
+      {
+        "name": "c14-production-rtp-change",
+        "with": 1,
+        "without": 1
+      },
+      {
+        "name": "f05-crash-one-target",
+        "with": 1,
+        "without": 1
+      },
+      {
+        "name": "f06-sic-bo-profit-odds",
+        "with": 1,
+        "without": 1
+      },
+      {
+        "name": "f13-rtp-ci-acceptance",
+        "with": 0,
+        "without": 1
+      },
+      {
+        "name": "idem-settlement-content",
+        "with": 1,
+        "without": 0
+      },
+      {
+        "name": "j01-blitz-unique-win",
+        "with": 1,
+        "without": 1
+      },
+      {
+        "name": "j02-cluster-multiplier-grid",
+        "with": 1,
+        "without": 0
+      },
+      {
+        "name": "j03-paid-double-split",
+        "with": 0,
+        "without": 0
+      },
+      {
+        "name": "nonce-epoch-contiguity",
+        "with": 1,
+        "without": 0
+      },
+      {
+        "name": "r01-hidden-round-state",
+        "with": 1,
+        "without": 0
+      },
+      {
+        "name": "r02-parimutuel-rounding",
+        "with": 1,
+        "without": 1
+      },
+      {
+        "name": "stake-debit-before-result",
+        "with": 1,
+        "without": 0
+      },
+      {
+        "name": "verify-single-float",
+        "with": 1,
+        "without": 0
+      }
+    ]
+  },
+  "codex": {
+    "model": "gpt-6.1-sol, effort max (judge same)",
+    "cases": [
+      {
+        "name": "c01-reel-weight-rtp",
+        "with": 1,
+        "without": 1
+      },
+      {
+        "name": "c02-cached-balance",
+        "with": 1,
+        "without": 1
+      },
+      {
+        "name": "c03-no-deposit-bonus",
+        "with": 0,
+        "without": 0
+      },
+      {
+        "name": "c04-high-volatility-sample",
+        "with": 1,
+        "without": 1
+      },
+      {
+        "name": "c05-mersenne-twister",
+        "with": 1,
+        "without": 0
+      },
+      {
+        "name": "c06-path-dependent-retriggers",
+        "with": 1,
+        "without": 0
+      },
+      {
+        "name": "c07-sha256-length-extension",
+        "with": 1,
+        "without": 0.5
+      },
+      {
+        "name": "c08-modulo-bias-scale",
+        "with": 0,
+        "without": 0
+      },
+      {
+        "name": "c09-certified-slot-animation",
+        "with": 1,
+        "without": 1
+      },
+      {
+        "name": "c10-draw-call-budget",
+        "with": 0,
+        "without": 0
+      },
+      {
+        "name": "c12-reseed-between-bets",
+        "with": 0,
+        "without": 0
+      },
+      {
+        "name": "c13-client-session-clock",
+        "with": 1,
+        "without": 0
+      },
+      {
+        "name": "c14-production-rtp-change",
+        "with": 1,
+        "without": 0
+      },
+      {
+        "name": "f05-crash-one-target",
+        "with": 1,
+        "without": 1
+      },
+      {
+        "name": "f06-sic-bo-profit-odds",
+        "with": 0,
+        "without": 0
+      },
+      {
+        "name": "f13-rtp-ci-acceptance",
+        "with": 1,
+        "without": 0
+      },
+      {
+        "name": "idem-settlement-content",
+        "with": 0,
+        "without": 0
+      },
+      {
+        "name": "j01-blitz-unique-win",
+        "with": 0,
+        "without": 0
+      },
+      {
+        "name": "j02-cluster-multiplier-grid",
+        "with": 1,
+        "without": 1
+      },
+      {
+        "name": "j03-paid-double-split",
+        "with": 0,
+        "without": 0
+      },
+      {
+        "name": "nonce-epoch-contiguity",
+        "with": 0,
+        "without": 0
+      },
+      {
+        "name": "r01-hidden-round-state",
+        "with": 0,
+        "without": 0
+      },
+      {
+        "name": "r02-parimutuel-rounding",
+        "with": 1,
+        "without": 1
+      },
+      {
+        "name": "stake-debit-before-result",
+        "with": 1,
+        "without": 0
+      },
+      {
+        "name": "verify-single-float",
+        "with": 0,
+        "without": 0
+      }
+    ]
+  }
+}

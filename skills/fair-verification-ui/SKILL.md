@@ -1,40 +1,36 @@
 ---
 name: fair-verification-ui
-description: Use when building the player-facing fairness verifier UX and CSPRNG client-seed generation - inspectable client-side code that recomputes the result. Keywords fairness UI, client seed, verifier, CSPRNG client seed.
-constraints: C8
+description: Use when building fairness UI, commitment storage, client-seed generation, epoch-history exports, or PASS/FAIL/UNVERIFIABLE reporting for players.
+metadata:
+  constraints: C8, C11
 ---
 
 # fair-verification-ui
 
-> **Core insight:** A verifier that fetches and renders the server's decoded `gameEvent` proves nothing — it's circular trust-the-house. Real verification re-implements the integer reduction client-side and recomputes the outcome with zero network calls.
+> **Core insight:** The UI must preserve the player's prior evidence before sharing fresh entropy; displaying a server hash or decoded result cannot establish that those were the inputs accepted for play.
 
 ## When to use / When NOT
-- Use when: building the player-facing verifier UX, the change-client-seed flow, or CSPRNG client-seed generation.
-- NOT for: the local re-derivation engine itself (→ `fair-verify`); seed lifecycle / commit-reveal (→ `fair-commit-reveal`); range-reduction mappers (→ `fair-outcome-mappers`).
 
-## Default stack (+ escape hatch)
-Browser Web Crypto (`crypto.getRandomValues`, `crypto.subtle`). Other stacks: any CSPRNG (`/dev/urandom`, `secrets`) for the seed; verifier logic stays client-side and inspectable wherever the player runs it.
+- Use for commitment capture, client-seed controls and independent verification UX.
+- Engine: `fair-verify`; lifecycle: `fair-commit-reveal`; mappings: `fair-outcome-mappers`; chain evidence: `fair-hash-chain`. Shoe/draw ledgers: `fair-shoe-draw-ledger`.
 
 ## Process
-1. Ship the verifier as inspectable client-side code (plain readable JS, no minified black box) that recomputes the outcome LOCALLY from `{serverSeed, clientSeed, nonce}` — delegate the math to `fair-verify`, never to a server call.
-2. Re-implement the integer reduction in the verifier (see C8); the UI must show the player a result it computed itself, not echo the server's decoded `gameEvent`.
-3. Generate the client seed with `crypto.getRandomValues` into ≥128 bits (e.g. 16+ bytes → hex). NEVER `Math.random()` — even if a CSPRNG helper already exists elsewhere in the codebase, the seed path itself must call it.
-4. Let the player change their client seed via a clear control, with disclosure: changing it applies to FUTURE rounds, the prior server seed is revealed on rotation, and current nonce resets.
-5. Display the commitment chain and branch on game class: single-player exposes `{clientSeed, serverSeed/serverSeedHash, nextServerSeedHash, nonce}`; multiplayer/crash exposes `{seed, hash, hashIndex}` (no per-player seed pair). Show the server-seed hash before submission and revealed plaintext after; swap labels to seed/hash for hash-chain games.
+
+1. Save the new epoch's commitment locally before generating its client seed or submitting the first bet. After the commitment is fixed, generate fresh entropy through the browser CSPRNG, such as `crypto.getRandomValues` filling 16 bytes. Save the seed and commitment record before transmitting the seed. “Client-held” means the player controls its source and keeps it; the server receives it for derivation. Never reuse known client entropy for the next epoch or silently substitute server-generated seeds.
+2. Append every accepted bet's receipt to the same local log, in order, as answered at bet time: epoch, nonce, outcome, client seed, exact-atom stake, action and all outcome-affecting parameters/configuration. This log is `verifyEpoch`'s `playerLog`; export it. Keep played order, cancellations, failures and rotations. Changing client seed applies at a safe future boundary with a new server seed and nonce reset; explain when the old seed can reveal without exposing future outcomes.
+3. Route from versioned proof metadata, not game names or a multiplayer flag. Show derivation, commitment scope, reveal boundary, draw limits/order and cursor/offset. For shared global nonces, personal gaps are normal; require the allocation record. Chain mode needs commitment timing and independently sourced entropy evidence; local link checks alone cannot exclude salt/chain selection.
+4. Run inspectable independent code locally against downloaded proof inputs, never a server's decoded `gameEvent`. Default dedicated per-player epoch engine: `scripts/fair-epoch.mjs` `verifyEpoch`; use `fair-verify` for its contract. MetaWin's production server (MSS) `games/hitCrashers/fairness.ts` `proveFairness` replays offset/configuration-dependent draws; its server echo is a convenience, not independent verification. Missing decoder or binding evidence leaves the corresponding claim unverified.
+5. Display `PASS`, `FAIL` or `UNVERIFIABLE` with coverage and saved inputs. Missing player-kept commitment/client seed returns `UNVERIFIABLE`, never `PASS`. Waiting for reveal, missing global history or required entropy/receipt evidence must also leave whole-protocol verification `UNVERIFIABLE`. Expose helper reasons `seed_order`, `commitment`, `history_incomplete`, `client_seed`, `nonce_sequence`, `outcome`, `receipt`, `payout`, `voided_win` and affected index when provided; record each receipt's stake, payout and voided state so payouts and selective voids can be checked. Label per-round matches as input/output consistency; an epoch helper result alone does not prove entropy freshness or prevent selective abort.
 
 ## Correctness constraints
-- **C8:** Do NOT tell players "modulo is broken." Modulo bias is negligible (~1e-8) when reducing a full 32-bit-plus value and is exactly zero for power-of-two ranges; the fix when the range is large versus the source is rejection sampling. The load-bearing rule for this UI: a true verifier must RE-IMPLEMENT the integer reduction itself rather than trust the server's decode — otherwise verification is circular.
+
+- **C8:** Independently reproduce reduction. For `N=qR+t`, modulo is unbiased iff `t=0`; bias depends on `R/N`, not merely uint32 width. Rejection removes it; statistics cannot prove its absence.
+- **C11:** Plain SHA-256 commitments are valid; use HMAC for keyed derivation and verify the specified encoding/mapping.
 
 ## Pitfalls / red flags
-- `Math.random()` client seed (~48 bits, non-CSPRNG) — the most common real-world failure.
-- A CSPRNG helper exists in the repo but the seed generator ignores it and still calls `Math.random()` — the helper is worthless unless the seed path calls it.
-- Verifier that calls the server / echoes `gameEvent` instead of recomputing → trust-the-house, not provably fair.
-- Treating multiplayer/crash like single-player: it has no per-player seed pair, only `{seed, hash, hashIndex}`.
-- Minified or obfuscated verifier the player cannot read.
-- Changing client seed mid-round, or hiding the server-seed reveal-on-rotation.
-- Telling users modulo bias is severe (C8) — it is negligible for full-width sources.
+
+Showing without saving; fetching replacement commitments during verification; `Math.random()` seed paths; sorted histories; opaque code; premature reveal. MSS `games/blackjack-table-live/index.ts` `tick` retires the stream at result after the last draw, not at deal.
 
 ## Verification
-- Open devtools, read the verifier source, hand-run it on a settled round: its recomputed outcome matches the server result with NO network call. Exemplar: `ChaseServerProxy.computeU` (HMAC-SHA256 via `crypto.subtle`, no fetch). Anti-pattern: per-game `*Result` presenters / `gameVerify.vue` that GET `proveFairness` and render `gameEvent` verbatim.
-- Seed entropy: `crypto.getRandomValues` present, ≥128 bits, zero `Math.random` references.
-- Rotating the client seed reveals the prior server seed and resets nonce.
+
+Exercise offline replay/export, missing-evidence statuses, commitment rewrites, swapped seeds, nonce skip/reuse/reorder, reused entropy across epochs and selective abort. Confirm refresh/reconnect preserves original records and active responses expose no future results or RNG traces.

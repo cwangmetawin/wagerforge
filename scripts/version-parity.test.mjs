@@ -2,9 +2,16 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 
-test('plugin.json and marketplace.json versions match and are 0.2.1', () => {
-  const plugin = JSON.parse(readFileSync(new URL('../.claude-plugin/plugin.json', import.meta.url), 'utf8'))
-  const market = JSON.parse(readFileSync(new URL('../.claude-plugin/marketplace.json', import.meta.url), 'utf8'))
-  assert.equal(plugin.version, market.plugins[0].version)
-  assert.equal(plugin.version, '0.2.1')
+const read = (p) => readFileSync(new URL(`../${p}`, import.meta.url), 'utf8')
+
+test('plugin.json, marketplace.json and the newest CHANGELOG entry carry the same semver', () => {
+  const plugin = JSON.parse(read('.claude-plugin/plugin.json'))
+  const market = JSON.parse(read('.claude-plugin/marketplace.json'))
+  const entry = market.plugins.find((p) => p.name === plugin.name)
+  assert.ok(entry, 'marketplace lists the plugin')
+  assert.match(plugin.version, /^\d+\.\d+\.\d+$/)
+  assert.equal(entry.version, plugin.version)
+  const newest = read('CHANGELOG.md').match(/^## (\d+\.\d+\.\d+)\b/m)
+  assert.ok(newest, 'CHANGELOG has a "## x.y.z" entry')
+  assert.equal(newest[1], plugin.version)
 })

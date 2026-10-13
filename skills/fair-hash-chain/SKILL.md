@@ -1,37 +1,36 @@
 ---
 name: fair-hash-chain
-description: Use when verifying multiplayer hash-chain games (crash0/slide/aviator/aviator0/sicbo) that commit a terminal hash and reveal a backward hash chain - distinct from per-round HMAC commit-reveal. Keywords hash chain, crash verification, terminal hash, aviator.
-constraints: C7
+description: Use when implementing or independently verifying committed hash-chain epochs, backward links, sharedSeed salt derivation, entropy binding, or round/index histories.
+metadata:
+  constraints: C7, C11
 ---
 
 # fair-hash-chain
 
-> **Core insight:** Hash-chain mode is selected by the `multiplayerGameCodes` allowlist, NOT the `IMultiplayerGame` interface — `snakes` is server-side multiplayer yet verifies single-player commit-reveal; guessing by interface picks the wrong protocol.
+> **Core insight:** Valid links and matching outcomes do not prove inputs were unselected; hash-chain fairness also requires an independently evidenced entropy binding and complete index history.
 
 ## When to use / When NOT
-- Use when: verifying a multiplayer hash-chain round (current set: `crash0`, `slide`, `aviator`, `aviator0`, `sicbo`) whose operator committed ONE terminal hash up front and reveals rounds backward down a SHA-256 hash chain.
-- NOT for: per-round HMAC commit-reveal games (`{clientSeed, serverSeedHash, nextServerSeedHash, nonce}`) — use `fair-commit-reveal` / `fair-verify`. NOT for deriving payouts (server-authoritative).
 
-## Default stack (+ escape hatch)
-Node + Web Crypto `crypto.subtle` (SHA-256). MetaWin reality: the chain proof is a SERVER round-trip (`/game/proveFairness`), not a client recompute. Other stacks / independent audit: any SHA-256 + the game's published `f(hash_i, sharedSeed)` decoder; the backward-chain math below is identical everywhere.
+- Use when the published proof contract commits a chain and reveals links in a defined order.
+- NOT for every multiplayer game. Use `fair-verify` for protocol selection; live shoe/draw ledgers use `fair-shoe-draw-ledger`. Results remain server-authoritative.
 
 ## Process
-This is the hash-chain proof mode (the SECOND of two fairness modes). A game is hash-chain iff `isMultiplayerGame(gameCode)` (`multiplayerGameCodes = [crash0, slide, aviator, aviator0, sicbo]`); the operator commits a terminal hash before play.
 
-1. **Verify via server (MetaWin path).** POST `{ game, provider, hashIndex, hash, seed, data }` to `/game/proveFairness`; for crash/aviator/slide `data` MUST carry `rest:{ rtp }` (crash UI hardcodes `rtp: 0.98`). Read the outcome from `randomizations[0].gameEvent` (e.g. `crashPointMultiplier`) and `hashes[]`. The studio Fairness UI swaps inputs to **Hash / Seed / Hash Index** when `isMultiplayerGame` is true.
-2. **Independent audit (other stacks).** Compute `outcome_i = f(hash_i, sharedSeed)` with the published decoder (inverse-uniform crash multiplier) and diff vs the server multiplier; do not trust the reported value blindly.
-3. **Chain check.** Compute `sha256(hash_i)` and confirm it equals `hash_(i-1)`; walking backward must reach the committed terminal hash `H_commit`. A break anywhere = tampering.
-4. **Legacy GDK note.** Old individual mini-games route crash/aviator/crash0/aviator0 through `gateway.verifyHashFairness(game, serverSeed, clientSeed, nonce, data)` — same server proof, but the gateway keeps the serverSeed/clientSeed/nonce parameter positions.
+1. **Select the versioned contract.** Record derivation, draw limits/order, cursor, commitment scope and reveal boundary; never use a fixed game-code allowlist or single/multiplayer flag. Multiplayer can use round streams, shoe ledgers, chains or signed authority reports. MetaWin's production server (MSS) `games/hitCrashers/fairness.ts` `PROOF_PATH`/`proveFairness` publishes a query proof with `{offset, rtp, humanSeats?}`, not a universal POST or `rest.rtp` contract.
+2. **Bind before honest entropy is revealed.** Fix the unique active epoch, `H_commit`, chain length/index order, hash encoding, decoder/version, RTP/rounding/cap, and exact entropy-source event with parsing/finality rules. At least one effective contribution must remain unpredictable to the operator when its last selectable input is bound; afterward never re-choose, retry or abandon it. Generation time alone is irrelevant. Fix salt derivation/encoding and bind it to the epoch. Forbid salt/chain switching and selecting among several precommitted chains.
+3. **Preserve independent evidence.** The player saves the binding record before betting and keeps entropy evidence, acceptance receipts and ordered history, including cancellations/failures/rotations. A future block or beacon is one option: specify network/height or event, finality, failure handling and manipulation assumptions; its name alone proves nothing.
+4. **Verify locally.** Check commitment timing, entropy provenance/derivation, the complete round/index sequence, links and reachability to the saved `H_commit`, then recompute outcomes with the pinned decoder/parameters. For the published backward convention, `sha256(hash_i) == hash_(i-1)`; do not assume another encoding/direction. Server `proveFairness`/`gameEvent` is a convenience replay adapter, never independent verification. Missing evidence means `UNVERIFIABLE`, never `PASS`.
+5. **Retire dependencies before reveal.** Reveal only after every dependent future outcome retires. Never keep future card order under an already revealed link/key. MSS `games/blackjack-table-live/engine.ts` `Shoe.draw` draws from composition when needed; `games/blackjack-table-live/index.ts` `tick` rotates on `result` after the final draw (shoe/draw ledgers: `fair-shoe-draw-ledger`).
 
 ## Correctness constraints
-- **C7:** SHA-256 length-extension only bites when SHA-256 is misused as a secret-prefix MAC (`SHA256(secret‖attackerData)`) over attacker-controlled data. A plain `SHA256(serverSeed)` commitment — or hashing a public chain link — is NOT threatened by length extension. For any KEYED derivation use HMAC-SHA256, never raw secret-prefix SHA-256.
+
+- **C7:** Plain SHA-256 commitments/public links are not secret-prefix MACs; length extension does not invalidate them. Use HMAC for keyed derivation.
+- **C11:** Reduction bias depends on source/range, is zero when the range divides the source size, and is removed by rejection; uint32 alone is no negligible-bias guarantee.
 
 ## Pitfalls / red flags
-- Omitting `rest:{rtp}` from the crash/aviator/slide proof request — these decoders are RTP-parameterized and the proof needs it.
-- Verification-mode mismatch: `snakes` is server-side `IMultiplayerGame` (snakes-pro) yet the studio verifier posts it as single-player `{serverSeed, clientSeed, nonce}`; do not assume an IMultiplayerGame is always hash-chain — branch only on `multiplayerGameCodes`.
-- Verifying the chain forward from the commitment instead of `sha256(hash_i) == hash_(i-1)` backward.
-- Treating fairness as RTP proof; it proves only non-manipulation, not house edge (C7: keyed steps need HMAC, not bare SHA-256).
+
+- Operator-selected salt, alternative precommitted chains, skipped/reused links, selective aborts, live RNG/debug traces, or claiming recomputation proves non-selection or RTP.
 
 ## Verification
-- For each round: assert `sha256(hash_i) == hash_(i-1)` and that iterated hashing reaches `H_commit`.
-- Diff the server `proveFairness` multiplier against an independent `f(hash_i, sharedSeed)` recompute — zero drift required.
+
+- Preserve source/decoder versions and player evidence. Reject altered links, entropy event/encoding, decoder/parameters, index gaps/reuse/reorder, chain switching, salt grinding, last-revealer aborts and premature reveal. Report source review, local tests and deployment evidence separately.

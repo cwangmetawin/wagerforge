@@ -44,6 +44,8 @@ Coverage of MetaWin's production server (MSS) against a fixed denominator. Each 
 - The dashboard has an English page (`docs/dashboard/en/index.html`) with a language switch, and
   `docs/dashboard/llms.txt` for agents: give an agent the site URL and it installs the skills with the
   pinned commands. `--ref` pins every install command, download and source link; deploys pass a release tag.
+- README: installs pinned to the release tag for Claude Code and Codex, the dashboard and `llms.txt` for agents,
+  the skill count (78 domain skills) and the new pillar topics.
 
 ### Changed (skills)
 - `math-lines-ways-cluster`: connected ways declare their dead-end policy (MSS barValhalla retains forward dead

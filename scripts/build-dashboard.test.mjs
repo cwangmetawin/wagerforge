@@ -1,18 +1,24 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync, existsSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, readdirSync, readFileSync, writeFileSync, rmSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
 import { runInNewContext } from 'node:vm'
 import { parseFrontmatter, wordCount } from './validate.mjs'
-import { buildDashboard, validateCoverage } from './build-dashboard.mjs'
+import { buildDashboard, buildLlms, validateCoverage } from './build-dashboard.mjs'
 
 const script = fileURLToPath(new URL('./build-dashboard.mjs', import.meta.url))
 const repo = fileURLToPath(new URL('..', import.meta.url))
 const output = 'docs/dashboard/index.html'
+const englishOutput = 'docs/dashboard/en/index.html'
+const llmsOutput = 'docs/dashboard/llms.txt'
+const repositoryUrl = 'https://github.com/cwangmetawin/wagerforge'
+const rawUrl = 'https://raw.githubusercontent.com/cwangmetawin/wagerforge'
+const cjk = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u
 const coveragePath = 'docs/coverage/mss-games.json'
+const translationsPath = 'docs/coverage/mss-games.en.json'
 const specPath = 'docs/specs/2026-06-04-wagerforge-design.md'
 const payload = '<script>alert("x")</script> & \'quoted\''
 const escaped = '&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; &amp; &#39;quoted&#39;'
@@ -28,6 +34,7 @@ const read = (root, path) => readFileSync(join(root, path), 'utf8')
 const card = (html, name) => html.match(new RegExp(`<article id="skill-${name}"[\\s\\S]*?</article>`))?.[0] || ''
 const row = (html, id) => html.match(new RegExp(`<tr id="${id}"[\\s\\S]*?</tr>`))?.[0] || ''
 const matches = (text, patterns) => patterns.forEach((pattern) => assert.match(text, pattern))
+const decode = value => value.replace(/&(amp|lt|gt|quot|#39);/g, (_, name) => ({ amp: '&', lt: '<', gt: '>', quot: '"', '#39': "'" })[name])
 
 const skill = (name, constraints = '') => `---\nname: ${name}\ndescription: "Use when handling ${name} triggers"\nmetadata:\n  constraints: ${constraints || '""'}\n---\n# Title ${name}\n> **Core insight:** Insight ${name}\n## When to use\nBody words. [C12]\n\`\`\`md\n# False title\n> **Core insight:** False insight\n## False section\n\`\`\`\n## Process\nDo the work.\n`
 
@@ -65,6 +72,7 @@ function fixture(t) {
   const root = mkdtempSync(join(tmpdir(), 'wf-dashboard-'))
   t.after(() => rmSync(root, { recursive: true, force: true }))
   json(root, '.claude-plugin/plugin.json', { name: 'fixture-plugin', version: '1.2.3', description: 'Repository description' })
+  json(root, '.claude-plugin/marketplace.json', { name: 'fixture-marketplace' })
   for (const [name, constraints] of [['math-demo', 'C7, C1 C7'], ['fair-demo', 'C12, C7'], ['using-wagerforge', '']]) {
     write(root, `skills/${name}/SKILL.md`, skill(name, constraints))
   }
@@ -93,8 +101,48 @@ test('deterministic bytes across builds, roots, input ordering and environment',
   })
   assert.equal(run.status, 0, run.stderr)
   assert.equal(read(first, output), read(second, output))
+  assert.equal(read(first, englishOutput), read(second, englishOutput))
+  assert.equal(read(first, llmsOutput), read(second, llmsOutput))
   assert.equal(expected.includes(first), false)
   assert.equal(expected.includes(second), false)
+})
+scenario('--check names a missing or stale English page even when the Chinese page is current', (root) => {
+  assert.equal(cli(root).status, 0)
+  const original = read(root, output)
+  rmSync(join(root, englishOutput))
+  let run = cli(root, ['--check'])
+  assert.equal(run.status, 1)
+  assert.match(run.stderr, /docs\/dashboard\/en\/index\.html is missing/)
+  assert.equal(existsSync(join(root, englishOutput)), false)
+  write(root, englishOutput, 'stale English page')
+  run = cli(root, ['--check'])
+  assert.equal(run.status, 1)
+  assert.match(run.stderr, /docs\/dashboard\/en\/index\.html differs from a fresh build/)
+  assert.equal(read(root, output), original)
+  assert.equal(read(root, englishOutput), 'stale English page')
+  assert.equal(cli(root).status, 0)
+  run = cli(root, ['--check'])
+  assert.equal(run.status, 0, run.stderr)
+  matches(run.stdout, [/docs\/dashboard\/index\.html matches a fresh build/, /docs\/dashboard\/en\/index\.html matches a fresh build/])
+})
+scenario('--check names missing or stale llms.txt when both HTML pages are current', (root) => {
+  assert.equal(cli(root).status, 0)
+  const pages = [read(root, output), read(root, englishOutput)]
+  rmSync(join(root, llmsOutput))
+  let run = cli(root, ['--check'])
+  assert.equal(run.status, 1)
+  assert.match(run.stderr, /docs\/dashboard\/llms\.txt is missing/)
+  assert.equal(existsSync(join(root, llmsOutput)), false)
+  write(root, llmsOutput, 'stale agent instructions')
+  run = cli(root, ['--check'])
+  assert.equal(run.status, 1)
+  assert.match(run.stderr, /docs\/dashboard\/llms\.txt differs from a fresh build/)
+  assert.deepEqual([read(root, output), read(root, englishOutput)], pages)
+  assert.equal(read(root, llmsOutput), 'stale agent instructions')
+  assert.equal(cli(root).status, 0)
+  run = cli(root, ['--check'])
+  assert.equal(run.status, 0, run.stderr)
+  assert.match(run.stdout, /docs\/dashboard\/llms\.txt matches a fresh build/)
 })
 scenario('--check detects missing and stale output without writing, then passes after rebuild', (root) => {
   let run = cli(root, ['--check'])
@@ -122,7 +170,8 @@ test('default root follows the script location and CLI rejects unsupported argum
   assert.equal(run.status, 0, run.stderr)
   assert.equal(existsSync(join(root, output)), true)
   assert.equal(existsSync(join(cwd, output)), false)
-  for (const args of [['--unknown'], ['--root'], ['--root', root, '--root', root], ['--check', '--check'], ['--fragment'], ['--check', '--fragment', 'x.html']]) {
+  for (const args of [['--unknown'], ['--root'], ['--root', root, '--root', root], ['--check', '--check'], ['--fragment'], ['--check', '--fragment', 'x.html'],
+    ['--ref'], ['--ref', 'main', '--ref', 'main'], ['--lang'], ['--lang', 'en'], ['--check', '--lang', 'en'], ['--fragment', 'x.html', '--lang', 'en', '--lang', 'en']]) {
     const invalid = spawnSync(process.execPath, [script, ...args], { cwd, encoding: 'utf8' })
     assert.equal(invalid.status, 1)
     assert.match(invalid.stderr, /Usage:/)
@@ -168,7 +217,7 @@ scenario('coverage matrix includes provenance, notes, badges, links and sorted g
 scenario('a recorded coverage check is shown with its method, result and details file', (root) => {
   const check = { date: '2026-10-12', method: 'independent blind check', full: 1, families: 3, details: 'docs/coverage/mss-gaps.json' }
   json(root, coveragePath, { ...coverage(), check })
-  matches(buildDashboard(root), [/判定：independent blind check · 2026-10-12 · 完整 1\/3/, /docs\/coverage\/mss-gaps\.json/])
+  matches(buildDashboard(root), [/判定：<span lang="en">independent blind check<\/span> · 2026-10-12 · 完整 1\/3/, /docs\/coverage\/mss-gaps\.json/])
   for (const bad of [{ ...check, full: 4 }, { ...check, families: 2 }, { ...check, date: 'yesterday' }, { ...check, method: '' }, 'check']) {
     json(root, coveragePath, { ...coverage(), check: bad })
     assert.throws(() => buildDashboard(root), /mss-games\.json\.check/)
@@ -176,6 +225,7 @@ scenario('a recorded coverage check is shown with its method, result and details
 })
 scenario('all file-derived text is escaped in both text and attribute contexts', (root) => {
   json(root, '.claude-plugin/plugin.json', { name: payload, version: payload, description: payload })
+  json(root, '.claude-plugin/marketplace.json', { name: payload })
   write(root, 'skills/fair-demo/SKILL.md', skill('fair-demo', 'C7').replace('Use when handling fair-demo triggers', `Use when ${payload}`).replace('Title fair-demo', payload).replace('Insight fair-demo', payload).replace('When to use', payload))
   write(root, specPath, read(root, specPath).replace('Folk 7 → Corrected 7', payload).replaceAll('`math-demo`', payload))
   const data = coverage()
@@ -186,21 +236,193 @@ scenario('all file-derived text is escaped in both text and attribute contexts',
   results.claude.model = payload
   results.claude.cases[0].name = payload
   json(root, 'evals/summary.json', results)
-  const html = buildDashboard(root)
-  assert.equal(html.includes(payload), false)
-  assert.ok(html.includes(escaped))
-  assert.match(card(html, 'fair-demo'), /data-search="[^"<>]*&lt;script&gt;/)
-  assert.equal((html.match(/<script>/g) || []).length, 1)
-  assert.doesNotMatch(html, /<img|onerror=/)
+  for (const lang of ['zh-CN', 'en']) {
+    const html = buildDashboard(root, { lang })
+    assert.equal(html.includes(payload), false)
+    assert.ok(html.includes(escaped))
+    assert.match(card(html, 'fair-demo'), /data-search="[^"<>]*&lt;script&gt;/)
+    assert.equal((html.match(/<script>/g) || []).length, 1)
+    assert.doesNotMatch(html, /<img|onerror=/)
+  }
 })
 scenario('page is self-contained, accessible and confines table scrolling to its container', (root) => {
   const html = buildDashboard(root)
   matches(html, [/name="viewport"/, /@media \(prefers-color-scheme: dark\) \{ :root:not\(\[data-theme="light"\]\)/, /:root\[data-theme="dark"\]/,
     /color-scheme: dark/, /body \{[^}]*background: var\(--bg\)/, /<html lang="zh-CN">/, /<p class="insight" lang="en">/, /overflow-x: auto/,
     /minmax\(0, 1fr\)/, /<label[^>]*for="skill-search"/, /aria-live="polite"/])
-  assert.doesNotMatch(html, /(?:src|href)="(?:https?:|\/\/)|@import|fetch\(|innerHTML|Date\.now/)
+  assert.doesNotMatch(html, /\bsrc\s*=|@import|url\s*\(|fetch\(|innerHTML|Date\.now/)
+  assert.deepEqual(html.match(/<link\b[^>]*>/g), ['<link rel="alternate" type="text/plain" href="llms.txt" title="Instructions for AI agents">'])
+  for (const [, href] of html.matchAll(/href="(https?:[^"\s]+)"/g)) assert.ok(href.startsWith(`${repositoryUrl}/`), `unexpected external link ${href}`)
   const ids = new Set([...html.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1]))
   for (const [, target] of html.matchAll(/href="#([^"]+)"/g)) assert.ok(ids.has(target), `missing anchor ${target}`)
+})
+scenario('English UI and its search status are translated without CJK characters', (root) => {
+  json(root, 'evals/summary.json', summary())
+  const html = buildDashboard(root, { lang: 'en' })
+  assert.doesNotMatch(html, cjk)
+  matches(html, [/<html lang="en">/, /Skills dashboard/, /Core insight/, /Correctness constraints/, /MSS game coverage/,
+    /Behaviour evals \(with \/ without skills\)/, /Sections \(2\)/, /\d+ words/, /placeholder="Search skills…"/,
+    /<label for="skill-search">Search by name, trigger or core insight<\/label>/, /Showing 3 \/ 3 skills/,
+    /aria-label="Dashboard sections"/, /aria-label="Skill counts by pillar"/, /aria-label="full 1, partial 1, none 1"/,
+    /claude mean per run/, /Passes with skills/, /Read the expected skill/])
+  assert.doesNotMatch(html, /<span class="label" lang="zh-CN">/)
+  const status = { textContent: '' }
+  const input = { value: 'no matches', addEventListener: () => {} }
+  const document = {
+    getElementById: (id) => id === 'skill-search' ? input : status,
+    querySelectorAll: (selector) => selector === '.skill-card' ? [{ dataset: { search: 'math-demo' }, hidden: false }] : [],
+    addEventListener: () => {}
+  }
+  runInNewContext(html.match(/<script>([\s\S]*?)<\/script>/)[1], { document })
+  assert.equal(status.textContent, 'Showing 0 / 1 skills')
+})
+scenario('both headers link to explicit language files and mark only the current language', (root) => {
+  const zh = buildDashboard(root)
+  const en = buildDashboard(root, { lang: 'en' })
+  const switches = [zh, en].map(html => html.match(/<header>[\s\S]*?<nav class="language-switch"[\s\S]*?<\/nav>/)[0])
+  matches(switches[0], [/href="en\/index\.html" hreflang="en" lang="en">English<\/a>/,
+    /href="index\.html" hreflang="zh-CN" lang="zh-CN" aria-current="true">中文<\/a>/])
+  // The native Chinese link is encoded as character references in the English HTML source.
+  matches(switches[1], [/href="\.\.\/index\.html" hreflang="zh-CN" lang="zh-CN">&#20013;&#25991;<\/a>/,
+    /href="index\.html" hreflang="en" lang="en" aria-current="true">English<\/a>/])
+  for (const menu of switches) assert.equal((menu.match(/aria-current="true"/g) || []).length, 1)
+})
+scenario('llms.txt lists every skill once with its ref, description and the router first', (root) => {
+  const ref = 'v0.3.1'
+  const text = buildLlms(root, { ref })
+  const entries = [...text.matchAll(/^- \[([a-z0-9-]+)\]\((https:\/\/raw\.githubusercontent\.com\/[^)]+)\): (.+)$/gm)]
+    .map(([, name, url, description]) => ({ name, url, description }))
+  const names = ['using-wagerforge', 'fair-demo', 'math-demo']
+  assert.deepEqual(entries, names.map(name => ({ name, url: `${rawUrl}/${ref}/skills/${name}/SKILL.md`, description: parseFrontmatter(read(root, `skills/${name}/SKILL.md`)).fm.description })))
+  assert.equal((text.match(/\/SKILL\.md/g) || []).length, names.length)
+  assert.ok(text.startsWith('# fixture-plugin v1.2.3\n\n> Repository description\n'))
+  for (const section of ['Claude Code', 'Codex CLI (0.159+)', 'Other agents', 'Skills', 'Human dashboard']) assert.ok(text.includes(`## ${section}\n`))
+  assert.ok(text.includes(`${repositoryUrl}/archive/${ref}.zip`))
+  assert.ok(text.includes('[Chinese dashboard](index.html)'))
+  assert.ok(text.includes('[English dashboard](en/index.html)'))
+  assert.doesNotMatch(text, cjk)
+  assert.equal(cli(root, ['--ref', ref]).status, 0)
+  assert.equal(read(root, llmsOutput), text)
+})
+scenario('download, source and all install commands share the ref and manifest names across the three files', (root) => {
+  const ref = 'release/v1.2_3-abc'
+  const plugin = JSON.parse(read(root, '.claude-plugin/plugin.json')).name
+  const marketplace = JSON.parse(read(root, '.claude-plugin/marketplace.json')).name
+  const commands = [
+    `claude plugin marketplace add cwangmetawin/wagerforge#${ref}\nclaude plugin install ${plugin}@${marketplace}`,
+    `codex plugin marketplace add cwangmetawin/wagerforge --ref ${ref}\ncodex plugin add ${plugin} --marketplace ${marketplace}`,
+    `/plugin marketplace add cwangmetawin/wagerforge#${ref}\n/plugin install ${plugin}@${marketplace}`
+  ]
+  const instructions = buildLlms(root, { ref })
+  const llmsCommands = [...instructions.matchAll(/```(?:sh|text)\n([\s\S]*?)\n```/g)].map(match => match[1])
+  assert.deepEqual(llmsCommands.sort(), [...commands].sort())
+  for (const lang of ['zh-CN', 'en']) {
+    const html = buildDashboard(root, { ref, lang })
+    assert.ok(html.indexOf('id="install"') < html.indexOf('id="skills"'))
+    const instructionsHref = lang === 'en' ? '../llms.txt' : 'llms.txt'
+    assert.ok(html.includes(`<link rel="alternate" type="text/plain" href="${instructionsHref}" title="Instructions for AI agents">`))
+    const install = html.match(/<section id="install">([\s\S]*?)<\/section>/)[1]
+    assert.ok(install.startsWith(`<h2>${lang === 'en' ? 'Download and install' : '下载与安装'}</h2><div class="agent-install"><h3>${lang === 'en' ? 'For AI agents' : '给 AI agent'}</h3>`))
+    assert.ok(install.includes(`href="${instructionsHref}"`))
+    assert.ok(install.indexOf('class="agent-install"') < install.indexOf('class="download-links"'))
+    assert.ok(html.includes(`href="${repositoryUrl}/archive/${ref}.zip"`))
+    assert.ok(html.includes(`href="${repositoryUrl}/tree/${ref}"`))
+    const names = ['fair-demo', 'math-demo', 'using-wagerforge']
+    for (const name of names) assert.ok(card(html, name).includes(`href="${repositoryUrl}/blob/${ref}/skills/${name}/SKILL.md">${lang === 'en' ? 'Source' : '源文件'}</a>`))
+    assert.equal((html.match(/\/SKILL\.md"/g) || []).length, names.length)
+    const htmlCommands = [...install.matchAll(/<pre><code lang="en">([\s\S]*?)<\/code><\/pre>/g)].map(match => decode(match[1]))
+    assert.deepEqual(htmlCommands.sort(), [...commands].sort())
+    assert.doesNotMatch(html, /target="_blank"/)
+  }
+  const run = cli(root, ['--ref', ref])
+  assert.equal(run.status, 0, run.stderr)
+  assert.equal(read(root, output), buildDashboard(root, { ref }))
+  assert.equal(read(root, englishOutput), buildDashboard(root, { ref, lang: 'en' }))
+  assert.equal(read(root, llmsOutput), instructions)
+  assert.equal(cli(root, ['--check', '--ref', ref]).status, 0)
+  assert.ok(buildDashboard(root).includes(`${repositoryUrl}/archive/main.zip`))
+})
+scenario('invalid refs fail before replacing any generated file', (root) => {
+  write(root, output, 'keep Chinese')
+  write(root, englishOutput, 'keep English')
+  write(root, llmsOutput, 'keep instructions')
+  for (const ref of ['..', 'release/../main', 'a..b', 'bad ref', '<', '', '-main', 'a'.repeat(101), 'main\n']) {
+    assert.throws(() => buildDashboard(root, { ref }), /Invalid ref/)
+    assert.throws(() => buildLlms(root, { ref }), /Invalid ref/)
+    const run = cli(root, ['--ref', ref])
+    assert.equal(run.status, 1)
+    assert.match(run.stderr, /Invalid ref|Usage:/)
+    assert.equal(read(root, output), 'keep Chinese')
+    assert.equal(read(root, englishOutput), 'keep English')
+    assert.equal(read(root, llmsOutput), 'keep instructions')
+  }
+  for (const ref of ['main', 'A'.repeat(100), 'v0.3.2', 'a/b_c-d']) assert.doesNotThrow(() => buildDashboard(root, { ref }))
+  for (const ref of [null, 1, {}]) assert.throws(() => buildDashboard(root, { ref }), /Invalid ref/)
+})
+scenario('Chinese data stays verbatim with truthful language markers on both pages', (root) => {
+  const data = coverage()
+  Object.assign(data.families[0], { name: '中文家族', notes: '原始中文说明', games: ['中文游戏'] })
+  json(root, coveragePath, data)
+  for (const lang of ['zh-CN', 'en']) {
+    const html = buildDashboard(root, { lang })
+    matches(html, [/<span lang="zh-CN">中文家族<\/span>/, /<td lang="zh-CN">原始中文说明<\/td>/,
+      /<li lang="zh-CN">中文游戏<\/li>/])
+    const englishCard = card(html, 'fair-demo')
+    matches(englishCard, [/<article[^>]* lang="en">/, /<h3 lang="en">Title fair-demo<\/h3>/, /<p class="description" lang="en">/,
+      new RegExp(`<span class="label" lang="${lang}">`), new RegExp(`<p class="meta" lang="${lang}">`), new RegExp(`<details lang="${lang}">`)])
+  }
+})
+scenario('English notes use the translation while Chinese notes stay unchanged', (root) => {
+  const data = coverage()
+  data.families[0].notes = '原始中文说明'
+  json(root, coveragePath, data)
+  const zh = buildDashboard(root)
+  assert.match(buildDashboard(root, { lang: 'en' }), /<td lang="zh-CN">原始中文说明<\/td>/)
+  json(root, translationsPath, { notes: { 'z-none': 'Translated note & details' } })
+  const en = buildDashboard(root, { lang: 'en' })
+  assert.match(en, /<td lang="en">Translated note &amp; details<\/td>/)
+  assert.doesNotMatch(en, cjk)
+  assert.equal(buildDashboard(root), zh)
+  assert.equal(read(root, coveragePath), JSON.stringify(data))
+})
+scenario('missing or unknown translation family IDs fail before replacing any generated file', (root) => {
+  const data = coverage()
+  data.families[0].notes = '原始中文说明'
+  json(root, coveragePath, data)
+  const originals = [output, englishOutput, llmsOutput].map(path => [path, `keep ${path}`])
+  originals.forEach(([path, value]) => write(root, path, value))
+  for (const [translations, error] of [
+    [{ notes: {} }, /mss-games\.en\.json.*missing translation.*z-none/],
+    [{ notes: { 'z-none': 'Translated', 'unknown-family': 'Unknown' } }, /mss-games\.en\.json.*unknown family id.*unknown-family/],
+    [{ notes: { 'z-none': '' } }, /mss-games\.en\.json.*z-none.*non-empty string/],
+    [{ notes: { 'z-none': 1 } }, /mss-games\.en\.json.*z-none.*non-empty string/],
+    [{ notes: [] }, /mss-games\.en\.json.*notes.*object/]
+  ]) {
+    json(root, translationsPath, translations)
+    for (const lang of ['zh-CN', 'en']) assert.throws(() => buildDashboard(root, { lang }), error)
+    const run = cli(root)
+    assert.equal(run.status, 1)
+    assert.match(run.stderr, error)
+    originals.forEach(([path, value]) => assert.equal(read(root, path), value))
+  }
+})
+scenario('both pages have identical summary counts, skill order, constraint rows, coverage data and eval results', (root) => {
+  json(root, 'evals/summary.json', summary())
+  const zh = buildDashboard(root)
+  const en = buildDashboard(root, { lang: 'en' })
+  const collect = (html, pattern) => [...html.matchAll(pattern)].map(match => match[1])
+  for (const pattern of [/class="counts">([\s\S]*?)<\/ul>/g, /class="pillars"[^>]*>([\s\S]*?)<\/ul>/g]) {
+    const counts = html => collect(collect(html, pattern)[0], /<strong>(\d+)<\/strong>/g)
+    assert.deepEqual(counts(zh), counts(en))
+  }
+  for (const pattern of [/<article id="(skill-[^"]+)"/g, /id="(constraint-[^"]+)"/g, /<tbody>([\s\S]*?)<\/tbody>/g]) {
+    const values = html => collect(html, pattern).map(value => value.replace(/<span class="badge (full|partial|none)">[^<]+<\/span>/g, '$1').replace(/<summary>\d+ (?:款游戏|games)<\/summary>/g, 'games'))
+    assert.deepEqual(values(zh), values(en))
+  }
+  assert.equal(collect(zh, /<article id="(skill-[^"]+)"/g).length, 3)
+  assert.equal(collect(en, /id="(constraint-[^"]+)"/g).length, 14)
+  assert.equal((en.match(/<small lang="en">[amz]-/g) || []).length, 3)
+  assert.equal((en.match(/<th scope="row" lang="en">(?:a-gain|z-loss|equal)<\/th>/g) || []).length, 3)
 })
 scenario('search filters by name, description and insight, hides empty pillars and restores linked cards', (root) => {
   const html = buildDashboard(root)
@@ -383,6 +605,27 @@ scenario('the artifact fragment carries the same page without the document wrapp
   assert.equal(run.status, 0, run.stderr)
   assert.equal(read(root, 'out/dashboard-fragment.html'), fragment)
   assert.equal(existsSync(join(root, output)), false)
+  assert.equal(existsSync(join(root, englishOutput)), false)
+  assert.equal(existsSync(join(root, llmsOutput)), false)
+})
+scenario('English fragments use the requested ref and language without writing the full pages', (root) => {
+  const target = join(root, 'out', 'english-fragment.html')
+  const ref = 'abc123'
+  const run = cli(root, ['--fragment', target, '--lang', 'en', '--ref', ref])
+  assert.equal(run.status, 0, run.stderr)
+  const fragment = read(root, 'out/english-fragment.html')
+  assert.equal(fragment, buildDashboard(root, { fragment: true, ref, lang: 'en' }))
+  matches(fragment, [/^<title>fixture-plugin Skills dashboard<\/title><style>/, /<main lang="en">/, /archive\/abc123\.zip/])
+  assert.doesNotMatch(fragment, /<!doctype|<html[\s>]|<head[\s>]|<body[\s>]|<\/head>|<\/body>|<\/html>/i)
+  assert.doesNotMatch(fragment, cjk)
+  assert.equal(existsSync(join(root, output)), false)
+  assert.equal(existsSync(join(root, englishOutput)), false)
+  assert.equal(existsSync(join(root, llmsOutput)), false)
+  assert.throws(() => buildDashboard(root, { lang: 'fr' }), /Unsupported lang/)
+  const invalid = cli(root, ['--fragment', target, '--lang', 'fr'])
+  assert.equal(invalid.status, 1)
+  assert.match(invalid.stderr, /Unsupported lang/)
+  assert.equal(read(root, 'out/english-fragment.html'), fragment)
 })
 scenario('a skill whose heading is its name shows the name once', (root) => {
   write(root, 'skills/math-demo/SKILL.md', skill('math-demo').replace('# Title math-demo', '# math-demo'))
@@ -391,6 +634,35 @@ scenario('a skill whose heading is its name shows the name once', (root) => {
   assert.equal((rendered.match(/>math-demo</g) || []).length, 1)
 })
 
-test('the committed dashboard is current: regenerate it after changing skills, coverage or eval results', () => {
-  assert.ok(read(repo, output) === buildDashboard(repo), `${output} is stale: run node scripts/build-dashboard.mjs`)
+test('repository English page translates every coverage note and contains no CJK', () => {
+  const html = buildDashboard(repo, { lang: 'en' })
+  assert.match(html, /<html lang="en">/)
+  const families = JSON.parse(read(repo, coveragePath)).families
+  const translations = JSON.parse(read(repo, translationsPath)).notes
+  assert.deepEqual(Object.keys(translations).sort(), families.map(family => family.id).sort())
+  for (const family of families) {
+    const translation = translations[family.id]
+    assert.doesNotMatch(translation, cjk)
+    // Source notes interleave Chinese with technical English fragments and numeric literals.
+    const fragments = (family.notes.match(/[A-Za-z][A-Za-z0-9_ .\/\[\]=×<>-]*/g) || []).map(value => value.trim())
+    for (const fragment of fragments) assert.ok(translation.includes(fragment), `${family.id}: translation must preserve ${fragment}`)
+    assert.deepEqual(translation.match(/\d+/g), family.notes.match(/\d+/g), `${family.id}: translation must preserve all numbers`)
+    assert.ok([...html.matchAll(/<td lang="en">([^<]*)<\/td>/g)].some(match => decode(match[1]) === translation), `missing English note for ${family.id}`)
+  }
+  assert.doesNotMatch(html, cjk)
+})
+test('repository llms.txt lists the router first and every skill once with its description and raw URL', () => {
+  const text = buildLlms(repo, { ref: 'v0.3.1' })
+  const names = readdirSync(join(repo, 'skills'), { withFileTypes: true }).filter(entry => entry.isDirectory()).map(entry => entry.name).sort()
+  const expected = ['using-wagerforge', ...names.filter(name => name !== 'using-wagerforge')]
+    .map(name => `- [${name}](${rawUrl}/v0.3.1/skills/${name}/SKILL.md): ${parseFrontmatter(read(repo, `skills/${name}/SKILL.md`)).fm.description}`)
+  const lines = text.split('\n').filter(line => line.startsWith('- [') && line.includes(rawUrl))
+  assert.deepEqual(lines, expected)
+  assert.equal((text.match(/\/SKILL\.md/g) || []).length, names.length)
+})
+test('all three committed dashboard files are current: regenerate after changing skills, coverage or eval results', () => {
+  for (const [lang, path] of [['zh-CN', output], ['en', englishOutput]]) {
+    assert.ok(read(repo, path) === buildDashboard(repo, { lang }), `${path} is stale: run node scripts/build-dashboard.mjs`)
+  }
+  assert.equal(read(repo, llmsOutput), buildLlms(repo), `${llmsOutput} is stale: run node scripts/build-dashboard.mjs`)
 })

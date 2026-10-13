@@ -77,6 +77,19 @@ export function correctnessSection(body) {
 
 const listDir = (dir) => (existsSync(dir) ? readdirSync(dir, { withFileTypes: true }) : [])
 
+// A plain (unquoted) YAML scalar may not contain ": " or " #"; strict YAML parsers reject the line or cut it short.
+// Our reader is lenient, so check the raw top-level lines: a portable skill must parse in any YAML loader.
+function checkPlainScalars(tag, text, errors) {
+  const lines = text.replace(/\r\n/g, '\n').split('\n')
+  const end = lines.indexOf('---', 1)
+  for (const line of lines.slice(1, end)) {
+    const m = line.match(/^(name|description):\s*(.*)$/)
+    if (!m) continue
+    const value = m[2].trim()
+    if (value && !/^["']/.test(value) && /: | #/.test(value)) errors.push(`${tag} frontmatter ${m[1]} contains ": " or " #" unquoted, which strict YAML rejects; quote the value`)
+  }
+}
+
 function checkFrontmatterKeys(tag, fm, errors) {
   for (const k of Object.keys(fm)) {
     if (!ALLOWED_FM_KEYS.has(k)) errors.push(`${tag} frontmatter key "${k}" is not portable (allowed: ${[...ALLOWED_FM_KEYS].join(', ')}; put project data under metadata:)`)
@@ -119,6 +132,7 @@ function checkSkill(skillsDir, dir, known, secrets, errors, warnings) {
   const { fm } = parsed
   const body = stripFences(parsed.body)
   checkFrontmatterKeys(tag, fm, errors)
+  checkPlainScalars(tag, text, errors)
   if (!fm.name) errors.push(`${tag} frontmatter missing name`)
   else {
     if (!SKILL_NAME_RE.test(fm.name)) errors.push(`${tag} name not hyphen-case: ${fm.name}`)

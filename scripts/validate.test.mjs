@@ -77,6 +77,13 @@ test('frontmatter must stay portable to Codex: unknown top-level keys are errors
   assert.ok(has(check({ 'math-x': skill('math-x', { description: '>' }) }).errors, /one line/))
 })
 
+test('an unquoted name or description may not contain ": " or " #", so strict YAML loaders accept it', () => {
+  assert.ok(has(check({ 'math-x': skill('math-x', { description: 'Use when auditing table bets: baccarat and roulette.' }) }).errors, /description contains ": " or " #" unquoted/))
+  assert.ok(has(check({ 'math-x': skill('math-x', { description: 'Use when testing #hash comments.' }) }).errors, /unquoted/))
+  assert.deepEqual(check({ 'math-x': skill('math-x', { description: '"Use when auditing table bets: baccarat and roulette."' }) }), { errors: [], warnings: [] })
+  assert.deepEqual(check({ 'math-x': skill('math-x', { description: 'Use when ratios like 3:2 or C#-style ids appear.' }) }), { errors: [], warnings: [] })
+})
+
 test('the title is the skill name, so every skill reads the same way in the catalogue', () => {
   assert.deepEqual(check({ 'math-x': skill('math-x') }).errors, [])
   assert.ok(has(check({ 'math-x': skill('math-x', { title: '# Math X Mathematics' }) }).errors, /title "Math X Mathematics" must be the skill name "math-x"/))

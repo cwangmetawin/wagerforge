@@ -18,6 +18,31 @@ Coverage of MetaWin's production server (MSS) against a fixed denominator. Each 
 - `math-betting-progressions`: stop-line denominators and precedence, table-limit stop or reset, Martingale,
   Paroli, D'Alembert, Fibonacci, 1-3-2-6, Labouchère, Oscar's Grind and fixed-ratio spreads.
 - Eval cases `baccarat-chip-floor-pair-rank` and `martingale-push-cap-stop-lines`.
+- `build-live-table-operations`: chip undo and clear-table refunds, empty rounds, side bets that depend on a main
+  bet, command windows and deadlines, seat queues and idle release, withdrawal and restake before risk.
+- `build-wager-limit-admission`: currency and precision locks, worst-case liability against maximum exposure,
+  per-chip versus per-spot limits, minimum and maximum bets, wallet-grid admission before the RNG, auto cash-out.
+- Eval cases `live-table-undo-side-empty-round` and `shared-room-stake-admission`.
+- `build-round-recovery-contracts`: void and refund on a fatal or stalled tick, restarts and legacy-state upgrades,
+  abandoned-round resolution, command-ID memory, catch-up ordering and late manual exits.
+- `build-pooled-market-operations`: resale orders and the order book, cancelling an invalid pool, winner allocation
+  and rake, largest-remainder atoms, capped pool payouts.
+- Eval cases `stalled-room-void-refunds` and `tote-capped-pool-remainders`.
+- `math-slot-evaluation-rules`: wild-run and scatter policies (dual wild/scatter symbols keep substituting), connected
+  ways seeds and splits, free-game entry and retrigger counting per phase, expanding symbols, continuation and
+  bought-entry accounting, gamble features.
+- `math-slot-board-state-rules`: strip stops and declared refill sources, the reference board for conditional odds,
+  latent round state, persistent versus per-spin escalation, special-symbol injection.
+- Eval cases `wild-run-scatter-entry-credit` and `escalation-floor-wild-injection`.
+
+### Added (dashboard)
+- The dashboard has an English page (`docs/dashboard/en/index.html`) with a language switch, and
+  `docs/dashboard/llms.txt` for agents: give an agent the site URL and it installs the skills with the
+  pinned commands. `--ref` pins every install command, download and source link; deploys pass a release tag.
+
+### Changed (skills)
+- `math-lines-ways-cluster`: connected ways declare their dead-end policy (MSS barValhalla retains forward dead
+  ends; piggyBank reads wild maxima, then prunes) instead of always pruning.
 
 ### Changed (validator)
 - A `build-*` skill without a `## Default stack` section outside code fences is an error (law 3).

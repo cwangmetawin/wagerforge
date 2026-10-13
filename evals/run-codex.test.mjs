@@ -49,7 +49,13 @@ const expected = [
   ['blackjack-split-21-grid-peek', 'math-blackjack-rules', ['split', 'per hand flooring', '0.16', 'peek', 'all-bets liability', 'insurance offer', 'negative peek', 'player-natural credits wait for the hole-card reveal']],
   ['blackjack-insurance-double-funding', 'math-blackjack-actions', ['fallback', 'half the opening stake', '55', 'no double-for-less', 'soft 13 row', 'before the run opens', 'never fill holes', 'insurance choice as TAKE or DECLINE']],
   ['baccarat-chip-floor-pair-rank', 'math-table-bet-rules', ['0.39', '12.39', 'different rank', 'separately', 'rounding the commission UP', 'rounds the commission DOWN', '101.2351%', '97.0660%', '98.9421%', '99.7064%', 'every chip']],
-  ['martingale-push-cap-stop-lines', 'math-betting-progressions', ['840', 'freezes', 'zero hands', 'denominator', 'last step', 'overshoots']]
+  ['martingale-push-cap-stop-lines', 'math-betting-progressions', ['840', 'freezes', 'zero hands', 'denominator', 'last step', 'overshoots']],
+  ['live-table-undo-side-empty-round', 'build-live-table-operations', ['newest first', 'skip the main 5', 'older main 1', 'stopping the scan', '11', 'tombstone', 'one draw']],
+  ['shared-room-stake-admission', 'build-wager-limit-admission', ['1,074.00', '998.82', '1,002.40', '349.99', '0.00030000 BTC', '0.10740000 BTC', '0.00020000 BTC', '0.07160000', '0.00050000 BTC', 'unlocked', '1,997.64', 'already debited exactly once', 'gross cash leg', 'defer', '5.79', '5.58', 'mismatch']],
+  ['stalled-room-void-refunds', 'build-round-recovery-contracts', ['stalled', '18.00', 'proven terminal', 'accepted but unsettled', 'after tick entry']],
+  ['tote-capped-pool-remainders', 'build-pooled-market-operations', ['50.00', '1.74', 'ascending', 'RETURN_EXCESS', '1850/5550']],
+  ['wild-run-scatter-entry-credit', 'math-slot-evaluation-rules', ['first ordinary symbol', '= 6', '106', '132']],
+  ['escalation-floor-wild-injection', 'math-slot-board-state-rules', ['mode-specific caps', 'rung index 13', '1800', 'two subsequent wave climbs', 'discarded', 'rung index 11', 'independent rolls', '0.488', 'pays before its persistent upgrade', 'pays 150 coins', 'once per winning wave']]
 ]
 
 test('frontmatter preserves quoted regex backslashes and splits inline lists', () => {
@@ -255,9 +261,9 @@ test('timeout addresses the whole process group, never pid -1 or zero', () => {
   for (const pid of [0, 1, -2, NaN, undefined]) assert.throws(() => api.processGroup(pid))
 })
 
-test('suite contains exactly the 31 requested cases', () => {
+test('suite contains exactly the 37 requested cases', () => {
   const folders = readdirSync(root, { withFileTypes: true }).filter(entry => entry.isDirectory() && entry.name !== 'results').map(entry => entry.name).sort()
-  assert.equal(expected.length, 31)
+  assert.equal(expected.length, 37)
   assert.deepEqual(folders, expected.map(([name]) => name).sort())
 })
 test('README counts and coverage table match the complete case suite', () => {
